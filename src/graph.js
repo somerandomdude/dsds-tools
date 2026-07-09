@@ -107,6 +107,23 @@ function detectCycles(nodes, out) {
   return cycles;
 }
 
+/**
+ * A graph getter with an identity-keyed cache: the graph is rebuilt only when
+ * the systems array itself is swapped for a new one (the MCP server's watcher
+ * does this on file change; a one-shot CLI never does). Cost is O(edges) on
+ * rebuild, zero otherwise. Shared by every transport that serves graph queries.
+ */
+export function createGraphGetter(getSystems) {
+  let cache = { ref: null, graph: null };
+  return () => {
+    const systems = getSystems();
+    if (cache.ref !== systems) {
+      cache = { ref: systems, graph: buildGraph(systems.flatMap(s => s.entities)) };
+    }
+    return cache.graph;
+  };
+}
+
 // ── Queries ──────────────────────────────────────────────────────────────────
 
 const label = (graph, id) => {

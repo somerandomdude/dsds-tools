@@ -1,5 +1,7 @@
 import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -96,4 +98,135 @@ export function loadConfig() {
     logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
     schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? '0.13.0',
   };
+}
+
+// ── Project-local config file ─────────────────────────────────────────────────
+//
+// resolveConfig() layers a dsds.config.{mjs,js,json} file under the environment
+// variables: env vars win per key, file values fill the rest, loadConfig()'s
+// defaults fill whatever remains. Relative paths in the file resolve against
+// the file's own directory, so the config travels with the repo.
+//
+// File keys mirror the config object: paths, introPaths, lintPaths,
+// lintPlugins, lintResolveDir, lintSourceDir, packageExportPaths (object map),
+// iconPackage, feedbackDir, logsDir, enableFeedback, introInline, schemaVersion.
+
+export const CONFIG_FILENAMES = ['dsds.config.mjs', 'dsds.config.js', 'dsds.config.json'];
+
+/** Walk from startDir to the filesystem root; return the first config file found. */
+export function findConfigFile(startDir = process.cwd()) {
+  let dir = resolve(startDir);
+  for (;;) {
+    for (const name of CONFIG_FILENAMES) {
+      const candidate = resolve(dir, name);
+      if (existsSync(candidate)) return candidate;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+async function loadConfigFile(filePath) {
+  if (filePath.endsWith('.json')) {
+    return JSON.parse(await readFile(filePath, 'utf-8'));
+  }
+  const mod = await import(pathToFileURL(filePath).href);
+  return mod.default ?? mod;
+}
+
+const asList = value =>
+  (value == null ? [] : Array.isArray(value) ? value : String(value).split(','))
+    .map(s => String(s).trim())
+    .filter(Boolean);
+
+function normalizeFileConfig(raw, fileDir) {
+  const resolveFrom = p => resolve(fileDir, expandHome(String(p).trim()));
+  const pathList = v => asList(v).map(resolveFrom);
+  const out = {};
+  if (raw.paths != null) out.paths = pathList(raw.paths);
+  if (raw.introPaths != null) out.introPaths = pathList(raw.introPaths);
+  if (raw.lintPaths != null) out.lintPaths = pathList(raw.lintPaths);
+  if (raw.lintPlugins != null) out.lintPlugins = asList(raw.lintPlugins);
+  if (raw.lintResolveDir != null) out.lintResolveDir = resolveFrom(raw.lintResolveDir);
+  if (raw.lintSourceDir != null) out.lintSourceDir = resolveFrom(raw.lintSourceDir);
+  if (raw.packageExportPaths != null) {
+    const map = new Map();
+    for (const [pkg, pkgPath] of Object.entries(raw.packageExportPaths)) {
+      if (pkg && pkgPath) map.set(pkg, resolveFrom(pkgPath));
+    }
+    out.packageExportPaths = map;
+  }
+  if (raw.iconPackage != null) out.iconPackage = String(raw.iconPackage).trim();
+  if (raw.feedbackDir != null) out.feedbackDir = resolveFrom(raw.feedbackDir);
+  if (raw.logsDir != null) out.logsDir = resolveFrom(raw.logsDir);
+  if (raw.enableFeedback != null) out.enableFeedback = !!raw.enableFeedback;
+  if (raw.introInline != null) out.introInline = !!raw.introInline;
+  if (raw.schemaVersion != null) out.schemaVersion = String(raw.schemaVersion);
+  return out;
+}
+
+// Which keys the environment explicitly provides (as opposed to defaulted).
+function envProvidedKeys() {
+  const has = name => process.env[name] != null;
+  return {
+    paths: has('DSDS_PATHS'),
+    lintPaths: has('LINT_PATHS'),
+    lintPlugins: has('LINT_PLUGINS'),
+    lintResolveDir: has('LINT_RESOLVE_DIR'),
+    lintSourceDir: has('LINT_SOURCE_DIR'),
+    introPaths: has('DSDS_INTRO_PATHS') || has('DSDS_INTRO_PATH'),
+    packageExportPaths: has('PACKAGE_EXPORT_PATHS'),
+    iconPackage: has('ICON_PACKAGE'),
+    enableFeedback: has('DSDS_ENABLE_FEEDBACK'),
+    introInline: has('DSDS_INTRO_INLINE'),
+    feedbackDir: has('DSDS_FEEDBACK_DIR'),
+    logsDir: has('DSDS_LOGS_DIR'),
+    schemaVersion: has('DSDS_SCHEMA_VERSION'),
+  };
+}
+
+/**
+ * Resolve the effective configuration: env vars > config file > defaults.
+ *
+ * The file is looked up at `configPath` (or the DSDS_CONFIG env var) when
+ * given, otherwise discovered by walking up from `cwd`. A missing or broken
+ * file never throws — the error is reported in `meta.configFileError` and the
+ * env/default configuration is returned, so a bad file can't take the MCP
+ * server down.
+ *
+ * @returns {Promise<object>} the loadConfig() shape plus
+ *   `meta: { configFile: string|null, configFileError: string|null }`
+ */
+export async function resolveConfig({ cwd = process.cwd(), configPath = process.env['DSDS_CONFIG'] ?? null } = {}) {
+  const envConfig = loadConfig();
+  const meta = { configFile: null, configFileError: null };
+
+  let filePath = null;
+  if (configPath) {
+    filePath = resolve(cwd, expandHome(String(configPath).trim()));
+    if (!existsSync(filePath)) {
+      meta.configFileError = `config file not found: ${filePath}`;
+      return { ...envConfig, meta };
+    }
+  } else {
+    filePath = findConfigFile(cwd);
+    if (!filePath) return { ...envConfig, meta };
+  }
+
+  meta.configFile = filePath;
+  let fileConfig;
+  try {
+    fileConfig = normalizeFileConfig((await loadConfigFile(filePath)) ?? {}, dirname(filePath));
+  } catch (err) {
+    meta.configFileError = `failed to load ${filePath}: ${err.message}`;
+    return { ...envConfig, meta };
+  }
+
+  const envProvided = envProvidedKeys();
+  const merged = { ...envConfig };
+  for (const [key, value] of Object.entries(fileConfig)) {
+    if (!envProvided[key]) merged[key] = value;
+  }
+  return { ...merged, meta };
 }

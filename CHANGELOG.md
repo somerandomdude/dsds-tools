@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-08
+
+### Added
+- `src/registry.js` — `createToolRuntime(deps)` extracts the tool catalog and
+  dispatcher from the MCP server so every transport serves the identical tool
+  surface. First consumer beyond this server: the `dsds` CLI (dsds-cli repo),
+  which generates its commands, help, and manifest from this registry.
+- `createGraphGetter` in `src/graph.js` — the identity-keyed relationship-graph
+  cache, moved out of server.js for reuse.
+- Project-local configuration file: `resolveConfig()` in `src/config.js` reads
+  `dsds.config.{mjs,js,json}` — discovered by walking up from the working
+  directory, or selected via `DSDS_CONFIG`. Environment variables override the
+  file per key; relative paths resolve against the file's directory; a broken
+  file falls back to env vars with a stderr warning instead of failing startup.
+  The server and `scripts/check-integrity.js` both use it, so an MCP client
+  entry can shrink to a working directory or a single `DSDS_CONFIG` var.
+
+### Changed
+- The MCP server now reports its real package version (was hardcoded `0.1.0`).
+
 ## [0.2.0] - 2026-07-04
 
 ### Changed — BREAKING

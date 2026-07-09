@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from '../src/config.js';
+import { resolveConfig } from '../src/config.js';
 import { loadSystems } from '../src/loader.js';
 import { BUNDLED_VERSION } from '../src/spec/version.js';
 import { BUILD_BRIEF } from '../src/briefs.js';
@@ -30,7 +30,7 @@ import {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
 const warnings = [];
-const cfg = loadConfig();
+const cfg = await resolveConfig();
 
 // ── Load entities (chunks + which kinds are populated) ───────────────────────
 let chunks = [];

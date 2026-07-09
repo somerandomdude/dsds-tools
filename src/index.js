@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { loadConfig } from './config.js';
+import { resolveConfig } from './config.js';
 import { loadSystems, summarizeEntities, loadIntroEntities } from './loader.js';
 import { createServer } from './server.js';
 import { startUpdateCheck } from './spec/version.js';
 import { startWatching } from './watcher.js';
 
 async function main() {
-  const config = loadConfig();
+  // Env vars > dsds.config.{mjs,js,json} (discovered from cwd upward, or via
+  // DSDS_CONFIG) > defaults. A broken file falls back to env — never a crash.
+  const config = await resolveConfig();
+  if (config.meta.configFile) {
+    process.stderr.write(`[dsds-mcp] Config file: ${config.meta.configFile}\n`);
+  }
+  if (config.meta.configFileError) {
+    process.stderr.write(`[dsds-mcp] Config file error (using env/defaults): ${config.meta.configFileError}\n`);
+  }
 
   const [{ systems, errors }, introEntities] = await Promise.all([
     loadSystems(config.paths),
