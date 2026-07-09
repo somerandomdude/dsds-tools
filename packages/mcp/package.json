@@ -1,0 +1,61 @@
+{
+  "name": "dsds-mcp",
+  "version": "0.3.0",
+  "description": "MCP server for the Design System Documentation Spec (DSDS)",
+  "type": "module",
+  "bin": {
+    "dsds-mcp": "src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "NOTICE"
+  ],
+  "scripts": {
+    "dev": "node src/index.js",
+    "test": "vitest run tests",
+    "test:watch": "vitest",
+    "check:integrity": "node scripts/check-integrity.js",
+    "update-schema": "node scripts/update-schema.js",
+    "logs": "node scripts/view-logs.js"
+  },
+  "keywords": [
+    "mcp",
+    "design-system",
+    "dsds",
+    "design-tokens",
+    "documentation"
+  ],
+  "license": "Apache-2.0",
+  "author": "PJ Onori",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/somerandomdude/dsds-mcp.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/somerandomdude/dsds-mcp/issues"
+  },
+  "homepage": "https://github.com/somerandomdude/dsds-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "eslint": "^10.4.1",
+    "eslint-plugin-fixture": "file:tests/fixtures/eslint-plugin-fixture",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

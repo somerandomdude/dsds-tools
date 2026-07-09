@@ -1,0 +1,41 @@
+{
+  "name": "dsds-cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for the Design System Documentation Spec (DSDS) — query, validate, and lint against DSDS documents from any terminal or agent.",
+  "type": "module",
+  "bin": {
+    "dsds": "src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "node src/index.js",
+    "test": "vitest run tests",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "dsds",
+    "design-system",
+    "cli",
+    "design-tokens",
+    "documentation"
+  ],
+  "license": "Apache-2.0",
+  "author": "PJ Onori",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/somerandomdude/dsds-mcp.git",
+    "directory": "packages/cli"
+  },
+  "dependencies": {
+    "dsds-mcp": "^0.3.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

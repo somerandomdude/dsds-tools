@@ -1,0 +1,16 @@
+{
+  "$schema": "https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json",
+  "dsdsVersion": "0.13.0",
+  "systemInfo": {
+    "systemName": "Test System",
+    "systemVersion": "1.0.0",
+    "organization": "dsds-cli tests"
+  },
+  "entityGroups": [
+    { "$ref": "./test-button.dsds.json#/entity" },
+    { "$ref": "./test-card.dsds.json#/entity" },
+    { "$ref": "./test-chunk.dsds.json#/entity" },
+    { "$ref": "./test-pattern.dsds.json#/entity" },
+    { "$ref": "./test-tokens.dsds.json#/entity" }
+  ]
+}

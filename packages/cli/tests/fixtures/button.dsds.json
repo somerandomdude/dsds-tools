@@ -1,0 +1,83 @@
+{
+  "$schema": "https://designsystemdocspec.org/v0.7/dsds.bundled.schema.json",
+  "dsdsVersion": "0.13.0",
+  "entity": {
+    "kind": "component",
+    "identifier": "button",
+    "name": "Button",
+    "metadata": {
+      "description": "Triggers an action or event when activated.",
+      "summary": "Triggers an action or event.",
+      "status": "stable",
+      "tags": [
+        "action",
+        "interactive",
+        "button",
+        "cta",
+        "call to action",
+        "submit",
+        "click",
+        "press",
+        "trigger"
+      ],
+      "since": "1.0.0"
+    },
+    "documentBlocks": [
+      {
+        "type": "purpose",
+        "useCases": [
+          {
+            "title": "Form submission",
+            "description": "Use to submit data in a form."
+          }
+        ]
+      },
+      {
+        "type": "api",
+        "properties": [
+          {
+            "name": "disabled",
+            "type": "boolean",
+            "default": false,
+            "description": "Prevents interaction when true."
+          },
+          {
+            "name": "variant",
+            "type": "string",
+            "default": "primary",
+            "description": "Visual emphasis level: primary, secondary, or ghost."
+          }
+        ]
+      },
+      {
+        "type": "accessibility",
+        "notes": "Must have a visible focus indicator. Use aria-disabled instead of the disabled attribute when the button should remain focusable."
+      }
+    ],
+    "agentDocumentBlocks": [
+      {
+        "kind": "guidelines",
+        "items": [
+          {
+            "guidance": "Always provide a visible text label or aria-label.",
+            "level": "must"
+          },
+          {
+            "guidance": "Do not use for navigation — use a link element instead.",
+            "level": "must-not"
+          },
+          {
+            "guidance": "Pair a disabled button with a tooltip or inline explanation of why it is disabled.",
+            "level": "should"
+          },
+          {
+            "level": "MUST_NOT"
+          },
+          {
+            "level": "MUST_NOT"
+          }
+        ]
+      }
+    ]
+  }
+}

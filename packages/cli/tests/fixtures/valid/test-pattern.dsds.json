@@ -1,0 +1,23 @@
+{
+  "$schema": "https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json",
+  "dsdsVersion": "0.13.0",
+  "entity": {
+    "kind": "pattern",
+    "identifier": "test-pattern",
+    "name": "Test Pattern",
+    "description": "A schema-valid pattern for dsds-cli tests.",
+    "metadata": {
+      "status": "stable",
+      "summary": "A pattern used by the test suite.",
+      "tags": ["test"]
+    },
+    "documentBlocks": [
+      {
+        "kind": "guidelines",
+        "items": [
+          { "level": "must", "guidance": "Follow the test pattern." }
+        ]
+      }
+    ]
+  }
+}

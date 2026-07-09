@@ -1,60 +1,23 @@
 {
-  "name": "dsds-mcp",
-  "version": "0.3.0",
-  "description": "MCP server for the Design System Documentation Spec (DSDS)",
+  "name": "dsds-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DSDS tooling monorepo — one core for the Design System Documentation Spec, served over MCP (dsds-mcp) and the command line (dsds-cli).",
   "type": "module",
-  "bin": {
-    "dsds-mcp": "src/index.js"
-  },
-  "files": [
-    "src",
-    "README.md",
-    "NOTICE"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "dev": "node src/index.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "check:integrity": "node scripts/check-integrity.js",
-    "update-schema": "node scripts/update-schema.js",
-    "logs": "node scripts/view-logs.js"
+    "test": "npm test --workspaces",
+    "check:integrity": "npm run check:integrity --workspace dsds-mcp"
   },
-  "keywords": [
-    "mcp",
-    "design-system",
-    "dsds",
-    "design-tokens",
-    "documentation"
-  ],
   "license": "Apache-2.0",
   "author": "PJ Onori",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/somerandomdude/dsds-mcp.git"
   },
-  "bugs": {
-    "url": "https://github.com/somerandomdude/dsds-mcp/issues"
-  },
-  "homepage": "https://github.com/somerandomdude/dsds-mcp#readme",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
-  },
-  "peerDependencies": {
-    "eslint": ">=9.0.0"
-  },
-  "peerDependenciesMeta": {
-    "eslint": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "eslint": "^10.4.1",
-    "eslint-plugin-fixture": "file:tests/fixtures/eslint-plugin-fixture",
-    "vitest": "^2.0.0"
-  },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }
