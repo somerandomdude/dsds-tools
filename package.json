@@ -15,7 +15,7 @@
   "author": "PJ Onori",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/somerandomdude/dsds-mcp.git"
+    "url": "git+https://github.com/somerandomdude/dsds-tools.git"
   },
   "engines": {
     "node": ">=20"

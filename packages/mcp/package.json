@@ -30,13 +30,13 @@
   "author": "PJ Onori",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/somerandomdude/dsds-mcp.git",
+    "url": "git+https://github.com/somerandomdude/dsds-tools.git",
     "directory": "packages/mcp"
   },
   "bugs": {
-    "url": "https://github.com/somerandomdude/dsds-mcp/issues"
+    "url": "https://github.com/somerandomdude/dsds-tools/issues"
   },
-  "homepage": "https://github.com/somerandomdude/dsds-mcp#readme",
+  "homepage": "https://github.com/somerandomdude/dsds-tools/tree/main/packages/mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
