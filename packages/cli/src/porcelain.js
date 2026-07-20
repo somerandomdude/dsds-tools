@@ -1,9 +1,12 @@
 // Porcelain: curated commands over the shared tool registry (plan FR-11).
 //
 // Each entry maps positional arguments and a few flags onto a registry tool
-// call. The wizards (dsds_build_component, dsds_author_component_doc) and
-// dsds_feedback deliberately have no porcelain (FR-13) — they are
-// conversational tools; reach them via `dsds tool` when needed.
+// call. `dsds build` wraps the dsds_build_component wizard as a two-shot
+// command (list props, then finalize with --answers) so shell agents get the
+// guided compose path without the stateful start/answer/finalize protocol.
+// The author wizard (dsds_author_component_doc) and dsds_feedback remain
+// porcelain-free (FR-13) — they are multi-turn conversational tools; reach
+// them via `dsds tool` when needed.
 //
 // Commands may define exitCode(result, text) to implement the "ran but found
 // problems" contract (FR-7): 0 success · 1 error · 2 findings.
@@ -85,6 +88,48 @@ export const PORCELAIN = {
     usage: 'dsds chunk <identifier>',
     positionals: { min: 1, max: 1, label: '<identifier>' },
     build: ([identifier]) => ({ tool: 'dsds_get_chunk', args: { identifier } }),
+  },
+
+  build: {
+    summary: 'Compose a documented component into valid JSX — list its props, then finalize with answers',
+    usage: "dsds build <component> [--answers '<json>']",
+    options: {
+      answers: {
+        type: 'string',
+        description:
+          "JSON map { propId: value } — returns ready-to-use JSX in result.code. Omit to first list the component's props and their allowed values.",
+      },
+    },
+    positionals: { min: 1, max: 1, label: '<component>' },
+    build([identifier], values) {
+      if (values.answers === undefined) {
+        // No answers yet → the "start" step: enumerate props + allowed values.
+        return { tool: 'dsds_build_component', args: { step: 'start', identifier } };
+      }
+      let answers;
+      try {
+        answers = JSON.parse(values.answers);
+      } catch (err) {
+        throw new UsageError(`--answers must be valid JSON: ${err.message}`);
+      }
+      if (answers === null || typeof answers !== 'object' || Array.isArray(answers)) {
+        throw new UsageError('--answers must be a JSON object map { propId: value }');
+      }
+      return { tool: 'dsds_build_component', args: { step: 'finalize', identifier, answers } };
+    },
+    // The wizard returns a JSON payload. A rejected/incomplete finalize (bad
+    // value, missing required prop) is a "ran but found problems" case → exit 2;
+    // listing props (start) and a successful compose stay at 0.
+    exitCode(result, text) {
+      if (result.isError) return 1;
+      try {
+        const p = JSON.parse(text);
+        if (p && typeof p.validated === 'string' && /^(Rejected|Cannot finalize)/.test(p.validated)) return 2;
+      } catch {
+        /* not JSON — treat as success */
+      }
+      return 0;
+    },
   },
 
   deps: {
@@ -200,14 +245,16 @@ export const PORCELAIN = {
 
   lint: {
     summary: 'Lint files (or stdin) against the configured design system ESLint plugins',
-    usage: 'dsds lint <path…> | dsds lint --stdin [--filename <name>]',
+    usage: 'dsds lint <path…> [--apply] | dsds lint --stdin [--filename <name>]',
     options: {
       stdin: { type: 'boolean', description: 'Lint code piped on stdin instead of files' },
       filename: { type: 'string', description: 'Filename for parser inference in --stdin mode (e.g. App.tsx)' },
+      apply: { type: 'boolean', description: 'Write auto-fixed code back to disk (path mode only) — for CI/harness gates' },
     },
     positionals: { min: 0, max: Infinity, label: '<path…>' },
     async build(paths, values) {
       if (values.stdin) {
+        if (values.apply) throw new UsageError('--apply requires path mode (stdin has no file to write back to)');
         const code = await readStdin();
         if (!code.trim()) throw new UsageError('no code received on stdin');
         return {
@@ -218,7 +265,10 @@ export const PORCELAIN = {
       if (paths.length === 0) {
         throw new UsageError('usage: dsds lint <path…> | dsds lint --stdin [--filename <name>]');
       }
-      return { tool: 'dsds_lint_by_path', args: { files: paths.map(path => ({ path })) } };
+      return {
+        tool: 'dsds_lint_by_path',
+        args: { files: paths.map(path => ({ path })), ...(values.apply ? { apply: true } : {}) },
+      };
     },
     // isError = environment problems (no plugins, eslint missing) → 1.
     // Remaining violations or per-file errors (missing file, parse crash) → 2.

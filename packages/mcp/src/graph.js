@@ -1,4 +1,4 @@
-// In-memory bidirectional relationship graph (DSDS 0.13.0).
+// In-memory bidirectional relationship graph (DSDS 0.15.2).
 //
 // Built in one O(edges) pass over the loaded entity catalog. Authors declare
 // each edge once on the source entity (`entity.relationships`); the server

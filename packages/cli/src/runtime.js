@@ -12,7 +12,10 @@ import { createToolRuntime } from 'dsds-mcp/src/registry.js';
 export async function createRuntime({ quiet = false, configPath = null } = {}) {
   // Env vars > dsds.config.{mjs,js,json} (discovered from cwd upward, or via
   // --config / DSDS_CONFIG) > defaults.
-  const config = await resolveConfig({ configPath });
+  // Pass `undefined` (not null) when no --config flag was given, so
+  // resolveConfig's DSDS_CONFIG default parameter can apply — an explicit
+  // null suppresses default parameters and silently disabled the env var.
+  const config = await resolveConfig({ configPath: configPath ?? undefined });
 
   if (config.meta.configFileError) {
     process.stderr.write(`dsds: config file error (using env/defaults): ${config.meta.configFileError}\n`);

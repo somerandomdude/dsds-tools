@@ -1,4 +1,4 @@
-// Static spec knowledge derived from the DSDS 0.13.0 schema.
+// Static spec knowledge derived from the DSDS 0.15.2 schema.
 // Used by spec tools to describe entities and document blocks without parsing the full schema at runtime.
 
 export const ENTITY_KINDS = ['component', 'guide', 'pattern', 'foundation', 'theme', 'token', 'token-group', 'chunk'];
@@ -49,8 +49,8 @@ export const ENTITY_DESCRIPTIONS = {
   chunk: {
     summary: 'A pre-composed block of code capturing a design system pattern — a copy-paste starting point built from the system\'s components.',
     required: ['kind', 'identifier', 'name', 'code'],
-    optionalTop: ['description', 'documentBlocks', 'agentDocumentBlocks', 'guidelines', 'useCases', 'metadata', 'relationships', '$extensions'],
-    notes: 'Since 0.13.0 chunks accept `documentBlocks` and `agentDocumentBlocks` with the general block kinds (guidelines, useCases, accessibility, content, sections, checklist) — prefer these. The top-level `guidelines` and `useCases` arrays are DEPRECATED authoring shorthand (still valid). The `code` object has two forms: inline (`code` + `language`) or referenced (`src` + `language`, where `src` is a path relative to the chunk file — must be relative). Declare the components this chunk composes in the top-level `relationships` array, e.g. { relation: "composes", target: "button", required: true }.',
+    optionalTop: ['description', 'documentBlocks', 'agentDocumentBlocks', 'metadata', 'relationships', '$extensions'],
+    notes: 'Chunks accept `documentBlocks` and `agentDocumentBlocks` with the general block kinds (guidelines, useCases, accessibility, content, sections, checklist). The top-level `guidelines`/`useCases` shorthand was removed in 0.15.0 — use `documentBlocks`. The `code` object has two forms: inline (`code` + `language`) or referenced (`src` + `language`, where `src` is a path relative to the chunk file — must be relative). Declare the components this chunk composes in the top-level `relationships` array, e.g. { relation: "composes", target: "button", required: true }.',
   },
 };
 
@@ -144,8 +144,8 @@ export const METADATA_FIELDS = {
   preview: 'Visual or interactive preview: a presentation object (image, video, code snippet, or URL).',
   thumbnail: '{ url, alt } — thumbnail image with required alt text.',
   extends: 'Inheritance declaration from a base entity in a parent system: { identifier, system?, modifications? }.',
-  governance: '(0.13.0, initial draft) Accountability for the docs: { owner (required), lastReviewed? } — lastReviewed object form records who reviewed and which implementation version was verified (reviewedAgainst).',
-  docOrigin: "(0.13.0, initial draft) How the documentation came to exist. String shorthand (e.g. 'extracted', 'authored') or object form for mixed origins.",
+  governance: 'Accountability for the docs: { owner (required), lastReviewed? } — lastReviewed object form records who reviewed and which implementation version was verified (reviewedAgainst).',
+  docOrigin: "How the documentation came to exist. String shorthand (e.g. 'extracted', 'authored') or object form for mixed origins.",
   links: 'DEPRECATED for entity relationships. `links` is for EXTERNAL resources only — { kind, url, label? } with kinds source, design, storybook, documentation, package, repository — and lives on anatomy/section entries, not on metadata. To relate one documented entity to another, use the top-level `relationships` array instead of a link.',
 };
 
@@ -162,12 +162,12 @@ export const RELATIONSHIPS_FIELD =
 // NOTE: `description` is NOT metadata — it is a top-level entity property beside `identifier` and `name`.
 
 // Minimal scaffolds per entity kind
-const SCHEMA_URL = 'https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json';
+const SCHEMA_URL = 'https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json';
 
 export const SCAFFOLDS = {
   component: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'component',
       identifier: 'my-component',
@@ -179,7 +179,7 @@ export const SCAFFOLDS = {
   },
   guide: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'guide',
       identifier: 'my-guide',
@@ -191,7 +191,7 @@ export const SCAFFOLDS = {
   },
   pattern: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'pattern',
       identifier: 'my-pattern',
@@ -203,7 +203,7 @@ export const SCAFFOLDS = {
   },
   foundation: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'foundation',
       identifier: 'my-foundation',
@@ -215,7 +215,7 @@ export const SCAFFOLDS = {
   },
   theme: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'theme',
       identifier: 'my-theme',
@@ -228,7 +228,7 @@ export const SCAFFOLDS = {
   },
   token: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'token',
       identifier: 'color-text-primary',
@@ -240,7 +240,7 @@ export const SCAFFOLDS = {
   },
   'token-group': {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'token-group',
       identifier: 'color-text',
@@ -252,7 +252,7 @@ export const SCAFFOLDS = {
   },
   chunk: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     entity: {
       kind: 'chunk',
       identifier: 'my-chunk',
@@ -267,10 +267,10 @@ export const SCAFFOLDS = {
   },
   system: {
     $schema: SCHEMA_URL,
-    dsdsVersion: '0.13.0',
+    dsdsVersion: '0.15.2',
     systemInfo: {
-      systemName: 'My Design System',
-      systemVersion: '1.0.0',
+      name: 'My Design System',
+      version: '1.0.0',
       organization: 'My Organization',
     },
     entityGroups: [

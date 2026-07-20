@@ -96,7 +96,7 @@ export function loadConfig() {
     introInline,
     feedbackDir: rawFeedbackDir ? expandHome(rawFeedbackDir.trim()) : resolve(__dirname, '../feedback'),
     logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
-    schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? '0.13.0',
+    schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? '0.15.2',
   };
 }
 
@@ -198,7 +198,11 @@ function envProvidedKeys() {
  * @returns {Promise<object>} the loadConfig() shape plus
  *   `meta: { configFile: string|null, configFileError: string|null }`
  */
-export async function resolveConfig({ cwd = process.cwd(), configPath = process.env['DSDS_CONFIG'] ?? null } = {}) {
+export async function resolveConfig({ cwd = process.cwd(), configPath = undefined } = {}) {
+  // Callers pass `configPath: null` to mean "no --config flag" — treat null
+  // and undefined alike so the DSDS_CONFIG env var applies in both cases
+  // (default parameters only fire on undefined, which silently disabled it).
+  configPath = configPath ?? process.env['DSDS_CONFIG'] ?? null;
   const envConfig = loadConfig();
   const meta = { configFile: null, configFileError: null };
 

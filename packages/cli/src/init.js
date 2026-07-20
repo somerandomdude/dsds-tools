@@ -107,7 +107,7 @@ export function buildAgentsStanza({ binPath = process.argv[1] } = {}) {
     '',
     '**Start every design-system task with a briefing:** `dsds brief build` (building UI), `dsds brief author` (writing DSDS docs), or `dsds brief ask` (answering questions about the system).',
     '',
-    '**Typical flow:** `dsds search <query>` to find entities → `dsds get <id>` for full docs, `dsds context <id>` for hard constraints, `dsds chunk <id>` for ready-made code → `dsds impact <id>` before changing anything shared → `dsds lint <files>` after writing UI code.',
+    '**Typical flow:** `dsds search <query>` to find entities → `dsds context <id>` for hard constraints and `dsds chunk <id>` for ready-made code → `dsds build <id> --answers \'<json>\'` to compose a component into guaranteed-valid JSX → `dsds impact <id>` before changing anything shared → `dsds lint <files>` after writing UI code.',
     '',
     '### Commands',
     ...commands,

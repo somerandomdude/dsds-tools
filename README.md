@@ -23,6 +23,15 @@ node packages/cli/src/index.js help
 
 Both surfaces read configuration from a project-local `dsds.config.{mjs,js,json}` (discovered upward from the working directory, `DSDS_CONFIG` to pin one), with environment variables overriding per key. See each package's README for details.
 
+## When to use which surface
+
+They are complements, not substitutes: MCP is the structured **reasoning**
+surface (interactive, discoverable lookups that scaffold less-capable models);
+the CLI is the deterministic **verification/execution** surface (exit-coded
+gates, scripting, shell-only agents). For the rationale — grounded in CircleCI's
+[_MCP vs. CLI_](https://circleci.com/blog/mcp-vs-cli/) and our own agent-tester
+comparison — see [docs/mcp-vs-cli-pov.md](docs/mcp-vs-cli-pov.md).
+
 ## Layout notes
 
 - `src/index.js` at the repo root is a **compatibility shim** for MCP client configs that predate the monorepo — it just imports `packages/mcp/src/index.js`.

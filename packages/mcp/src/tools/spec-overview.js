@@ -36,7 +36,7 @@ export async function specOverviewHandler() {
   lines.push('- Either `entity` (single entity per file) or `entityGroups` (array of named groups, each with a mixed `entities` array)');
   lines.push('');
   lines.push('Optional root-level properties:');
-  lines.push('- `systemInfo`: Identity and provenance — `systemName`, `systemVersion`, `organization`, `url`, `license`');
+  lines.push('- `systemInfo`: Identity and provenance — `name`, `version`, `organization`, `url`, `license`');
   lines.push('- `useCases`: Design system intent — optional `purpose` umbrella statement and `items` array (stance: recommended/discouraged)');
   lines.push('- `guidelines`: Cross-cutting rules that apply across the entire system (array of guidelineEntry with `guidance`, `level`, optional `rationale`, `category`, `target`, `tags`)');
   lines.push('- `extends`: Declare inheritance from a parent design system — `system`, `url`, `version`, `description`');

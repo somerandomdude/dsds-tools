@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Bundled DSDS spec updated 0.13.0 → 0.15.2.** Swapped `src/spec/dsds.bundled.schema.json`,
+  bumped `BUNDLED_VERSION`, the `DSDS_SCHEMA_VERSION` default, spec knowledge,
+  scaffolds, and all doc references. The validator is schema-driven, so the
+  schema-only renames are picked up automatically: `criterionFixture` →
+  `criterionTestCase`, `apiEvent.returns` → `payload`, `scaleStep.label` →
+  `name`, `stepEntry.title` → `label`, `platformStatus.description` → `note`, and
+  trimmed `link` fields (`identifier`/`required`/`role` removed).
+- **`systemInfo` fields renamed** `systemName`/`systemVersion` → `name`/`version`
+  (required: `name`). Updated the system scaffold and `dsds_spec_overview` text.
+- **`$extensions` is now valid on document blocks** (0.15.x adopted the
+  block-level extension bag the entity level already had) — no code change needed
+  beyond the schema; the closed-schema (`additionalProperties: false`) protection
+  is unchanged.
+
+### Removed
+- **Chunk top-level `guidelines`/`useCases` shorthand** — removed in DSDS 0.15.0.
+  Updated `knowledge.js` (chunk `optionalTop` and notes) to point authors at
+  `documentBlocks`.
+
 ## [0.3.0] - 2026-07-08
 
 ### Added

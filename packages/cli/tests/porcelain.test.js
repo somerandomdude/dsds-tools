@@ -1,6 +1,6 @@
 // Phase 2: porcelain commands, doctor, and the exit-code-2 contract.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -263,12 +263,92 @@ describe('doctor', () => {
   });
 });
 
+describe('build porcelain (wraps the build_component wizard)', () => {
+  // A hermetic single-component fixture with an enum prop, so start / finalize
+  // / rejection all run without the real design system.
+  const WIDGET = {
+    $schema: 'https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json',
+    dsdsVersion: '0.13.0',
+    entity: {
+      kind: 'component',
+      identifier: 'widget',
+      name: 'Widget',
+      description: 'A test widget.',
+      metadata: { status: 'stable', tags: ['test'] },
+      documentBlocks: [
+        {
+          kind: 'api',
+          platform: 'react',
+          properties: [
+            { identifier: 'label', type: 'string', required: true, description: 'The label.' },
+            { identifier: 'tone', type: "'neutral' | 'critical'", required: false, description: 'Color.' },
+          ],
+        },
+      ],
+    },
+  };
+  let env;
+  beforeAll(() => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsds-build-'));
+    const p = join(dir, 'widget.dsds.json');
+    writeFileSync(p, JSON.stringify(WIDGET));
+    env = { DSDS_PATHS: p };
+  });
+
+  it('with no --answers, lists the props and their allowed values (exit 0)', async () => {
+    const { code, stdout } = await runCli(['build', 'widget'], { env });
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    const ids = payload.questions.map(q => q.id ?? q.identifier).filter(Boolean);
+    expect(payload.questions.length).toBeGreaterThan(0);
+    expect(stdout).toContain('tone');
+  });
+
+  it('with a valid --answers map, returns ready-to-use JSX (exit 0)', async () => {
+    const { code, stdout } = await runCli(
+      ['build', 'widget', '--answers', '{"label":"Hi","tone":"neutral"}'],
+      { env },
+    );
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    expect(payload.result.code).toContain('<Widget');
+    expect(payload.result.code).toContain('tone="neutral"');
+    expect(payload.result.lintSafe).toBe(true);
+  });
+
+  it('rejects an out-of-set value with exit 2 (ran but found problems)', async () => {
+    const { code, stdout } = await runCli(
+      ['build', 'widget', '--answers', '{"label":"Hi","tone":"bogus"}'],
+      { env },
+    );
+    expect(code).toBe(2);
+    expect(stdout).toContain('Rejected');
+  });
+
+  it('rejects a missing required prop with exit 2', async () => {
+    const { code, stdout } = await runCli(['build', 'widget', '--answers', '{"tone":"neutral"}'], { env });
+    expect(code).toBe(2);
+    expect(stdout).toContain('Cannot finalize');
+  });
+
+  it('malformed --answers JSON is a usage error (exit 1)', async () => {
+    const { code, stderr } = await runCli(['build', 'widget', '--answers', 'not-json'], { env });
+    expect(code).toBe(1);
+    expect(stderr).toContain('valid JSON');
+  });
+
+  it('an unknown component is an error (exit 1)', async () => {
+    const { code } = await runCli(['build', 'nope-xyz'], { env });
+    expect(code).toBe(1);
+  });
+});
+
 describe('manifest and help include porcelain', () => {
   it('manifest lists porcelain commands and doctor', async () => {
     const { stdout } = await runCli(['manifest']);
     const manifest = JSON.parse(stdout);
     const names = manifest.commands.map(c => c.name);
-    for (const cmd of ['list', 'search', 'get', 'lint', 'validate', 'doctor', 'tool']) {
+    for (const cmd of ['list', 'search', 'get', 'build', 'lint', 'validate', 'doctor', 'tool']) {
       expect(names).toContain(cmd);
     }
   });

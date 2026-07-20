@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { loadConfig } from '../src/config.js';
+import { BUNDLED_VERSION } from '../src/spec/version.js';
 
 describe('loadConfig', () => {
   const orig = { ...process.env };
@@ -58,7 +59,7 @@ describe('loadConfig', () => {
   it('defaults schemaVersion to the bundled spec version', () => {
     delete process.env['DSDS_SCHEMA_VERSION'];
     const config = loadConfig();
-    expect(config.schemaVersion).toBe('0.13.0');
+    expect(config.schemaVersion).toBe(BUNDLED_VERSION);
   });
 
   it('uses DSDS_SCHEMA_VERSION when set', () => {

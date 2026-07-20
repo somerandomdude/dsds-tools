@@ -52,6 +52,26 @@ describe('dsds.config file', () => {
     expect(stdout).toContain('test-button');
   });
 
+  it('the DSDS_CONFIG env var selects an explicit file (regression: null configPath must not disable it)', async () => {
+    const { code, stdout } = await runCli(['list'], {
+      env: { DSDS_CONFIG: join(projectDir, 'dsds.config.json') },
+      // default neutral cwd — nowhere near the project dir
+    });
+    expect(code).toBe(0);
+    expect(stdout).toContain('test-button');
+  });
+
+  it('doctor honors DSDS_CONFIG too (its own resolveConfig call path)', async () => {
+    const { code, stdout } = await runCli(['doctor', '--json'], {
+      env: { DSDS_CONFIG: join(projectDir, 'dsds.config.json') },
+    });
+    expect(code).toBe(0);
+    const report = JSON.parse(stdout);
+    const source = report.checks.find(c => c.name === 'config source');
+    expect(source.status).toBe('pass');
+    expect(String(source.details ?? source.detail ?? '')).toContain('dsds.config.json');
+  });
+
   it('doctor reports the config source and passes env-free', async () => {
     const { code, stdout } = await runCli(['doctor', '--json'], { cwd: projectDir });
     expect(code).toBe(0);

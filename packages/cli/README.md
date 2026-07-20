@@ -44,6 +44,7 @@ dsds manifest
 | `dsds get <id> [--block <blockType>]` | Full entity docs, or one block (api, guidelines, …) |
 | `dsds context <id> [--verbose]` | LLM-optimized rules and constraints |
 | `dsds chunk <id>` | Pre-assembled code chunk with guidelines |
+| `dsds build <component> [--answers '<json>']` | Compose a component into guaranteed-valid JSX — omit `--answers` to list its props and allowed values, then finalize with a `{ propId: value }` map — **exit 2 if a value is rejected** |
 | `dsds deps <id>` / `dsds dependents <id>` | Relationship graph, either direction (`--relation`, `--transitive`) |
 | `dsds impact <id>` | Blast radius: what breaks if this changes |
 | `dsds alternatives <id>` | Interchangeable options and replacements |

@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- `dsds build <component> [--answers '<json>']` — porcelain over the
+  `dsds_build_component` wizard, giving shell agents the guided compose path
+  MCP clients already had. Without `--answers` it lists the component's props
+  and allowed values; with a `{ propId: value }` map it returns guaranteed-valid
+  JSX in `result.code`. A rejected value or missing required prop exits 2
+  (ran-but-found-problems); malformed `--answers` JSON exits 1. Manifest, help,
+  and the `dsds init --agents` stanza pick it up automatically.
+
 ## [0.1.0] - 2026-07-08
 
 Initial release — a command-line transport over dsds-mcp's shared tool
