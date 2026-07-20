@@ -1,0 +1,295 @@
+/* Layout-focused styles only. Form controls stay as native, unstyled
+   elements per the project's minimal-CSS requirement — the rules here handle
+   the three-column shell, spacing, and scrolling, not element skinning. */
+
+:root {
+  --border: color-mix(in srgb, currentColor 15%, transparent);
+  --muted: color-mix(in srgb, currentColor 55%, transparent);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* --- Three-column shell -------------------------------------------------- */
+
+dsds-app {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(220px, 300px);
+  height: 100vh;
+  width: 100vw;
+}
+
+.column {
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.column-start,
+.column-middle {
+  border-right: 1px solid var(--border);
+}
+
+.col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.col-header .project-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* --- File list (start column) ------------------------------------------- */
+
+.doc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.doc-list.nested {
+  margin: 0;
+}
+
+.folder-row .folder-name {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.15rem 0;
+  color: var(--muted);
+}
+
+.doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: 4px;
+}
+
+.doc-row.selected {
+  background: var(--border);
+}
+
+.doc-row .doc-name {
+  flex: 1;
+  text-align: left;
+  font: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.15rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-actions {
+  display: none;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.doc-row:hover .row-actions {
+  display: flex;
+}
+
+.create-form,
+.rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.create-form .form-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.rename-form .suffix {
+  color: var(--muted);
+  align-self: center;
+}
+
+/* --- Editor (middle column) --------------------------------------------- */
+
+.editor {
+  max-width: 720px;
+}
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.section h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.field {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.field-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.2rem;
+}
+
+.field input[type='text'],
+.field textarea,
+.field select {
+  width: 100%;
+  font: inherit;
+}
+
+.field textarea,
+.raw-editor,
+.raw-block {
+  min-height: 4rem;
+  font-family: var(--mono);
+  resize: vertical;
+}
+
+.raw-editor {
+  width: 100%;
+  min-height: 70vh;
+}
+
+.field-hint,
+.form-note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.field input.invalid {
+  outline: 1px solid crimson;
+}
+
+.form-error {
+  color: crimson;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+/* Document blocks */
+
+.block {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.block legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.item {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.add-block {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+/* --- Meta panel (end column) -------------------------------------------- */
+
+.meta-group {
+  margin-bottom: 1.25rem;
+}
+
+.meta-group h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 0.4rem;
+}
+
+.meta-group dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+}
+
+.meta-group dt {
+  color: var(--muted);
+}
+
+.meta-group dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-state {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+.save-state.save-error {
+  color: crimson;
+}
+
+.empty-note {
+  color: var(--muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1e1e1e;
+    color: #e4e4e4;
+    color-scheme: dark;
+  }
+}

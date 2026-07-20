@@ -1,0 +1,21 @@
+{
+  "name": "dsds-editor",
+  "version": "0.1.0",
+  "description": "A native visual editor for Design System Documentation Spec (DSDS) projects",
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'ui/test/**/*.test.js'",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:all": "npm test && npm run test:rust",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "keywords": ["dsds", "design-system", "tauri", "editor"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "jsdom": "^29.1.1"
+  }
+}
