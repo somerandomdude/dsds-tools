@@ -1,6 +1,6 @@
 {
-  "$schema": "https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json",
-  "dsdsVersion": "0.13.0",
+  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
+  "dsdsVersion": "0.15.2",
   "entity": {
     "kind": "pattern",
     "identifier": "test-pattern",

@@ -1,6 +1,6 @@
 {
-  "$schema": "https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json",
-  "dsdsVersion": "0.13.0",
+  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
+  "dsdsVersion": "0.15.2",
   "entity": {
     "kind": "chunk",
     "identifier": "test-chunk",
@@ -14,11 +14,19 @@
       "language": "tsx",
       "code": "export const TestChunk = () => <TestButton />;"
     },
-    "guidelines": [
-      { "level": "must", "guidance": "Use only in dsds-cli tests." }
-    ],
-    "useCases": [
-      { "stance": "recommended", "description": "Exercising the CLI test suite." }
+    "documentBlocks": [
+      {
+        "kind": "guidelines",
+        "items": [
+          { "level": "must", "guidance": "Use only in dsds-cli tests." }
+        ]
+      },
+      {
+        "kind": "use-cases",
+        "items": [
+          { "stance": "recommended", "description": "Exercising the CLI test suite." }
+        ]
+      }
     ]
   }
 }

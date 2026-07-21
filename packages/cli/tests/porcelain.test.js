@@ -37,7 +37,7 @@ describe('query porcelain', () => {
   });
 
   it('get --block returns a single block', async () => {
-    const { code, stdout } = await runCli(['get', 'test-button', '--block', 'useCases'], { env });
+    const { code, stdout } = await runCli(['get', 'test-button', '--block', 'use-cases'], { env });
     expect(code).toBe(0);
     expect(stdout).toContain('Trigger a test action');
   });

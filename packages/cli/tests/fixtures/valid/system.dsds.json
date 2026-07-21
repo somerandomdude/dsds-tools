@@ -1,9 +1,9 @@
 {
-  "$schema": "https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json",
-  "dsdsVersion": "0.13.0",
+  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
+  "dsdsVersion": "0.15.2",
   "systemInfo": {
-    "systemName": "Test System",
-    "systemVersion": "1.0.0",
+    "name": "Test System",
+    "version": "1.0.0",
     "organization": "dsds-cli tests"
   },
   "entityGroups": [
