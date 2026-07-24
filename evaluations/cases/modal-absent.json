@@ -5,8 +5,14 @@
     ["search", "modal"],
     ["list", "--kind", "component"]
   ],
-  "expectedStatus": "insufficient evidence",
-  "requiredLiterals": ["insufficient evidence"],
-  "forbiddenLiterals": ["ds-modal", "<modal", "Dialog component"],
-  "prompt": "Answer only from the evidence. If no Modal component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component."
+  "prompt": "Answer only from the evidence. If no Modal component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence",
+        "forbiddenLiterals": ["ds-modal", "<modal", "Dialog component"]
+      }
+    }
+  }
 }

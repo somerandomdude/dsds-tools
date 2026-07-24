@@ -1,56 +1,73 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import {
+  parseArguments,
+  scoreResponse,
+  validateEvaluation,
+} from './local-model-evaluation-core.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const args = new Map();
-for (let index = 2; index < process.argv.length; index += 2) args.set(process.argv[index], process.argv[index + 1]);
 
-const casePath = args.get('--case');
-const consumer = args.get('--consumer');
-const model = args.get('--model') ?? 'qwen2.5-coder:7b';
-const outputPath = args.get('--out');
-const dryRun = args.has('--dry-run');
-
-if (!casePath || !consumer || (!dryRun && !outputPath)) {
-  console.error('Usage: node scripts/evaluate-local-model.mjs --case <file> --consumer <dir> [--model <tag>] (--dry-run | --out <file>)');
-  process.exit(1);
+try {
+  await main();
+} catch (error) {
+  console.error(`Error: ${error.message}`);
+  console.error('Usage: node scripts/evaluate-local-model.mjs --case <file> --consumer <dir> [--model <tag>] (--dry-run | --out <file> [--force])');
+  process.exitCode = 1;
 }
 
-const evaluation = JSON.parse(readFileSync(resolve(casePath), 'utf8'));
-const evidence = evaluation.evidence.map(command => runCli(command, consumer));
-const prompt = [
-  'DSDS means Design System Documentation Spec. The evidence below is the only authority.',
-  'If the requested example is absent, return {"status":"insufficient evidence"}.',
-  '',
-  'EVIDENCE',
-  ...evidence.map(({ command, output }) => `--- dsds ${command.join(' ')} ---\n${output}`),
-  '',
-  `TASK: ${evaluation.task}`,
-  evaluation.prompt,
-].join('\n');
+async function main() {
+  const {
+    casePath,
+    consumer,
+    model,
+    outputPath,
+    dryRun,
+    force,
+  } = parseArguments(process.argv.slice(2));
 
-if (dryRun) {
-  process.stdout.write(`${prompt}\n`);
-  process.exit(0);
+  const evaluation = validateEvaluation(JSON.parse(readFileSync(resolve(casePath), 'utf8')));
+  const evidence = evaluation.evidence.map(command => runCli(command, consumer));
+  const prompt = [
+    'DSDS means Design System Documentation Spec. The evidence below is the only authority.',
+    'If the requested example is absent, return {"status":"insufficient evidence"}.',
+    '',
+    'EVIDENCE',
+    ...evidence.map(({ command, output }) => `--- dsds ${command.join(' ')} ---\n${output}`),
+    '',
+    `TASK: ${evaluation.task}`,
+    evaluation.prompt,
+  ].join('\n');
+
+  if (dryRun) {
+    process.stdout.write(`${prompt}\n`);
+    return;
+  }
+
+  const resolvedOutputPath = resolve(outputPath);
+  if (existsSync(resolvedOutputPath) && !force) {
+    throw new Error(`Result already exists: ${resolvedOutputPath}. Pass --force to overwrite it.`);
+  }
+
+  const startedAt = new Date().toISOString();
+  const response = await fetch('http://127.0.0.1:11434/api/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ model, stream: false, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!response.ok) throw new Error(`Ollama returned ${response.status}: ${await response.text()}`);
+  const payload = await response.json();
+  const text = payload.message?.content ?? '';
+  const score = scoreResponse(text, evaluation);
+  const result = { evaluation, model, startedAt, evidence, prompt, response: text, score };
+  mkdirSync(dirname(resolvedOutputPath), { recursive: true });
+  writeFileSync(resolvedOutputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+  printSummary(evaluation, model, score, outputPath);
+  if (!score.pass) process.exitCode = 2;
 }
-
-const startedAt = new Date().toISOString();
-const response = await fetch('http://127.0.0.1:11434/api/chat', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ model, stream: false, messages: [{ role: 'user', content: prompt }] }),
-});
-if (!response.ok) throw new Error(`Ollama returned ${response.status}: ${await response.text()}`);
-const payload = await response.json();
-const text = payload.message?.content ?? '';
-const score = scoreResponse(text, evaluation);
-const result = { evaluation, model, startedAt, evidence, prompt, response: text, score };
-mkdirSync(dirname(resolve(outputPath)), { recursive: true });
-writeFileSync(resolve(outputPath), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-printSummary(evaluation, model, score, outputPath);
 
 function runCli(command, cwd) {
   const result = spawnSync(process.execPath, [resolve(root, 'packages/cli/src/index.js'), ...command, '--json'], { cwd, encoding: 'utf8' });
@@ -58,34 +75,16 @@ function runCli(command, cwd) {
   return { command, output: result.stdout.trim() };
 }
 
-function scoreResponse(text, evaluation) {
-  const comparable = responseStrings(text).join('\n');
-  const requiredMissing = evaluation.requiredLiterals.filter(value => !comparable.includes(value));
-  const forbiddenFound = evaluation.forbiddenLiterals.filter(value => comparable.includes(value));
-  return { pass: requiredMissing.length === 0 && forbiddenFound.length === 0, requiredMissing, forbiddenFound };
-}
-
-function responseStrings(text) {
-  try {
-    const value = JSON.parse(text);
-    return collectStrings(value);
-  } catch {
-    return [text];
-  }
-}
-
-function collectStrings(value) {
-  if (typeof value === 'string') return [value];
-  if (Array.isArray(value)) return value.flatMap(collectStrings);
-  if (value && typeof value === 'object') return Object.values(value).flatMap(collectStrings);
-  return [];
-}
-
 function printSummary(evaluation, model, score, outputPath) {
   const mark = score.pass ? '✓' : '✗';
   process.stdout.write(`${mark} ${evaluation.id} — ${model}\n`);
-  process.stdout.write(`  Required literals: ${score.requiredMissing.length === 0 ? 'all found' : `missing ${score.requiredMissing.join(', ')}`}\n`);
-  process.stdout.write(`  Forbidden substitutions: ${score.forbiddenFound.length === 0 ? 'none' : score.forbiddenFound.join(', ')}\n`);
+  process.stdout.write(`  Valid JSON object: ${score.jsonValid ? 'yes' : 'no'}\n`);
+  for (const [field, result] of Object.entries(score.fields)) {
+    process.stdout.write(`  ${field}: ${result.pass ? 'pass' : 'fail'}\n`);
+  }
+  for (const failure of score.failures) {
+    process.stdout.write(`  Failure: ${failure.message}\n`);
+  }
   process.stdout.write(`  Result: ${score.pass ? 'PASS' : 'FAIL'}\n`);
   process.stdout.write(`  Artifact: ${outputPath}\n`);
 }

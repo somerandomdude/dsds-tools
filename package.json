@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "evaluate:local": "node scripts/evaluate-local-model.mjs",
-    "test": "npm test --workspaces",
+    "test": "npm run test:evaluation && npm test --workspaces",
+    "test:evaluation": "node --test scripts/local-model-evaluation-core.test.mjs",
     "check:integrity": "npm run check:integrity --workspace dsds-mcp"
   },
   "license": "Apache-2.0",
