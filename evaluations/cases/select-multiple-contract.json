@@ -10,7 +10,7 @@
     "requiredFields": ["evidence_quote", "property", "default", "behavior"],
     "fields": {
       "evidence_quote": {
-        "equals": "Allows multiple selections."
+        "requiredLiterals": ["Allows multiple selections."]
       },
       "property": {
         "equals": "multiple"

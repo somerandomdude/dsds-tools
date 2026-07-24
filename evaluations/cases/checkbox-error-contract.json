@@ -10,13 +10,13 @@
     "requiredFields": ["evidence_quote", "property", "property_behavior", "slot", "slot_description"],
     "fields": {
       "evidence_quote": {
-        "equals": "Shows the error slot and marks the checkbox invalid."
+        "requiredLiterals": ["Shows the error slot and marks the checkbox invalid."]
       },
       "property": {
         "equals": "error"
       },
       "property_behavior": {
-        "equals": "Shows the error slot and marks the checkbox invalid."
+        "requiredLiterals": ["error slot", "checkbox invalid"]
       },
       "slot": {
         "equals": "error"

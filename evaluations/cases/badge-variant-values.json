@@ -13,7 +13,7 @@
         "equals": "Selects the icon and icon-block color. `kind` uses an info icon, `experimental` a flask icon, `neutral` (default) a dot."
       },
       "values": {
-        "equals": "kind, experimental, neutral"
+        "requiredLiterals": ["kind", "experimental", "neutral"]
       },
       "default": {
         "equals": "neutral"

@@ -7,6 +7,7 @@ import {
   parseArguments,
   scoreResponse,
   sha256,
+  summarizeSuite,
   validateEvaluation,
 } from './local-model-evaluation-core.mjs';
 
@@ -222,3 +223,43 @@ describe('reproducible run metadata', () => {
     assert.equal(formatDuration(undefined), 'unknown');
   });
 });
+
+describe('summarizeSuite', () => {
+  test('reports separate strata and the weighted readiness score', () => {
+    const results = [
+      fakeResult('supported-a', 'supported', true, 100),
+      fakeResult('supported-a', 'supported', false, 300, 'required_literal_missing'),
+      fakeResult('unsupported-a', 'unsupported', true, 200),
+    ];
+
+    const summary = summarizeSuite(results);
+
+    assert.equal(summary.supported.passRate, 0.5);
+    assert.equal(summary.unsupported.passRate, 1);
+    assert.ok(Math.abs(summary.weightedScore - 0.6) < Number.EPSILON);
+    assert.equal(summary.pass, false);
+    assert.equal(summary.cases[0].medianDurationMs, 200);
+    assert.deepEqual(summary.cases[0].failureCategories, ['supported extraction error']);
+  });
+
+  test('requires every unsupported run to pass', () => {
+    const summary = summarizeSuite([
+      fakeResult('supported-a', 'supported', true, 100),
+      fakeResult('unsupported-a', 'unsupported', false, 100, 'unexpected_field'),
+    ]);
+
+    assert.equal(summary.pass, false);
+    assert.deepEqual(summary.cases[1].failureCategories, ['unsupported invention']);
+  });
+});
+
+function fakeResult(id, stratum, pass, wallClockMs, failureCode) {
+  return {
+    evaluation: { id, stratum },
+    timing: { wallClockMs },
+    score: {
+      pass,
+      failures: failureCode ? [{ code: failureCode }] : [],
+    },
+  };
+}

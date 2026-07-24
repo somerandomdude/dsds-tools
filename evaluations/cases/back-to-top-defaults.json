@@ -10,7 +10,7 @@
     "requiredFields": ["evidence_quote", "label", "href"],
     "fields": {
       "evidence_quote": {
-        "equals": "The link target, typically an in-page anchor."
+        "requiredLiterals": ["The link target, typically an in-page anchor."]
       },
       "label": {
         "equals": "↑ Back to top"

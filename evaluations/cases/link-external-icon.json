@@ -11,7 +11,7 @@
     "requiredFields": ["evidence_quote", "html"],
     "fields": {
       "evidence_quote": {
-        "requiredLiterals": ["A link to an external site with a trailing arrow icon."]
+        "requiredLiterals": ["<ds-link href=\"https://designsystemdocspec.org\" external>", "slot=\"icon\""]
       },
       "html": {
         "requiredLiterals": ["<ds-link href=\"https://designsystemdocspec.org\" external>", "slot=\"icon\"", "aria-hidden=\"true\""],

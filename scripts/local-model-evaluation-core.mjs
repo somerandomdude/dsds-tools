@@ -240,6 +240,77 @@ export function formatDuration(milliseconds) {
   return `${(milliseconds / 1_000).toFixed(1)} s`;
 }
 
+export function summarizeSuite(results) {
+  const byCase = new Map();
+
+  for (const result of results) {
+    const id = result.evaluation.id;
+    const current = byCase.get(id) ?? {
+      id,
+      stratum: result.evaluation.stratum,
+      runs: 0,
+      passes: 0,
+      durations: [],
+      failureCategories: new Set(),
+    };
+    current.runs += 1;
+    if (result.score.pass) current.passes += 1;
+    if (Number.isFinite(result.timing?.wallClockMs)) current.durations.push(result.timing.wallClockMs);
+    if (!result.score.pass) current.failureCategories.add(classifyFailure(result));
+    byCase.set(id, current);
+  }
+
+  const cases = [...byCase.values()]
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map(item => ({
+      id: item.id,
+      stratum: item.stratum,
+      runs: item.runs,
+      passes: item.passes,
+      passRate: item.runs === 0 ? 0 : item.passes / item.runs,
+      medianDurationMs: median(item.durations),
+      failureCategories: [...item.failureCategories].sort(),
+    }));
+
+  const supported = summarizeStratum(results, 'supported');
+  const unsupported = summarizeStratum(results, 'unsupported');
+  const weightedScore = (supported.passRate * 0.8) + (unsupported.passRate * 0.2);
+
+  return {
+    cases,
+    supported,
+    unsupported,
+    weightedScore,
+    pass: supported.passRate >= 0.8 && unsupported.passRate === 1,
+  };
+}
+
+export function median(values) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function summarizeStratum(results, stratum) {
+  const matching = results.filter(result => result.evaluation.stratum === stratum);
+  const passes = matching.filter(result => result.score.pass).length;
+  return {
+    runs: matching.length,
+    passes,
+    passRate: matching.length === 0 ? 0 : passes / matching.length,
+  };
+}
+
+function classifyFailure(result) {
+  const codes = new Set(result.score.failures.map(failure => failure.code));
+  if (codes.has('invalid_json') || codes.has('invalid_response_type')) return 'invalid response format';
+  if (result.evaluation.stratum === 'unsupported') return 'unsupported invention';
+  return 'supported extraction error';
+}
+
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

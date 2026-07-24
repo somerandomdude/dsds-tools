@@ -355,6 +355,23 @@ record a corpus gap. Do not edit `../dsdsds` from this plan.
 
 Estimated time: 60–90 minutes.
 
+Status: COMPLETE on 2026-07-24.
+
+Observed verification:
+
+- The sequential runner completed all eleven cases and wrote per-run artifacts
+  plus `summary.json` to one ignored timestamped directory.
+- It continued through model-answer failures, printed a compact per-case
+  table, separated supported and abstention rates, calculated the 80/20 score,
+  and exited `2` when the initial gate failed.
+- Artifact review identified four presentation-sensitive false failures.
+  After correcting those assertions without changing evidence or responses,
+  the frozen pilot rescored to 7/8 supported and 3/3 abstentions.
+- The one remaining Checkbox failure omitted an explicitly documented
+  behavior and remains a model failure.
+- The root README documents the local workflow, and the tracked benchmark
+  report records the pilot and awaits the formal three-run result.
+
 ### Files
 
 - `scripts/evaluate-local-model-suite.mjs` (new)
