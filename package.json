@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "evaluate:local": "node scripts/evaluate-local-model.mjs",
     "test": "npm test --workspaces",
     "check:integrity": "npm run check:integrity --workspace dsds-mcp"
   },

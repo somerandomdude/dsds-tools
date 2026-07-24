@@ -1,0 +1,13 @@
+{
+  "id": "button-secondary-html",
+  "task": "Extract the documented minimal HTML for Button's secondary variant.",
+  "evidence": [
+    ["brief", "build", "--task", "Add a secondary button"],
+    ["get", "button", "--block", "imports"],
+    ["get", "button", "--block", "api"]
+  ],
+  "expectedStatus": "supported",
+  "requiredLiterals": ["<ds-button variant=\"secondary\">Cancel</ds-button>"],
+  "forbiddenLiterals": ["<button", "secondary-button"],
+  "prompt": "Quote the exact documented HTML example, then provide it unchanged. Do not replace custom elements with native HTML or invent classes, labels, tags, attributes, or values. Return JSON only with evidence_quote and html."
+}
