@@ -11,6 +11,11 @@ Concise async handoff for Davy and PJ. Newest updates first.
 
 ## Updates
 
+### 2026-07-24 — Real dsdsds corpus passes the prepared CLI
+
+- **Verified:** running `doctor` from `dsdsds` through this branch passes every check: 24 components and 25 valid DSDS documents.
+- **Next:** publish this branch as the Plan 003 completion PR; then create the separate local-model evaluation PR.
+
 ### 2026-07-24 — Plan 003 consumer integration is complete locally
 
 - **Decision:** use existing `dsds-tools` CLI/MCP as the context layer; do not revive the schema repo's experimental local CLI, Gum wrapper, or custom retrieval.
