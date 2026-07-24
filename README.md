@@ -64,6 +64,16 @@ npm run evaluate:local:suite -- \
   --runs 3
 ```
 
+If Ollama stops or times out, resume without repeating completed runs:
+
+```sh
+npm run evaluate:local:suite -- \
+  --consumer ../dsdsds \
+  --model qwen2.5-coder:7b \
+  --runs 3 \
+  --resume evaluations/results/<timestamp>
+```
+
 The suite exits `2` when supported accuracy is below 80% or any unsupported
 case fails to abstain. It exits `1` for harness, evidence, or Ollama transport
 errors.

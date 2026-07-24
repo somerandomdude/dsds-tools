@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -19,7 +20,7 @@ try {
   main();
 } catch (error) {
   console.error(`Error: ${error.message}`);
-  console.error('Usage: node scripts/evaluate-local-model-suite.mjs --consumer <dir> [--model <tag>] [--runs <count>]');
+  console.error('Usage: node scripts/evaluate-local-model-suite.mjs --consumer <dir> [--model <tag>] [--runs <count>] [--resume <result-dir>]');
   process.exitCode = 1;
 }
 
@@ -33,7 +34,12 @@ function main() {
   if (casePaths.length === 0) throw new Error(`No evaluation cases found in ${caseDir}`);
 
   const timestamp = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
-  const outputDir = resolve(root, 'evaluations/results', timestamp);
+  const outputDir = options.resume
+    ? resolve(options.resume)
+    : resolve(root, 'evaluations/results', timestamp);
+  if (options.resume && !existsSync(outputDir)) {
+    throw new Error(`Resume directory does not exist: ${outputDir}`);
+  }
   mkdirSync(outputDir, { recursive: true });
 
   const results = [];
@@ -41,6 +47,18 @@ function main() {
     const evaluation = JSON.parse(readFileSync(casePath, 'utf8'));
     for (let run = 1; run <= options.runs; run += 1) {
       const outputPath = resolve(outputDir, `${evaluation.id}-run-${run}.json`);
+      if (existsSync(outputPath)) {
+        const existing = JSON.parse(readFileSync(outputPath, 'utf8'));
+        if (JSON.stringify(existing.evaluation) !== JSON.stringify(evaluation)) {
+          throw new Error(`Cannot resume ${evaluation.id} run ${run}: case definition changed`);
+        }
+        if (existing.model?.requested !== options.model) {
+          throw new Error(`Cannot resume ${evaluation.id} run ${run}: model changed`);
+        }
+        results.push(existing);
+        process.stdout.write(`Reusing ${evaluation.id} (${run}/${options.runs})... ${existing.score.pass ? 'PASS' : 'FAIL'}\n`);
+        continue;
+      }
       process.stdout.write(`Running ${evaluation.id} (${run}/${options.runs})... `);
       const completed = spawnSync(process.execPath, [
         resolve(root, 'scripts/evaluate-local-model.mjs'),
@@ -83,7 +101,7 @@ function main() {
 
 function parseSuiteArguments(argv) {
   const values = new Map();
-  const allowed = new Set(['--consumer', '--model', '--runs']);
+  const allowed = new Set(['--consumer', '--model', '--runs', '--resume']);
 
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
@@ -103,6 +121,7 @@ function parseSuiteArguments(argv) {
     consumer,
     model: values.get('--model') ?? 'qwen2.5-coder:7b',
     runs,
+    resume: values.get('--resume'),
   };
 }
 

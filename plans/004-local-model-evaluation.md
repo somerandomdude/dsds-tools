@@ -435,6 +435,24 @@ npm run evaluate:local:suite -- \
 
 Estimated time: 45–75 minutes plus model runtime.
 
+Status: COMPLETE WITH PLAN 003 DEPENDENCY on 2026-07-24.
+
+Observed result:
+
+- 33 scored runs completed: eleven cases repeated three times.
+- Supported accuracy: 21/24 (87.5%).
+- Abstention accuracy: 9/9 (100%).
+- Weighted score: 90%; readiness gate PASS.
+- Checkbox Error Contract failed consistently because its synthesized
+  behavior omitted the documented error-slot effect.
+- Median wall time was 5.0 seconds; median generation speed was 10.9 tokens/s.
+- A two-minute Ollama timeout interrupted one request. Resume mode was added,
+  verified existing case definitions and model tags, and completed only the
+  missing runs.
+- `dsds doctor` retains the known empty-kind warning until Plan 003 merges.
+  All document, schema, graph, and example checks pass. Treat the result as
+  conditional until the branch is rebased and doctor is fully green.
+
 1. Confirm `../dsdsds` is on the intended evidence branch and `dsds doctor`
    passes before starting.
 2. Run all unit and workspace tests.
@@ -515,3 +533,8 @@ At the end of the day, classify the local workflow:
 Do not generalize this result beyond constrained DSDS evidence tasks. A pass
 supports using Qwen for a bounded offline story with human review, not
 autonomous component implementation.
+
+### Recorded decision
+
+**Ready for bounded offline stories, with human review**, conditional on
+rebasing after Plan 003 and confirming a clean `dsds doctor` result.
