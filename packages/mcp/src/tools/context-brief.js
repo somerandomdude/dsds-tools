@@ -1,4 +1,4 @@
-import { BUILD_BRIEF, AUTHOR_BRIEF, ASK_BRIEF } from '../briefs.js';
+import { BUILD_BRIEF, AUTHOR_BRIEF, ASK_BRIEF, buildBriefForKinds } from '../briefs.js';
 import { getUpdateNotice } from '../spec/version.js';
 
 export const contextBriefDef = {
@@ -27,7 +27,8 @@ export const contextBriefDef = {
 };
 
 export async function contextBriefHandler({ useCase, task }, getSystems, getSummaries) {
-  const brief = useCase === 'build' ? BUILD_BRIEF : useCase === 'ask' ? ASK_BRIEF : AUTHOR_BRIEF;
+  const kinds = new Set(getSummaries().map(summary => summary.kind).filter(Boolean));
+  const brief = useCase === 'build' ? buildBriefForKinds(kinds) : useCase === 'ask' ? ASK_BRIEF : AUTHOR_BRIEF;
   const sections = [];
 
   if (task) {
