@@ -47,6 +47,12 @@ The deterministic CLI remains the authority.
 The corpus has no Modal component. The required response is exactly an
 `insufficient evidence` status and must not invent or substitute a dialog.
 
+## Case 003 — External Link with icon
+
+The required output preserves the documented `<ds-link>` custom element,
+`external` attribute, and `icon` slot. It must not expand the implementation's
+native-anchor `target` or replace the element with `<a>`.
+
 ## Done when
 
 - A small reviewed dataset contains supported and unsupported cases.
