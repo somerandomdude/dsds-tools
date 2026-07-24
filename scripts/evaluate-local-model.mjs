@@ -50,7 +50,7 @@ const score = scoreResponse(text, evaluation);
 const result = { evaluation, model, startedAt, evidence, prompt, response: text, score };
 mkdirSync(dirname(resolve(outputPath)), { recursive: true });
 writeFileSync(resolve(outputPath), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-process.stdout.write(`${JSON.stringify(score, null, 2)}\n`);
+printSummary(evaluation, model, score, outputPath);
 
 function runCli(command, cwd) {
   const result = spawnSync(process.execPath, [resolve(root, 'packages/cli/src/index.js'), ...command, '--json'], { cwd, encoding: 'utf8' });
@@ -79,4 +79,13 @@ function collectStrings(value) {
   if (Array.isArray(value)) return value.flatMap(collectStrings);
   if (value && typeof value === 'object') return Object.values(value).flatMap(collectStrings);
   return [];
+}
+
+function printSummary(evaluation, model, score, outputPath) {
+  const mark = score.pass ? '✓' : '✗';
+  process.stdout.write(`${mark} ${evaluation.id} — ${model}\n`);
+  process.stdout.write(`  Required literals: ${score.requiredMissing.length === 0 ? 'all found' : `missing ${score.requiredMissing.join(', ')}`}\n`);
+  process.stdout.write(`  Forbidden substitutions: ${score.forbiddenFound.length === 0 ? 'none' : score.forbiddenFound.join(', ')}\n`);
+  process.stdout.write(`  Result: ${score.pass ? 'PASS' : 'FAIL'}\n`);
+  process.stdout.write(`  Artifact: ${outputPath}\n`);
 }

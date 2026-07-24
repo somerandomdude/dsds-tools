@@ -42,6 +42,11 @@ The deterministic CLI remains the authority.
 - Include at least three intentionally unsupported cases that must answer
   `insufficient evidence` without inventing a component or API.
 
+## Case 002 — Modal absent
+
+The corpus has no Modal component. The required response is exactly an
+`insufficient evidence` status and must not invent or substitute a dialog.
+
 ## Done when
 
 - A small reviewed dataset contains supported and unsupported cases.
