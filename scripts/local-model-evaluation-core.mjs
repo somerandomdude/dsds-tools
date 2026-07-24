@@ -55,6 +55,9 @@ export function validateEvaluation(evaluation) {
   requireNonEmptyString(evaluation.id, 'id');
   requireNonEmptyString(evaluation.task, 'task');
   requireNonEmptyString(evaluation.prompt, 'prompt');
+  if (!['supported', 'unsupported'].includes(evaluation.stratum)) {
+    throw new Error('stratum must be either supported or unsupported');
+  }
 
   if (!Array.isArray(evaluation.evidence) || evaluation.evidence.length === 0) {
     throw new Error('evidence must be a non-empty array');

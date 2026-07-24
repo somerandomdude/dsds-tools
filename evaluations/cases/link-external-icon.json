@@ -1,5 +1,6 @@
 {
   "id": "link-external-icon",
+  "stratum": "supported",
   "task": "Extract the documented external Link HTML example with its trailing icon.",
   "evidence": [
     ["get", "link", "--block", "imports"],

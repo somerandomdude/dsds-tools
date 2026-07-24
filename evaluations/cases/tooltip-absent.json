@@ -1,0 +1,19 @@
+{
+  "id": "tooltip-absent",
+  "stratum": "unsupported",
+  "task": "Which Tooltip component should I use?",
+  "evidence": [
+    ["search", "tooltip"],
+    ["list", "--kind", "component"]
+  ],
+  "prompt": "Answer only from the evidence. If no Tooltip component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence",
+        "forbiddenLiterals": ["ds-tooltip", "<tooltip", "Popover component"]
+      }
+    }
+  }
+}

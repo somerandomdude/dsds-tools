@@ -115,6 +115,7 @@ Supported example:
 ```json
 {
   "id": "button-secondary-html",
+  "stratum": "supported",
   "task": "Extract the documented minimal HTML for Button's secondary variant.",
   "evidence": [
     ["brief", "build", "--task", "Add a secondary button"],
@@ -141,6 +142,7 @@ Unsupported example:
 ```json
 {
   "id": "modal-absent",
+  "stratum": "unsupported",
   "task": "Which Modal component should I use?",
   "evidence": [
     ["search", "modal"],
@@ -288,6 +290,18 @@ information to reproduce what the model saw and diagnose slow output.
 ## Work block C — Expand the reviewed case suite
 
 Estimated time: 90–120 minutes.
+
+Status: COMPLETE on 2026-07-24.
+
+Observed verification:
+
+- Eleven cases load real evidence successfully in dry-run mode: eight
+  supported extractions and three unsupported requests.
+- Every case now declares its `supported` or `unsupported` stratum explicitly
+  for later batch reporting.
+- The six new supported expectations were reviewed directly against emitted
+  `dsds get ... --block api --json` evidence; no consumer documents changed.
+- The evaluator suite now has 19 passing tests.
 
 ### Files
 

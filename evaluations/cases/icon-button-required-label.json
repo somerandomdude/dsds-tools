@@ -1,0 +1,24 @@
+{
+  "id": "icon-button-required-label",
+  "stratum": "supported",
+  "task": "Extract Icon Button's required accessible-label contract.",
+  "evidence": [
+    ["get", "icon-button", "--block", "api"]
+  ],
+  "prompt": "Return JSON only with evidence_quote, property, and requirement. Quote the property's description unchanged. Use the documented property identifier and write requirement as either required or optional. Do not invent positioning, color, variant, or size APIs.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "requirement"],
+    "fields": {
+      "evidence_quote": {
+        "equals": "The accessible name, set as `aria-label` on the internal `<button>`. Required — this button has no visible text."
+      },
+      "property": {
+        "equals": "label"
+      },
+      "requirement": {
+        "equals": "required",
+        "forbiddenLiterals": ["optional"]
+      }
+    }
+  }
+}

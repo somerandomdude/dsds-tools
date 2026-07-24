@@ -12,6 +12,7 @@ import {
 
 const supportedCase = {
   id: 'button-secondary-html',
+  stratum: 'supported',
   task: 'Extract Button markup.',
   evidence: [['get', 'button', '--block', 'api']],
   prompt: 'Return JSON only.',
@@ -31,6 +32,7 @@ const supportedCase = {
 
 const unsupportedCase = {
   id: 'modal-absent',
+  stratum: 'unsupported',
   task: 'Find Modal.',
   evidence: [['search', 'modal']],
   prompt: 'Return JSON only.',
@@ -121,6 +123,15 @@ describe('validateEvaluation', () => {
     evaluation.expect.fields.html.containsAny = ['button'];
 
     assert.throws(() => validateEvaluation(evaluation), /Unknown .* assertion/);
+  });
+
+  test('rejects a missing or unknown stratum', () => {
+    const evaluation = structuredClone(supportedCase);
+    delete evaluation.stratum;
+    assert.throws(() => validateEvaluation(evaluation), /stratum/);
+
+    evaluation.stratum = 'maybe';
+    assert.throws(() => validateEvaluation(evaluation), /stratum/);
   });
 });
 

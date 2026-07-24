@@ -1,5 +1,6 @@
 {
   "id": "button-secondary-html",
+  "stratum": "supported",
   "task": "Extract the documented minimal HTML for Button's secondary variant.",
   "evidence": [
     ["brief", "build", "--task", "Add a secondary button"],

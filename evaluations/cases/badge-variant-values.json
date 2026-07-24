@@ -1,0 +1,23 @@
+{
+  "id": "badge-variant-values",
+  "stratum": "supported",
+  "task": "Extract Badge's documented variant values and default.",
+  "evidence": [
+    ["get", "badge", "--block", "api"]
+  ],
+  "prompt": "Return JSON only with evidence_quote, values, and default. Quote the sentence that explains the variants. Write values as a comma-separated string in documented order and default as a string. Do not add values or styling guidance.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "values", "default"],
+    "fields": {
+      "evidence_quote": {
+        "equals": "Selects the icon and icon-block color. `kind` uses an info icon, `experimental` a flask icon, `neutral` (default) a dot."
+      },
+      "values": {
+        "equals": "kind, experimental, neutral"
+      },
+      "default": {
+        "equals": "neutral"
+      }
+    }
+  }
+}

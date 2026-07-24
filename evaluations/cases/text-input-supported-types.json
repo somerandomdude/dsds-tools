@@ -1,0 +1,21 @@
+{
+  "id": "text-input-supported-types",
+  "stratum": "supported",
+  "task": "Extract the input types explicitly documented for Text Input.",
+  "evidence": [
+    ["get", "text-input", "--block", "api"]
+  ],
+  "prompt": "Return JSON only with evidence_quote and types. Quote the type-property description unchanged. Write types as a comma-separated string in documented order. Do not add other native input types.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "types"],
+    "fields": {
+      "evidence_quote": {
+        "equals": "Native input type: text, email, password, search, url, or number."
+      },
+      "types": {
+        "equals": "text, email, password, search, url, number",
+        "forbiddenLiterals": ["tel", "date", "file"]
+      }
+    }
+  }
+}

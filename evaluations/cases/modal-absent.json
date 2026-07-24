@@ -1,5 +1,6 @@
 {
   "id": "modal-absent",
+  "stratum": "unsupported",
   "task": "Which Modal component should I use?",
   "evidence": [
     ["search", "modal"],

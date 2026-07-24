@@ -1,0 +1,23 @@
+{
+  "id": "back-to-top-defaults",
+  "stratum": "supported",
+  "task": "Extract Back to Top's documented label and href defaults.",
+  "evidence": [
+    ["get", "back-to-top", "--block", "api"]
+  ],
+  "prompt": "Return JSON only with evidence_quote, label, and href. Quote the href description unchanged, then return only the two documented default strings. Do not invent markup or a different anchor target.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "label", "href"],
+    "fields": {
+      "evidence_quote": {
+        "equals": "The link target, typically an in-page anchor."
+      },
+      "label": {
+        "equals": "↑ Back to top"
+      },
+      "href": {
+        "equals": "#"
+      }
+    }
+  }
+}
