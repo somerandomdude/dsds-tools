@@ -23,6 +23,11 @@ node packages/cli/src/index.js help
 
 Both surfaces read configuration from a project-local `dsds.config.{mjs,js,json}` (discovered upward from the working directory, `DSDS_CONFIG` to pin one), with environment variables overriding per key. See each package's README for details.
 
+For a shell-only local model or an offline work session, use the
+[offline local-model workflow](OFFLINE-LOCAL-MODEL-WORKFLOW.md). It
+prepares a portable checkout and grounds one bounded task with the existing
+CLI rather than introducing another context-retrieval layer.
+
 ## When to use which surface
 
 They are complements, not substitutes: MCP is the structured **reasoning**
