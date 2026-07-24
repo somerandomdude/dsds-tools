@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto';
+
 const VALUE_FLAGS = new Set(['--case', '--consumer', '--model', '--out']);
 const BOOLEAN_FLAGS = new Set(['--dry-run', '--force']);
+
+export const HARNESS_VERSION = 2;
+export const OLLAMA_ENDPOINT = 'http://127.0.0.1:11434/api/chat';
+export const OLLAMA_TIMEOUT_MS = 120_000;
 
 export function parseArguments(argv) {
   const options = {};
@@ -190,6 +196,45 @@ export function scoreResponse(text, evaluation) {
     failures,
     fields: fieldResults,
   };
+}
+
+export function buildOllamaRequest(model, prompt) {
+  return {
+    model,
+    stream: false,
+    format: 'json',
+    keep_alive: '10m',
+    options: {
+      temperature: 0,
+      seed: 42,
+      num_ctx: 4096,
+    },
+    messages: [{ role: 'user', content: prompt }],
+  };
+}
+
+export function sha256(value) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+export function extractOllamaMetrics(payload) {
+  return {
+    done: payload.done ?? null,
+    doneReason: payload.done_reason ?? null,
+    createdAt: payload.created_at ?? null,
+    totalDurationNs: payload.total_duration ?? null,
+    loadDurationNs: payload.load_duration ?? null,
+    promptEvalCount: payload.prompt_eval_count ?? null,
+    promptEvalDurationNs: payload.prompt_eval_duration ?? null,
+    evalCount: payload.eval_count ?? null,
+    evalDurationNs: payload.eval_duration ?? null,
+  };
+}
+
+export function formatDuration(milliseconds) {
+  if (!Number.isFinite(milliseconds)) return 'unknown';
+  if (milliseconds < 1_000) return `${Math.round(milliseconds)} ms`;
+  return `${(milliseconds / 1_000).toFixed(1)} s`;
 }
 
 function isPlainObject(value) {

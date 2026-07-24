@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
+  buildOllamaRequest,
+  extractOllamaMetrics,
+  formatDuration,
   parseArguments,
   scoreResponse,
+  sha256,
   validateEvaluation,
 } from './local-model-evaluation-core.mjs';
 
@@ -156,5 +160,54 @@ describe('parseArguments', () => {
       ]),
       /Choose either --dry-run or --out/,
     );
+  });
+});
+
+describe('reproducible run metadata', () => {
+  test('builds a deterministic loopback Ollama request', () => {
+    assert.deepEqual(buildOllamaRequest('qwen2.5-coder:7b', 'evidence'), {
+      model: 'qwen2.5-coder:7b',
+      stream: false,
+      format: 'json',
+      keep_alive: '10m',
+      options: {
+        temperature: 0,
+        seed: 42,
+        num_ctx: 4096,
+      },
+      messages: [{ role: 'user', content: 'evidence' }],
+    });
+  });
+
+  test('creates stable SHA-256 hashes', () => {
+    assert.equal(
+      sha256('DSDS'),
+      'bdc2dcabf1aeb68ae1d509e0fd90256c3f4bac698690f9a6871849ac0986d455',
+    );
+  });
+
+  test('extracts available Ollama metrics without inventing missing values', () => {
+    assert.deepEqual(extractOllamaMetrics({
+      done: true,
+      total_duration: 12,
+      prompt_eval_count: 34,
+      eval_count: 56,
+    }), {
+      done: true,
+      doneReason: null,
+      createdAt: null,
+      totalDurationNs: 12,
+      loadDurationNs: null,
+      promptEvalCount: 34,
+      promptEvalDurationNs: null,
+      evalCount: 56,
+      evalDurationNs: null,
+    });
+  });
+
+  test('formats wall-clock durations for the terminal summary', () => {
+    assert.equal(formatDuration(345), '345 ms');
+    assert.equal(formatDuration(12_345), '12.3 s');
+    assert.equal(formatDuration(undefined), 'unknown');
   });
 });

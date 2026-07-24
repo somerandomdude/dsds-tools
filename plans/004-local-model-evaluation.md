@@ -237,6 +237,20 @@ pass because the evidence quote contains the expected markup.
 
 Estimated time: 45–60 minutes.
 
+Status: COMPLETE on 2026-07-24.
+
+Observed verification:
+
+- The deterministic request uses JSON mode, temperature 0, seed 42, a 4,096
+  token context, and a ten-minute keep-alive.
+- The live Button run passed in 4.0 seconds with 2,146 prompt tokens and 38
+  generated tokens.
+- Its artifact records the requested and returned model tag, start/finish
+  timestamps, Ollama timing counters, three evidence SHA-256 hashes, and the
+  prompt SHA-256 hash.
+- The evaluator suite now has 18 passing tests; all workspace tests continue
+  to pass.
+
 ### Files
 
 - `scripts/evaluate-local-model.mjs`
