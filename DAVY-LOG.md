@@ -4,12 +4,35 @@ Concise async handoff for Davy and PJ. Newest updates first.
 
 ## Current state
 
-- **Active repo/branch:** `dsds-tools` / `codex/offline-local-model-workflow`
-- **Consumer integration:** `dsdsds` / `codex/migrate-site-kit-contract`
-- **Next milestone:** local-model evaluation demos using CLI-supplied DSDS evidence.
-- **Push status:** the most recent commits are local until GitHub DNS is available.
+- **Foundation PR:** `dsds-tools` / `codex/offline-local-model-workflow` /
+  draft PR #1.
+- **Evaluation branch:** `dsds-tools` / `codex/local-model-evaluation`,
+  pushed through `04df8de`; draft PR creation is pending.
+- **Consumer integration:** `dsdsds` / `codex/migrate-site-kit-contract`,
+  pushed through `a60f363`.
+- **Next milestone:** merge PR #1, rebase Plan 004, require a clean
+  `dsds doctor`, and run a one-pass smoke evaluation.
+- **Push status:** all commits named above are on GitHub. The GitHub plugin can
+  read `dsds-tools` but returned 403 when asked to create the Plan 004 PR.
 
 ## Updates
+
+### 2026-07-24 — Local Qwen evaluation passes the readiness gate
+
+- **Decision:** `qwen2.5-coder:7b` is ready for bounded offline DSDS stories
+  with deterministic validation and human review; it is not approved for
+  autonomous component implementation.
+- **Changed:** `dsds-tools` branch `codex/local-model-evaluation` is pushed
+  through `04df8de` with strict field-scoped scoring, reproducible Ollama
+  metadata, eleven reviewed cases, a resumable suite runner, and the tracked
+  Plan 004 benchmark report.
+- **Verified:** 33 local Ollama runs produced 21/24 supported passes (87.5%),
+  9/9 honest abstentions (100%), and a 90% weighted score. The full repository
+  suite passes: 21 evaluator tests, 86 CLI tests, and 149 MCP tests with one
+  existing skip.
+- **Next:** PJ reviews and merges draft PR #1; then Davy rebases Plan 004,
+  reruns `dsds doctor`, and opens the Plan 004 draft PR using the prepared
+  description.
 
 ### 2026-07-24 — Real dsdsds corpus passes the prepared CLI
 
