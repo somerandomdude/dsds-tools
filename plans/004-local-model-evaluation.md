@@ -547,3 +547,22 @@ unsupported abstention checks. The original 11-case, three-run benchmark is
 preserved as the MVP baseline. The expanded suite's discovery run and the
 required fresh rerun are recorded in
 `evaluations/reports/plan-004-expanded-coverage.md`.
+
+### Deferred: project architecture explainer
+
+Capture a separate, reviewed context packet for basic project questions such
+as “How does MCP work with Ollama?” before evaluating them. A manual Qwen
+trial without supplied project context interpreted MCP as Microsoft Cognitive
+Platform, demonstrating that general model knowledge is not a safe authority
+for DSDS architecture.
+
+The future packet should explicitly establish that:
+
+- DSDS CLI/MCP tools retrieve and validate structured DSDS knowledge;
+- Ollama runs the local inference model; and
+- a host application must call the CLI or MCP and pass returned evidence to
+  the model—Ollama does not automatically discover or invoke MCP tools.
+
+This is outside Plan 004’s component-grounding score. Add it only after the
+architecture source is reviewed, then evaluate it as a distinct
+architecture-explainer case with evidence provenance and an abstention path.
