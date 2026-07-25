@@ -17,6 +17,26 @@ Concise async handoff for Davy and PJ. Newest updates first.
 
 ## Updates
 
+### 2026-07-24 — Contribution and evaluation scope clarified
+
+- **Decision:** the DSDS specification and the existing `dsds-tools` CLI/MCP
+  foundation predate this work. Davy's contribution builds on them: a real
+  `dsdsds` consumer corpus, six Site Kit primitives and their documentation,
+  adaptive offline workflow improvements, and a measured local-model
+  evaluation. It does not replace or claim authorship of the existing tooling.
+- **Changed:** after discovering `dsds-tools`, the project stopped pursuing a
+  duplicate CLI, Gum wrapper, vector store, and custom retrieval layer.
+  Components and their authoring contract moved to `dsdsds`; workflow and
+  evaluation work remained in `dsds-tools`.
+- **Verified:** today's Ollama work was evaluation, prompt/harness engineering,
+  and CLI/shared-core integration testing—not model training. Qwen's weights
+  were unchanged, and Ollama did not call MCP tools directly; the harness
+  retrieved bounded evidence through the `dsds` CLI and scored Qwen's local
+  responses.
+- **Next:** use this distinction consistently in the three PR descriptions and
+  project updates: existing foundation, Davy's consumer/integration
+  contribution, and evidence-backed local-model evaluation.
+
 ### 2026-07-24 — Local Qwen evaluation passes the readiness gate
 
 - **Decision:** `qwen2.5-coder:7b` is ready for bounded offline DSDS stories
