@@ -1,0 +1,16 @@
+{
+  "id": "spec-nav-open",
+  "stratum": "supported",
+  "task": "Extract Spec Nav's documented open property behavior.",
+  "evidence": [["get", "spec-nav", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, default, and behavior. Quote the open-property description unchanged. Use the documented identifier and write the default as a string.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "default", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "Whether the mobile links section is expanded. Reflects as a property (`nav.open = true`) as well as an attribute." },
+      "property": { "equals": "open" },
+      "default": { "equals": "false" },
+      "behavior": { "equals": "Whether the mobile links section is expanded. Reflects as a property (`nav.open = true`) as well as an attribute." }
+    }
+  }
+}

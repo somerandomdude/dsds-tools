@@ -1,0 +1,15 @@
+{
+  "id": "cross-refs-import",
+  "stratum": "supported",
+  "task": "Extract the documented import and custom-element tag for Cross References.",
+  "evidence": [["get", "cross-refs", "--block", "imports"]],
+  "prompt": "Return JSON only with evidence_quote, import, and tag. Quote the import description unchanged and return the documented import statement and custom-element tag. Do not invent attributes or usage markup.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "import", "tag"],
+    "fields": {
+      "evidence_quote": { "requiredLiterals": ["Registers <ds-cross-refs> only"] },
+      "import": { "equals": "import \"dsds-components/cross-refs\";" },
+      "tag": { "equals": "<ds-cross-refs>" }
+    }
+  }
+}

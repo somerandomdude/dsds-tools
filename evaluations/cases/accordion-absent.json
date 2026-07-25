@@ -1,0 +1,11 @@
+{
+  "id": "accordion-absent",
+  "stratum": "unsupported",
+  "task": "Which Accordion component should I use?",
+  "evidence": [["search", "accordion"], ["list", "--kind", "component"]],
+  "prompt": "Answer only from the evidence. If no Accordion component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": { "status": { "equals": "insufficient evidence", "forbiddenLiterals": ["ds-accordion", "Disclosure component", "details element"] } }
+  }
+}

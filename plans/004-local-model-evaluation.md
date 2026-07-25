@@ -538,3 +538,12 @@ autonomous component implementation.
 
 **Ready for bounded offline stories, with human review**, conditional on
 rebasing after Plan 003 and confirming a clean `dsds doctor` result.
+
+### Coverage expansion stretch goal
+
+On 2026-07-24, the case inventory expanded to 30: 24 supported checks (one
+minimum evidence-backed check for every documented component) and six
+unsupported abstention checks. The original 11-case, three-run benchmark is
+preserved as the MVP baseline. The expanded suite's discovery run and the
+required fresh rerun are recorded in
+`evaluations/reports/plan-004-expanded-coverage.md`.

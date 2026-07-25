@@ -1,0 +1,11 @@
+{
+  "id": "pagination-absent",
+  "stratum": "unsupported",
+  "task": "Which Pagination component should I use?",
+  "evidence": [["search", "pagination"], ["list", "--kind", "component"]],
+  "prompt": "Answer only from the evidence. If no Pagination component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": { "status": { "equals": "insufficient evidence", "forbiddenLiterals": ["ds-pagination", "Page navigation", "next page"] } }
+  }
+}

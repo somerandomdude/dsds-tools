@@ -1,0 +1,15 @@
+{
+  "id": "header-source",
+  "stratum": "supported",
+  "task": "Extract Header's documented source property.",
+  "evidence": [["get", "header", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, and behavior. Quote the source-property description unchanged and copy its identifier and behavior.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "Optional source file path, rendered as \"Source: `<path>`\" (used on schema-reference pages)." },
+      "property": { "equals": "source" },
+      "behavior": { "equals": "Optional source file path, rendered as \"Source: `<path>`\" (used on schema-reference pages)." }
+    }
+  }
+}
