@@ -1,0 +1,15 @@
+{
+  "id": "def-section-anchor",
+  "stratum": "supported",
+  "task": "Extract Definition Section's documented anchor behavior.",
+  "evidence": [["get", "def-section", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, and behavior. Quote the anchor-property description unchanged and copy its identifier and behavior.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "The heading's id, used for deep-linking. Defaults to a slug derived from `name`." },
+      "property": { "equals": "anchor" },
+      "behavior": { "requiredLiterals": ["deep-linking", "slug", "name"] }
+    }
+  }
+}

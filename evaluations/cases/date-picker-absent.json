@@ -1,0 +1,19 @@
+{
+  "id": "date-picker-absent",
+  "stratum": "unsupported",
+  "task": "Which Date Picker component should I use?",
+  "evidence": [
+    ["search", "date picker"],
+    ["list", "--kind", "component"]
+  ],
+  "prompt": "Answer only from the evidence. If no Date Picker component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence",
+        "forbiddenLiterals": ["ds-date-picker", "date input", "Calendar component"]
+      }
+    }
+  }
+}

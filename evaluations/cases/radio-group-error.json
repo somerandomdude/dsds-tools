@@ -1,0 +1,16 @@
+{
+  "id": "radio-group-error",
+  "stratum": "supported",
+  "task": "Extract Radio Group's documented error property.",
+  "evidence": [["get", "radio-group", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, default, and behavior. Quote the error-property description unchanged. Use the documented identifier and write the default as a string.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "default", "behavior"],
+    "fields": {
+      "evidence_quote": { "requiredLiterals": ["Shows grouped validation styling and error content."] },
+      "property": { "equals": "error" },
+      "default": { "equals": "false" },
+      "behavior": { "requiredLiterals": ["grouped validation styling", "error content"] }
+    }
+  }
+}

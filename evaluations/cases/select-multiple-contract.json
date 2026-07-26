@@ -1,0 +1,26 @@
+{
+  "id": "select-multiple-contract",
+  "stratum": "supported",
+  "task": "Extract Select's documented multiple-selection property contract.",
+  "evidence": [
+    ["get", "select", "--block", "api"]
+  ],
+  "prompt": "Return JSON only with evidence_quote, property, default, and behavior. Quote the property's description unchanged. Use the documented identifier, write its default as a string, and copy its behavior unchanged. Do not invent consumer markup.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "default", "behavior"],
+    "fields": {
+      "evidence_quote": {
+        "requiredLiterals": ["Allows multiple selections."]
+      },
+      "property": {
+        "equals": "multiple"
+      },
+      "default": {
+        "equals": "false"
+      },
+      "behavior": {
+        "equals": "Allows multiple selections."
+      }
+    }
+  }
+}

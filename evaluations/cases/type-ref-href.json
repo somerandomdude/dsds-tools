@@ -1,0 +1,16 @@
+{
+  "id": "type-ref-href",
+  "stratum": "supported",
+  "task": "Extract Type Reference's documented href property and default.",
+  "evidence": [["get", "type-ref", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, default, and behavior. Quote the href-property description unchanged. Use the documented identifier and write the default as a string.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "default", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "The link target." },
+      "property": { "equals": "href" },
+      "default": { "requiredLiterals": ["#"] },
+      "behavior": { "equals": "The link target." }
+    }
+  }
+}

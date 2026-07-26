@@ -1,0 +1,16 @@
+{
+  "id": "heading-level",
+  "stratum": "supported",
+  "task": "Extract Heading's documented level property and default.",
+  "evidence": [["get", "heading", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, default, and behavior. Quote the level-property description unchanged. Use the documented identifier and write the default as a string.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "default", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "The heading level, 1–6. Values outside this range are clamped." },
+      "property": { "equals": "level" },
+      "default": { "equals": "2" },
+      "behavior": { "requiredLiterals": ["Clamps", "1", "6"] }
+    }
+  }
+}
