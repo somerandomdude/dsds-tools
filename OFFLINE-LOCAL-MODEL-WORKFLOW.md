@@ -3,7 +3,7 @@
 Use this workflow when a coding agent has shell access but no network or MCP
 client—for example, during travel. It deliberately uses the existing `dsds`
 CLI as the source of grounded DSDS context. It does not add a second retrieval
-system, a Gum wrapper, or a bundled design-system corpus.
+system, or a bundled design-system corpus.
 
 ## Before going offline
 
