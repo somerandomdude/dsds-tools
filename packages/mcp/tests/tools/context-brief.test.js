@@ -41,14 +41,6 @@ describe('contextBriefHandler', () => {
       expect(result.content[0].text).toContain('4 entities loaded');
     });
 
-    it('omits unavailable optional kinds from a focused corpus', async () => {
-      const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
-      const result = await contextBriefHandler({ useCase: 'build' }, ...makeGetters(systems));
-      expect(result.content[0].text).not.toContain('kind=pattern');
-      expect(result.content[0].text).not.toContain('kind=token-group');
-      expect(result.content[0].text).not.toContain('kind=chunk');
-    });
-
     it('lists deprecated entities as warnings', async () => {
       const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.json`]);
       const result = await contextBriefHandler({ useCase: 'build' }, ...makeGetters(systems));

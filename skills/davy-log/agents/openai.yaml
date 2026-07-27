@@ -1,4 +1,0 @@
-interface:
-  display_name: "Davy Log"
-  short_description: "Maintain async project handoffs"
-  default_prompt: "Use $davy-log to record this work for an async collaborator."

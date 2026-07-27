@@ -22,7 +22,7 @@ import {
   checkVersions,
   parseIconExports,
 } from 'dsds-mcp/src/integrity.js';
-import { buildBriefForKinds } from 'dsds-mcp/src/briefs.js';
+import { BUILD_BRIEF } from 'dsds-mcp/src/briefs.js';
 import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
 
 // Files referenced from a root document's entity groups ($ref at group level
@@ -178,7 +178,7 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
   // ── Brief kind references ──────────────────────────────────────────────────
   if (allEntities.length > 0) {
     const kinds = new Set(allEntities.map(e => e.kind).filter(Boolean));
-    const errors = checkKindReferences(buildBriefForKinds(kinds), kinds);
+    const errors = checkKindReferences(BUILD_BRIEF, kinds);
     add('brief kind references', errors.length > 0 ? 'fail' : 'pass', errors.length > 0 ? errors : ['every kind the briefs reference is populated']);
   }
 

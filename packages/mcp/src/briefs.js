@@ -134,23 +134,6 @@ earlier problem. Treat this loop as part of building the component, not a
 separate QA pass someone else will do.
 `.trim();
 
-export function buildBriefForKinds(kinds) {
-  if (!kinds || kinds.size === 0) return BUILD_BRIEF;
-  let brief = BUILD_BRIEF;
-  const optionalSections = [
-    ['pattern', '### Step 3 — Check for applicable patterns', '### Step 4 — Read the documentation'],
-    ['token-group', '### Step 5 — Use tokens, not hardcoded values', '### Step 6 — Check for an applicable chunk'],
-    ['chunk', '### Step 6 — Check for an applicable chunk', '### Step 7 — Verify every import'],
-  ];
-  for (const [kind, start, next] of optionalSections) {
-    if (!kinds.has(kind)) {
-      const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      brief = brief.replace(new RegExp(`${escape(start)}[\\s\\S]*?(?=${escape(next)})`), '');
-    }
-  }
-  return brief;
-}
-
 
 // -----------------------------------------------------------------------------
 // AUTHOR BRIEF
