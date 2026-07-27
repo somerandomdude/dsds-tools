@@ -210,12 +210,11 @@ The model is not the source of truth.
 
 1. Is the next useful proof a layout plan, a disposable code prototype, or
    both?
-2. Should the first experiment use one existing component, such as Button, or
-   a small multi-component docs layout?
+2. Which small multi-component docs layout should be the first experiment?
 3. Should the model output code at all in the MVP, or should it first produce a
    structured plan?
 4. Which missing DSDS content matters most for layout generation?
-5. Should Plan 005 remain a Button authoring experiment, or become a broader
+5. Should Plan 005 focus on one constrained layout, or become a broader
    layout-composition experiment?
 6. Should the focused-corpus behavior from PR #1 be handled separately through
    configuration?
@@ -247,9 +246,9 @@ multi-component composition the next product question.
 
 **Changed**
 
-Replaced the Button implementation checklist with this product proposal,
-including the evidence inventory, MVP boundary, FAQ, scope boundaries, and
-questions for PJ.
+Replaced the single-component implementation checklist with this product
+proposal, including the evidence inventory, MVP boundary, FAQ, scope
+boundaries, and questions for PJ.
 
 **Verified**
 
@@ -263,5 +262,5 @@ structured plan.
 
 **Question for PJ**
 
-Should the first proof target a multi-component documentation layout, or keep
-the smaller Button story as the initial controlled case?
+Should the first proof target one constrained multi-component documentation
+layout, or a broader layout-composition experiment?
