@@ -8,7 +8,7 @@ honor its STOP conditions, and update its status when work changes.
 | Plan | Title | Priority | Effort | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
 | [004](004-local-model-evaluation.md) | Evaluate grounded local-model responses | P1 | M | Plan 003 / PR #1 | DONE — conditional smoke run after dependency rebase |
-| [005](005-local-authoring-demo.md) | Prove local docs-to-code authoring in a disposable sandbox | P1 | M | Plans 003 and 004 | TODO |
+| [005](005-local-authoring-demo.md) | Reframe the local-model product proposal | P1 | M | Plans 003 and 004 | TODO |
 
 Status values: TODO, IN PROGRESS, DONE, BLOCKED, or REJECTED.
 
