@@ -1,0 +1,19 @@
+{
+  "id": "modal-absent",
+  "stratum": "unsupported",
+  "task": "Which Modal component should I use?",
+  "evidence": [
+    ["search", "modal"],
+    ["list", "--kind", "component"]
+  ],
+  "prompt": "Answer only from the evidence. If no Modal component is documented, return JSON only: {\"status\":\"insufficient evidence\"}. Do not recommend, invent, or substitute a component.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence",
+        "forbiddenLiterals": ["ds-modal", "<modal", "Dialog component"]
+      }
+    }
+  }
+}

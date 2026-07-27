@@ -1,0 +1,15 @@
+{
+  "id": "callout-variant-values",
+  "stratum": "supported",
+  "task": "Extract Callout's documented variant values and default.",
+  "evidence": [["get", "callout", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, values, and default. Quote the variant description unchanged. Write values as a comma-separated string in documented order and default as a string.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "values", "default"],
+    "fields": {
+      "evidence_quote": { "requiredLiterals": ["info", "tip", "warning"] },
+      "values": { "requiredLiterals": ["info", "tip", "warning"] },
+      "default": { "equals": "info" }
+    }
+  }
+}

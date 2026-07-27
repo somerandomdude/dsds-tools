@@ -1,0 +1,15 @@
+{
+  "id": "json-view-label",
+  "stratum": "supported",
+  "task": "Extract JSON View's documented label property.",
+  "evidence": [["get", "json-view", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, and behavior. Every value must be a string. Quote the label-property description unchanged and copy its identifier and behavior.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "The source's identifying label (ex: a file path), used only to build the overlay's accessible name ('Raw JSON: <label>')." },
+      "property": { "equals": "label" },
+      "behavior": { "requiredLiterals": ["label", "accessible name", "overlay"] }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "link-external-icon",
+  "stratum": "supported",
+  "task": "Extract the documented external Link HTML example with its trailing icon.",
+  "evidence": [
+    ["get", "link", "--block", "imports"],
+    ["get", "link", "--block", "api"]
+  ],
+  "prompt": "Quote the documented external Link HTML example and provide it unchanged. Do not replace the custom element with a native anchor or expand the implementation details into consumer markup. Return JSON only with evidence_quote and html.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "html"],
+    "fields": {
+      "evidence_quote": {
+        "requiredLiterals": ["<ds-link href=\"https://designsystemdocspec.org\" external>", "slot=\"icon\""]
+      },
+      "html": {
+        "requiredLiterals": ["<ds-link href=\"https://designsystemdocspec.org\" external>", "slot=\"icon\"", "aria-hidden=\"true\""],
+        "forbiddenLiterals": ["<a href", "target=\"_blank\""]
+      }
+    }
+  }
+}

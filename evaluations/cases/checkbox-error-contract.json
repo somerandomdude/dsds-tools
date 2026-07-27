@@ -1,0 +1,29 @@
+{
+  "id": "checkbox-error-contract",
+  "stratum": "supported",
+  "task": "Extract Checkbox's documented error property and error-slot contract.",
+  "evidence": [
+    ["get", "checkbox", "--block", "api"]
+  ],
+  "prompt": "Return JSON only with evidence_quote, property, property_behavior, slot, and slot_description. Quote the error property's description unchanged and copy only documented identifiers and descriptions. Do not invent validation timing or message text.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "property_behavior", "slot", "slot_description"],
+    "fields": {
+      "evidence_quote": {
+        "requiredLiterals": ["Shows the error slot and marks the checkbox invalid."]
+      },
+      "property": {
+        "equals": "error"
+      },
+      "property_behavior": {
+        "requiredLiterals": ["error slot", "checkbox invalid"]
+      },
+      "slot": {
+        "equals": "error"
+      },
+      "slot_description": {
+        "equals": "Actionable validation message."
+      }
+    }
+  }
+}

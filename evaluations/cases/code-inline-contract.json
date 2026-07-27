@@ -1,0 +1,16 @@
+{
+  "id": "code-inline-contract",
+  "stratum": "supported",
+  "task": "Extract Code's documented inline rendering contract.",
+  "evidence": [["get", "code", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, default, and behavior. Quote the inline-property description unchanged. Use the documented identifier and write the default as a string.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "default", "behavior"],
+    "fields": {
+      "evidence_quote": { "equals": "Renders as an inline `<code>` span instead of a block." },
+      "property": { "equals": "inline" },
+      "default": { "equals": "false" },
+      "behavior": { "requiredLiterals": ["inline", "<code>", "span"] }
+    }
+  }
+}

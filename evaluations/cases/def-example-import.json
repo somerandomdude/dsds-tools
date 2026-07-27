@@ -1,0 +1,15 @@
+{
+  "id": "def-example-import",
+  "stratum": "supported",
+  "task": "Extract the documented import and custom-element tag for Definition Example.",
+  "evidence": [["get", "def-example", "--block", "imports"]],
+  "prompt": "Return JSON only with evidence_quote, import, and tag. Quote the import description unchanged and return the documented import statement and custom-element tag.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "import", "tag"],
+    "fields": {
+      "evidence_quote": { "requiredLiterals": ["Registers <ds-def-example> only"] },
+      "import": { "equals": "import \"dsds-components/def-example\";" },
+      "tag": { "equals": "<ds-def-example>" }
+    }
+  }
+}

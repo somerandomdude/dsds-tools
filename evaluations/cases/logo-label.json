@@ -1,0 +1,15 @@
+{
+  "id": "logo-label",
+  "stratum": "supported",
+  "task": "Extract Logo's documented accessible-label behavior.",
+  "evidence": [["get", "logo", "--block", "api"]],
+  "prompt": "Return JSON only with evidence_quote, property, and behavior. Quote the label-property description unchanged and copy its identifier and behavior.",
+  "expect": {
+    "requiredFields": ["evidence_quote", "property", "behavior"],
+    "fields": {
+      "evidence_quote": { "requiredLiterals": ["Accessible label", "decorative", "aria-hidden", "standalone"] },
+      "property": { "equals": "label" },
+      "behavior": { "requiredLiterals": ["Accessible label", "decorative", "aria-hidden", "standalone"] }
+    }
+  }
+}
