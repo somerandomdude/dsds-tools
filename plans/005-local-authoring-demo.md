@@ -95,6 +95,71 @@ The model should return:
 Generated code, if included, must remain in a disposable sandbox. It must not
 be written into `dsdsds` automatically or treated as production code.
 
+## Composition context hypothesis
+
+Individual component contracts remain the source of truth for a component’s
+API, states, accessibility requirements, and imports. They do not by
+themselves establish how several components form a useful interface.
+
+The MVP evaluates three complementary context layers:
+
+1. **Component contracts** describe individual components and their APIs.
+2. **Relationships** express documented combination constraints when a
+   composition needs them—for example, required or optional children, allowed
+   child types, or incompatible uses.
+3. **Chunks and patterns** provide authored, reusable compositions. A chunk is
+   a bounded interface block such as a settings form or page header; a pattern
+   describes broader behavior such as error messaging, navigation, or form
+   submission.
+
+The exact DSDS representation for relationships remains undecided. Do not add
+a general relationship graph or a new entity type before the experiment shows
+that existing patterns, chunks, examples, and documented relationships are
+insufficient.
+
+## MVP corpus and test stories
+
+Before inference, audit the current corpus and author only the smallest
+reviewed composition context that supports two test stories:
+
+1. **Account settings page** — profile information, notification preferences,
+   and a save action. This exercises fields, selection controls, grouped
+   choices, validation and submission guidance, hierarchy, and actions.
+2. **Documentation page** — a component-reference page with information
+   hierarchy, import/API material, examples, and related guidance. This
+   exercises documentation composition rather than form interaction.
+
+The initial corpus target is deliberately small:
+
+- three to five authored chunks;
+- two to three patterns;
+- five to ten referenced documented components;
+- explicit component references and basic layout guidance;
+- accessibility requirements; and
+- at least one approved complete example for each composition.
+
+Candidate chunks include a settings form, page header, search bar, empty state,
+and confirmation dialog. These are candidates to audit and author, not an
+assertion that they already exist in the corpus.
+
+## Layout-plan evaluation
+
+For each test story, the local model must return a structured layout plan that
+includes:
+
+- components, chunks, and patterns selected;
+- the DSDS evidence for every selection;
+- stated relationships, relevant props or variants, and layout structure;
+- accessibility considerations; and
+- assumptions or an exact `insufficient evidence` response for unsupported
+  requirements.
+
+The first success criterion is a valid, evidence-backed plan: every referenced
+DSDS entity and API must resolve, no undocumented component or API may be
+invented, and a reviewer must be able to trace each material choice to the
+provided evidence. Prototype code is optional only after the plan passes this
+review; it remains in a disposable sandbox.
+
 ## What the experiment needs to learn
 
 The experiment should distinguish among these failure modes:
@@ -148,6 +213,11 @@ composition guidance:
 - examples of approved compositions.
 
 This may require better DSDS documentation before it requires model training.
+
+The proposed composition layers are component contracts, documented
+relationships where needed, and authored chunks or patterns. The first
+experiment should evaluate those existing DSDS concepts before proposing a
+new relationship schema or template entity.
 
 ### What should the model produce?
 
@@ -210,7 +280,8 @@ The model is not the source of truth.
 
 1. Is the next useful proof a layout plan, a disposable code prototype, or
    both?
-2. Which small multi-component docs layout should be the first experiment?
+2. Are the account settings page and documentation page the right first pair
+   of test stories, and which should run first?
 3. Should the model output code at all in the MVP, or should it first produce a
    structured plan?
 4. Which missing DSDS content matters most for layout generation?
@@ -257,8 +328,9 @@ consumer corpus, and the CLI/MCP capabilities recorded in Plans 003 and 004.
 
 **Next**
 
-Agree on the first composition story and whether the MVP should stop at a
-structured plan.
+Audit the smallest set of existing or newly authored chunks, patterns, and
+component relationships needed for the account settings page and documentation
+page. Keep the first inference output to a structured plan with evidence.
 
 **Question for PJ**
 
