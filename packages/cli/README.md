@@ -119,6 +119,9 @@ Spec commands (`spec`, `scaffold`, `validate`) work with no configuration at all
 
 `dsds manifest` returns every command, tool, and input schema as one JSON payload — read it once instead of scraping `--help`.
 
+For a network-free local-model session, see the repository's
+[offline local-model workflow](../../OFFLINE-LOCAL-MODEL-WORKFLOW.md).
+
 ## Roadmap
 
 Phases, requirements, decision log, and open items live in [CLI-PLAN.md](../../CLI-PLAN.md) at the monorepo root. All planned phases (0–4) are implemented; the remaining open decision is npm publishing and naming (`dsds` on npm is squatted; `@sanity-labs/dsds` is free).
