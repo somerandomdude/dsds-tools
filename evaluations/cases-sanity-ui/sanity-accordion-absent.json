@@ -1,0 +1,18 @@
+{
+  "id": "sanity-accordion-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to build a collapsible accordion?",
+  "evidence": [
+    ["search", "accordion"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, status. If no matching component exists in the evidence, set status to exactly insufficient evidence.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence",
+        "forbiddenLiterals": ["Accordion", "accordion"]
+      }
+    }
+  }
+}

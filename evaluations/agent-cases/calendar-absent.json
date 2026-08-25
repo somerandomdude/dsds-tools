@@ -1,0 +1,9 @@
+{
+  "id": "calendar-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to build a calendar view?",
+  "expect": {
+    "requiredLiterals": [],
+    "forbiddenLiterals": ["Calendar"]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "sanity-menubutton-id",
+  "stratum": "supported",
+  "task": "What must always be passed to MenuButton, and which ARIA attribute does it wire up?",
+  "evidence": [
+    ["get", "menu-button", "--block", "guidelines"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: requiredProp and ariaAttribute.",
+  "expect": {
+    "requiredFields": ["requiredProp", "ariaAttribute"],
+    "fields": {
+      "requiredProp": {
+        "requiredLiterals": ["id"]
+      },
+      "ariaAttribute": {
+        "requiredLiterals": ["aria-labelledby"]
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "switch-defer",
+  "stratum": "supported",
+  "task": "What should I use instead of Switch when making a binary decision within a form that defers changes until submission?",
+  "expect": {
+    "requiredLiterals": ["Checkbox"],
+    "forbiddenLiterals": []
+  }
+}

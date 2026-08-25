@@ -1,0 +1,9 @@
+{
+  "id": "skiptocontent-href",
+  "stratum": "supported",
+  "task": "What character must SkipToContent's href value include, and what older prop name did href replace?",
+  "expect": {
+    "requiredLiterals": ["#", "hash"],
+    "forbiddenLiterals": []
+  }
+}

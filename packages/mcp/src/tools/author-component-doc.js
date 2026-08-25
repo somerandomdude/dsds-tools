@@ -74,13 +74,17 @@ const STEPS = [
 export const authorComponentDocDef = {
   name: 'dsds_author_component_doc',
   description:
-    'Step-by-step wizard for AUTHORING a DSDS COMPONENT DOCUMENT (a documentation JSON entity) from scratch. ' +
+    'LEGACY 0.15.2 ONLY. Step-by-step wizard for AUTHORING a legacy DSDS COMPONENT DOCUMENT (a .dsds.json ' +
+    'documentation entity) from scratch. Authoring against real DSDS 0.20.0 (.dsds.yaml)? This wizard does not ' +
+    'apply — call dsds_get_skill({id:"dsds-add"}) for the real authoring procedure, dsds_spec_scaffold(spec:' +
+    '"0.20.0") for a starting template, and dsds_validate to check your work; there is no interactive wizard ' +
+    'for 0.20.0 since the skill + scaffold + validate loop already covers it. ' +
     'This writes DOCUMENTATION — it does NOT generate or implement a component\'s UI/source code; to implement ' +
     'an existing component in code use dsds_build_component instead. Use when you want to be guided through ' +
-    'documenting a component without knowing the DSDS schema; the wizard supplies valid field values and the ' +
-    'output passes validation. For other entity kinds (token, theme, foundation, pattern, guide, chunk) or a ' +
-    'multi-entity system use dsds_spec_scaffold. Start with step:"start" and no data; each response gives the ' +
-    'next step and fields to populate, and you are done when "result" is present.',
+    'documenting a component without knowing the legacy DSDS schema; the wizard supplies valid field values and ' +
+    'the output passes validation. For other legacy entity kinds (token, theme, foundation, pattern, guide, ' +
+    'chunk) or a multi-entity system use dsds_spec_scaffold. Start with step:"start" and no data; each response ' +
+    'gives the next step and fields to populate, and you are done when "result" is present.',
   inputSchema: {
     type: 'object',
     properties: {

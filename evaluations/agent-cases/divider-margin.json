@@ -1,0 +1,9 @@
+{
+  "id": "divider-margin",
+  "stratum": "supported",
+  "task": "What is the only category of props Divider accepts, beyond native <hr> attributes?",
+  "expect": {
+    "requiredLiterals": ["margin"],
+    "forbiddenLiterals": []
+  }
+}

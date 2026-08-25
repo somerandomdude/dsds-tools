@@ -1,0 +1,21 @@
+{
+  "id": "sanity-button-level-values",
+  "stratum": "supported",
+  "task": "State the exact allowed values of Button's level prop and its default value.",
+  "evidence": [
+    ["get", "button", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: values (a comma-separated string of every allowed level value) and defaultValue (the default level value).",
+  "expect": {
+    "requiredFields": ["values", "defaultValue"],
+    "fields": {
+      "values": {
+        "requiredLiterals": ["primary", "secondary", "tertiary"],
+        "forbiddenLiterals": ["quaternary"]
+      },
+      "defaultValue": {
+        "requiredLiterals": ["primary"]
+      }
+    }
+  }
+}

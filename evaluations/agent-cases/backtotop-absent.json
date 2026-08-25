@@ -1,0 +1,9 @@
+{
+  "id": "backtotop-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to build a 'back to top' floating button?",
+  "expect": {
+    "requiredLiterals": [],
+    "forbiddenLiterals": []
+  }
+}

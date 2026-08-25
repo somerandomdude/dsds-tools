@@ -1,0 +1,9 @@
+{
+  "id": "link-newtab",
+  "stratum": "supported",
+  "task": "What rel attribute value does Link's openInNewTab prop set on the rendered anchor?",
+  "expect": {
+    "requiredLiterals": ["noopener", "noreferrer"],
+    "forbiddenLiterals": []
+  }
+}

@@ -1,5 +1,6 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
+import { renderCombos20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
 
 export const getAgentContextDef = {
   name: 'dsds_get_agent_context',
@@ -127,6 +128,57 @@ function renderBlock(block, lines) {
   }
 }
 
+// Real 0.20.0 agent context: traits/combos ARE the hard constraints (no
+// separate "allowed prop values" derivation needed — they're already a
+// closed set on the entity), sourceFiles/imports replace the old `api`
+// block, and sections replace documentBlocks/agentDocumentBlocks entirely.
+// Compact (default) renders `for: agent`/`for: all` sections only — a
+// `for: human` section is prose for people, not something an agent needs
+// to spend context on before writing code. Verbose renders everything.
+function renderAgentContext20(found, verbose, getGraph) {
+  const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
+  if (found.description) lines.push(asText(found.description), '');
+
+  renderTraits20(found.traits, lines);
+  renderCombos20(found.combos, lines);
+  renderSourceAndImports20(found, lines);
+
+  const graph = getGraph ? getGraph() : null;
+  if (graph) {
+    const deps = graph.out.get(found.identifier) ?? [];
+    const dependents = graph.in.get(found.identifier) ?? [];
+    if (deps.length || dependents.length) {
+      lines.push('## Relationships', '');
+      if (deps.length) {
+        lines.push('**This depends on / composes:**');
+        for (const r of deps) lines.push(`- ${r.relation} → \`${r.target}\`${r.required ? ' (required)' : ''}`);
+      }
+      if (dependents.length) {
+        lines.push(`**Used by ${dependents.length} entit${dependents.length === 1 ? 'y' : 'ies'}:**`);
+        for (const r of dependents) lines.push(`- ${r.via} ← \`${r.target}\`${r.required ? ' **(breaking)**' : ''}`);
+      }
+      lines.push('');
+    }
+  }
+
+  const sections = found.sections ?? [];
+  if (sections.length === 0) {
+    lines.push('*No sections defined for this entry.*');
+  } else if (verbose) {
+    renderSections20(sections, lines);
+  } else {
+    renderSections20(sections, lines, { audience: 'agent' });
+    const omitted = sections.filter((s) => s.for === 'human').length;
+    if (omitted > 0) {
+      lines.push(`> ${omitted} human-only section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you need them.`, '');
+    }
+  }
+
+  const notice = getUpdateNotice();
+  if (notice) lines.push(notice);
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
 export async function getAgentContextHandler({ identifier, verbose = false }, getSystems, getGraph = null) {
   const systems = getSystems();
   if (systems.length === 0) {
@@ -152,6 +204,8 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
       content: [{ type: 'text', text: `Entity "${identifier}" not found. Use dsds_list_entities to see available identifiers.` }],
     };
   }
+
+  if (found.__dsds20) return renderAgentContext20(found, verbose, getGraph);
 
   const agentBlocks = found.agentDocumentBlocks ?? [];
   const docBlocks = found.documentBlocks ?? [];

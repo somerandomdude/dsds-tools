@@ -1,0 +1,20 @@
+{
+  "id": "sanity-pressarea-as-constraint",
+  "stratum": "supported",
+  "task": "Can PressArea's as prop be set to 'div' or 'span'? Answer yes or no, and name the type that enforces this constraint.",
+  "evidence": [
+    ["get", "press-area", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: allowed (exactly 'yes' or 'no') and constraintType.",
+  "expect": {
+    "requiredFields": ["allowed", "constraintType"],
+    "fields": {
+      "allowed": {
+        "equals": "no"
+      },
+      "constraintType": {
+        "requiredLiterals": ["InteractiveAs"]
+      }
+    }
+  }
+}

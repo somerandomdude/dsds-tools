@@ -1,0 +1,9 @@
+{
+  "id": "progressbar-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to render a determinate progress bar?",
+  "expect": {
+    "requiredLiterals": [],
+    "forbiddenLiterals": []
+  }
+}

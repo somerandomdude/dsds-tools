@@ -1,0 +1,21 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml
+title: Id
+type: string
+description: Lowercase, dash-separated segments, optionally chained with dots.
+$comment: An id from an outside tool that doesn't fit this format goes under `$extensions.<namespace>.displayName` instead.
+pattern: '^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$'
+example: color.action.primary
+$defs:
+  tokenId:
+    type: string
+    description: The same as the base id format, but a segment can also be separated by a slash.
+    $comment: Only for token entries. Their id often comes from a design tool that names paths that way.
+    pattern: '^[a-z0-9]+(-[a-z0-9]+)*([./][a-z0-9]+(-[a-z0-9]+)*)*$'
+    example: color/action/primary
+  namespaced:
+    type: string
+    description: A dotted, namespaced custom value. The open extension point alongside a fixed set of well-known values.
+    $comment: Same lowercase-dash-per-segment format as the base id, but requires at least one dot. This is so a custom value can't collide with existing ids.
+    pattern: '^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)+$'
+    example: acme.icon-library

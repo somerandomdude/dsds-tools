@@ -1,0 +1,1 @@
+{"id":"card-density","stratum":"supported","task":"What are the possible values for the density prop in the Card component?","expect":{"requiredLiterals":["compact","regular","loose"]}}

@@ -1,0 +1,98 @@
+# Canonical catalog of Layer 2 semantic conformance rules (see
+# docs/content/conformance.mdx). This is the single source of truth for
+# every DSDS-## id: tools/validate.js loads it to build its RULES lookup,
+# and docs/scripts/render-rule-catalog.mjs renders it into the Conformance
+# page. Neither copy is hand-maintained, so the catalog and the docs page
+# cannot drift out of sync - add a rule here once, not in two places.
+#
+# `name` is the JS-side key tools/validate.js uses (RULES.NO_DUPLICATE_PLATFORM,
+# etc.) - it must stay a valid identifier. `title` and `description` are
+# the prose rendered as the rule's bullet on the Conformance page.
+#
+# Renumbered DSDS-01 through DSDS-05 (sequential, no gaps) when spec/ was
+# dissolved and schema/ moved to the repo base - the prior numbering
+# (004, 006, 007, 008, 010) carried gaps from several retired rules
+# (duplicate-platform checks, section-kind placement, a removed
+# rules-resolve check) that no longer need documenting once the ids
+# themselves changed. Ids are still never reused once assigned going
+# forward - a stable, citable id is only stable if it never means
+# something else later.
+#
+# DSDS-06/07 added to restore graph-cycle safety the previously-published
+# v0.15.2 spec had (relationship cycle prohibition) and the rewrite had
+# dropped - added as validator-side rules, not a schema shape change, per
+# the graph-rigor-and-composition design.
+
+- id: DSDS-01
+  name: ONE_API_PER_PLATFORM
+  title: At most one `sourceFiles` entry per platform.
+  description: >-
+    A component cannot declare two `sourceFiles` entries for the same
+    `platform` (or two with no `platform` at all) - a tool needs exactly
+    one source file to extract each platform's interface from.
+
+- id: DSDS-02
+  name: PLATFORM_VOCABULARY
+  title: "A system entry's `metadata.platforms` closes the platform vocabulary, once declared."
+  description: >-
+    When a `kind: system` entry declares `metadata.platforms`, every
+    `platform` value used anywhere in the document must be one of them.
+    This includes a component's own `sourceFiles` and `imports` entries,
+    and a status entry.
+
+- id: DSDS-03
+  name: CHECKED_BY_NEEDS_REF
+  title: "A `checkedBy: automated` rule needs somewhere to actually run."
+  description: >-
+    A guideline item that claims `automated` verification must carry at
+    least one `refs` or `checks` entry with `rel: test` or `rel:
+    lint-rule`. Otherwise, "automated" is just an unverifiable label, not
+    a real connection to a check.
+
+- id: DSDS-04
+  name: UNIQUE_ENTRY_ID
+  title: Entry and shared ids are unique within a document.
+  description: >-
+    `entries` and `shared` share one id and addressing space. An
+    `entryId#itemId` ref cannot tell which array its entryId half came
+    from. So no two entries across both arrays can share an `id` — not
+    just within `entries` alone.
+
+- id: DSDS-05
+  name: ITEM_REF_RESOLVES
+  title: An `entryId#itemId` ref must resolve.
+  description: >-
+    When a `ref`'s `to` uses the `#itemId` form (see [Schema
+    architecture](schema-architecture.html#refs-1)), the named entry or
+    shared entry must exist in the document. The named item's `id` must
+    also exist somewhere in its sections. This is what makes `same-as`
+    transclusion off a `base.shared` entry a real, checked connection,
+    rather than a string that happens to look right.
+
+- id: DSDS-06
+  name: COMPOSES_CYCLE
+  title: A `composes` ref chain must not cycle.
+  description: >-
+    Following every `rel: composes` ref from entry to entry must never lead
+    back to an entry already in the chain. A composition graph with a cycle
+    has no well-defined "what is this built from" answer.
+
+- id: DSDS-07
+  name: DEPENDS_ON_CYCLE
+  title: A `depends-on` ref chain must not cycle.
+  description: >-
+    Following every `rel: depends-on` ref from entry to entry must never
+    lead back to an entry already in the chain, for the same reason a
+    `composes` cycle is invalid - a dependency graph with a cycle has no
+    valid resolution order.
+
+- id: DSDS-08
+  name: ENTRY_REF_RESOLVES
+  title: A bare `to:` ref must resolve to a real entry or shared entry.
+  description: >-
+    When a `ref`'s `to` is a bare id (no `#itemId`), the entry or shared
+    entry it names must exist in the document - `entries` and `shared`
+    share one id space (see `DSDS-04`). Checked within one document; a
+    corpus split across files via `rel: file` needs the whole project
+    loaded to resolve a cross-file target, which this validator doesn't
+    do yet.

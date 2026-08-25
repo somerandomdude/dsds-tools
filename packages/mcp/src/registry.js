@@ -20,6 +20,9 @@ import { lintByPathDef, lintByPathHandler, lintInlineDef, lintInlineHandler } fr
 import { getChunkDef, getChunkHandler } from './tools/get-chunk.js';
 import { feedbackDef, feedbackHandler } from './tools/feedback.js';
 import { checkExportsDef, checkExportsHandler } from './tools/check-exports.js';
+import { explainErrorDef, explainErrorHandler } from './tools/explain-error.js';
+import { listSkillsDef, listSkillsHandler } from './tools/list-skills.js';
+import { getSkillDef, getSkillHandler } from './tools/get-skill.js';
 import { toMarkdownDef, toMarkdownHandler } from './tools/to-markdown.js';
 import { buildComponentDef, buildComponentHandler } from './tools/build-component.js';
 import { authorComponentDocDef, authorComponentDocHandler } from './tools/author-component-doc.js';
@@ -113,6 +116,9 @@ export function createToolRuntime({
     lintByPathDef,
     lintInlineDef,
     checkExportsDef,
+    explainErrorDef,
+    listSkillsDef,
+    getSkillDef,
     toMarkdownDef,
     ...(enableFeedback ? [feedbackDef] : []),
   ];
@@ -150,6 +156,9 @@ export function createToolRuntime({
         case 'dsds_lint_by_path':         return lintByPathHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
         case 'dsds_lint_inline':          return lintInlineHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
         case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()));
+        case 'dsds_explain_error':        return explainErrorHandler(args);
+        case 'dsds_list_skills':          return listSkillsHandler(args);
+        case 'dsds_get_skill':            return getSkillHandler(args);
         case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems);
         case 'dsds_feedback':             return feedbackHandler(args, feedbackDir);
         default:                          return errorResponse(`Unknown tool: "${name}"`);

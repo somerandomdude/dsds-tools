@@ -1,0 +1,9 @@
+{
+  "id": "checkbox-error",
+  "stratum": "supported",
+  "task": "What does Checkbox's error prop do, and what should it always be paired with?",
+  "expect": {
+    "requiredLiterals": ["error message"],
+    "forbiddenLiterals": ["accessible description"]
+  }
+}

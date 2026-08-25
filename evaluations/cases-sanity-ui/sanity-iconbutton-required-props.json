@@ -1,0 +1,18 @@
+{
+  "id": "sanity-iconbutton-required-props",
+  "stratum": "supported",
+  "task": "List the exact identifiers of IconButton's required props.",
+  "evidence": [
+    ["get", "icon-button", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, props, a comma-separated string of the required prop identifiers.",
+  "expect": {
+    "requiredFields": ["props"],
+    "fields": {
+      "props": {
+        "requiredLiterals": ["icon", "aria-label"],
+        "forbiddenLiterals": ["\"label\"", "'label'"]
+      }
+    }
+  }
+}

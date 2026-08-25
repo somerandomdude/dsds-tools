@@ -1,0 +1,9 @@
+{
+  "id": "pressarea-as",
+  "stratum": "supported",
+  "task": "What TypeScript type constrains PressArea's as prop to only 'button', 'a', or a component?",
+  "expect": {
+    "requiredLiterals": ["InteractiveAs"],
+    "forbiddenLiterals": []
+  }
+}

@@ -46,13 +46,35 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
     };
   }
 
-  const block = found.documentBlocks?.find(b => b.kind === blockType);
+  let block;
+  let available;
+  if (found.__dsds20) {
+    // Real 0.20.0: look up a section by kind (definitions/guidelines/steps/
+    // section) or by its own title (0.20.0's generic sections are often
+    // addressed by title rather than kind). traits/sourceFiles/combos/
+    // imports are top-level entry fields, not sections — allow those names
+    // too, since an agent has no other way to ask for just one of them.
+    const TOP_LEVEL_FIELDS = ['traits', 'sourceFiles', 'combos', 'imports'];
+    if (TOP_LEVEL_FIELDS.includes(blockType)) {
+      block = found[blockType] ? { kind: blockType, items: found[blockType] } : null;
+    } else {
+      const blockNeedle = blockType.toLowerCase();
+      block = found.sections?.find(b => b.kind === blockType) ??
+        found.sections?.find(b => b.title?.toLowerCase() === blockNeedle);
+    }
+    available = [
+      ...(found.sections ?? []).map(b => `\`${b.kind}${b.title ? `:${b.title}` : ''}\``),
+      ...TOP_LEVEL_FIELDS.filter(f => found[f]?.length).map(f => `\`${f}\``),
+    ].join(', ');
+  } else {
+    block = found.documentBlocks?.find(b => b.kind === blockType);
+    available = (found.documentBlocks ?? []).map(b => `\`${b.kind}\``).join(', ');
+  }
 
   if (!block) {
-    const available = (found.documentBlocks ?? []).map(b => `\`${b.kind}\``).join(', ');
     const msg = available
-      ? `Entity "${found.identifier}" has no "${blockType}" block. Available blocks: ${available}`
-      : `Entity "${found.identifier}" has no document blocks defined.`;
+      ? `Entity "${found.identifier}" has no "${blockType}" section/block. Available: ${available}`
+      : `Entity "${found.identifier}" has no sections or document blocks defined.`;
     return { isError: true, content: [{ type: 'text', text: msg }] };
   }
 

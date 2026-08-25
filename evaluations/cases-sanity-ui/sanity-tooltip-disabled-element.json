@@ -1,0 +1,17 @@
+{
+  "id": "sanity-tooltip-disabled-element",
+  "stratum": "supported",
+  "task": "Explain why a Tooltip should not be placed on a disabled element, according to the documented guidance.",
+  "evidence": [
+    ["get", "tooltip", "--block", "use-cases"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["focus"]
+      }
+    }
+  }
+}

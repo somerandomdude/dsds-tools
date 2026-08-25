@@ -1,0 +1,9 @@
+{
+  "id": "indicator-role",
+  "stratum": "supported",
+  "task": "What ARIA role does Indicator's label prop set on the rendered element?",
+  "expect": {
+    "requiredLiterals": ["img"],
+    "forbiddenLiterals": []
+  }
+}

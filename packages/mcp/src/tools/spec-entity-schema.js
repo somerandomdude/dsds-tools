@@ -1,29 +1,40 @@
-import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, VALID_BLOCKS_BY_KIND, METADATA_FIELDS } from '../spec/knowledge.js';
+import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0, VALID_BLOCKS_BY_KIND, METADATA_FIELDS } from '../spec/knowledge.js';
 import { getUpdateNotice } from '../spec/version.js';
+
+const ALL_KINDS = [...new Set([...ENTITY_KINDS, ...ENTITY_KINDS_0_20_0])];
 
 export const specEntitySchemaDef = {
   name: 'dsds_spec_entity_schema',
   description:
-    'Get the full field definitions for a DSDS entity kind. Use this before authoring or scaffolding to understand what fields are available.',
+    'Get the full field definitions for a DSDS entity kind. Use this before authoring or scaffolding to understand what fields are available. ' +
+    'For a real 0.20.0 document (.dsds.yaml), pass spec:"0.20.0" — prefer dsds_get_skill({id:"dsds-specs"}) for the fuller picture, this tool only covers one kind at a time.',
   inputSchema: {
     type: 'object',
     properties: {
       kind: {
         type: 'string',
-        enum: ENTITY_KINDS,
+        enum: ALL_KINDS,
         description: 'The entity kind to describe.',
+      },
+      spec: {
+        type: 'string',
+        enum: ['0.15.2', '0.20.0'],
+        description: 'Which DSDS model to describe this kind under. Defaults to 0.15.2 (legacy) for a kind that exists in both; system/entry are 0.20.0-only regardless of this flag.',
       },
     },
     required: ['kind'],
   },
 };
 
-export async function specEntitySchemaHandler({ kind }) {
+export async function specEntitySchemaHandler({ kind, spec }) {
+  const is20Only = kind === 'system' || kind === 'entry';
+  if (spec === '0.20.0' || is20Only) return render20(kind);
+
   const def = ENTITY_DESCRIPTIONS[kind];
   if (!def) {
     return {
       isError: true,
-      content: [{ type: 'text', text: `Unknown entity kind "${kind}". Valid kinds: ${ENTITY_KINDS.join(', ')}` }],
+      content: [{ type: 'text', text: `Unknown legacy 0.15.2 entity kind "${kind}". Valid kinds: ${ENTITY_KINDS.join(', ')}. (system/entry are 0.20.0-only — call again with spec:"0.20.0".)` }],
     };
   }
 
@@ -79,6 +90,36 @@ export async function specEntitySchemaHandler({ kind }) {
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
 
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
+function render20(kind) {
+  const def = ENTITY_DESCRIPTIONS_0_20_0[kind];
+  if (!def) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `Unknown 0.20.0 entity kind "${kind}". Valid kinds: ${ENTITY_KINDS_0_20_0.join(', ')}.` }],
+    };
+  }
+  const lines = [
+    `# Entity Schema (real 0.20.0): \`${kind}\``,
+    '',
+    def.summary,
+    '',
+    '## Required Fields',
+    '',
+    ...def.required.map(f => `- \`${f}\``),
+    '',
+    '## Optional Top-Level Fields',
+    '',
+    ...def.optionalTop.map(f => `- \`${f}\``),
+    '',
+    `> **Note:** ${def.notes}`,
+    '',
+    'Prefer `dsds_get_skill({ id: "dsds-specs" })` for the full model (section kinds, refs, metadata) — this tool covers only this one kind\'s own top-level shape.',
+  ];
+  const notice = getUpdateNotice();
+  if (notice) lines.push(notice);
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 

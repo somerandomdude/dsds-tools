@@ -1,0 +1,9 @@
+{
+  "id": "radio-multiselect",
+  "stratum": "supported",
+  "task": "Which component should I use instead of Radio when more than one option can be selected?",
+  "expect": {
+    "requiredLiterals": ["Checkbox"],
+    "forbiddenLiterals": ["Switch"]
+  }
+}

@@ -1,3 +1,5 @@
+import { renderCombos20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+
 const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
 
 // Escape a value for use inside a Markdown table cell. In GFM, an unescaped `|`
@@ -278,6 +280,23 @@ function renderSections(block, lines, depth = 2) {
 
 // ── Main renderer ─────────────────────────────────────────────────────────────
 
+// Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields, and
+// `sections` (definitions/guidelines/steps/section) replaces the whole
+// documentBlocks/agentDocumentBlocks model. No `for: human`/`for: agent`
+// filtering here — a human-readable markdown doc renders every section.
+function entityToMarkdown20(entity, lines) {
+  renderSourceAndImports20(entity, lines);
+  renderTraits20(entity.traits, lines);
+  renderCombos20(entity.combos, lines);
+  renderSections20(entity.sections, lines, { depth: 2 });
+
+  const agentSections = (entity.agentDocumentBlocks ?? []).filter(b => b.kind === 'sections' || b.kind === 'section');
+  if (agentSections.length > 0) {
+    lines.push('## Notes', '');
+    for (const block of agentSections) renderSections(block, lines, 3);
+  }
+}
+
 function entityToMarkdown(entity) {
   const lines = [];
 
@@ -290,7 +309,14 @@ function entityToMarkdown(entity) {
   }
 
   const meta = entity.metadata ?? {};
-  if (meta.status) lines.push(`**Status:** ${meta.status}  `, '');
+  const status20 = meta.status && typeof meta.status === 'object' ? meta.status.status : null;
+  if (status20) lines.push(`**Status:** ${status20}  `, '');
+  else if (meta.status) lines.push(`**Status:** ${meta.status}  `, '');
+
+  if (entity.__dsds20) {
+    entityToMarkdown20(entity, lines);
+    return lines.join('\n');
+  }
 
   const docBlocks = entity.documentBlocks ?? [];
   const byKind = kind => docBlocks.find(b => b.kind === kind);
@@ -341,10 +367,12 @@ export const toMarkdownDef = {
   name: 'dsds_to_markdown',
   description:
     'Convert a DSDS entity to a human-readable markdown document. ' +
-    'Renders documentBlocks (imports, api, useCases, guidelines, states, variants, ' +
-    'accessibility, content, sections) and agentDocumentBlocks sections into a single ' +
-    '.md-ready string. Accessibility-category guidelines are surfaced under the ' +
-    'Accessibility heading alongside the structured accessibility data. ' +
+    'For real 0.20.0 entities (.dsds.yaml): renders sourceFiles/imports/traits/combos and every ' +
+    'section (definitions/guidelines/steps/section). ' +
+    'For legacy 0.15.2 entities (.dsds.json): renders documentBlocks (imports, api, useCases, ' +
+    'guidelines, states, variants, accessibility, content, sections) and agentDocumentBlocks ' +
+    'sections into a single .md-ready string. Accessibility-category guidelines are surfaced under ' +
+    'the Accessibility heading alongside the structured accessibility data. ' +
     'Use this to generate or regenerate the markdown component doc for an entity.',
   inputSchema: {
     type: 'object',

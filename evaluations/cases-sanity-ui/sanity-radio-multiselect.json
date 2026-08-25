@@ -1,0 +1,18 @@
+{
+  "id": "sanity-radio-multiselect",
+  "stratum": "supported",
+  "task": "State which Sanity UI component to use instead of Radio when more than one option can be selected.",
+  "evidence": [
+    ["get", "radio", "--block", "use-cases"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer, containing the component name to use instead.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["Checkbox"],
+        "forbiddenLiterals": ["Select", "Switch"]
+      }
+    }
+  }
+}
