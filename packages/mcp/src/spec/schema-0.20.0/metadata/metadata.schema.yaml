@@ -21,8 +21,9 @@ $defs:
 properties:
   tags:
     type: array
-    description: Keywords for grouping, search, and filtering.
-    $comment: By convention, the first tag, if any, is the main category.
+    description: Keywords for grouping, search, and filtering. By convention, the first tag, if any, is the main category.
+    $comment: >-
+      The first tag can be used as a category.
     items:
       type: string
     minItems: 1

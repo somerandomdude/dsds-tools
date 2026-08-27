@@ -345,7 +345,7 @@ export const SECTION_KIND_DESCRIPTIONS_0_20_0 = {
     validFor: ENTITY_KINDS_0_20_0,
   },
   guidelines: {
-    summary: 'A `statement` paired with a `level` (must/should/should-not/must-not/may — RFC 2119, lowercase-hyphenated). Carries `context: when-to-use` (a fit judgment) or `how-to-use` (the default, an implementation rule).',
+    summary: 'A `statement` paired with a `level` (must/should/should-not/must-not/may — RFC 2119, lowercase-hyphenated). Carries `framing: when-to-use` (a fit judgment) or `how-to-use` (the default, an implementation rule).',
     validFor: ENTITY_KINDS_0_20_0,
   },
   steps: {

@@ -1,4 +1,5 @@
 import { getUpdateNotice } from '../spec/version.js';
+import { renderApi20 } from '../spec/render-0.20.0.js';
 
 export const getDocumentBlockDef = {
   name: 'dsds_get_document_block',
@@ -20,7 +21,7 @@ export const getDocumentBlockDef = {
   },
 };
 
-export async function getDocumentBlockHandler({ identifier, blockType }, getSystems) {
+export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
     return {
@@ -44,6 +45,20 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
       isError: true,
       content: [{ type: 'text', text: `Entity "${identifier}" not found. Use dsds_list_entities to see available identifiers.` }],
     };
+  }
+
+  if (found.__dsds20 && blockType === 'api') {
+    // Real 0.20.0 has no `api`-kind section — the API comes from `sourceFiles`
+    // resolved through the extractor cache (DEC-2). This is the call site the
+    // server's HARD RULE points agents at ("at minimum
+    // dsds_get_document_block(identifier, 'api')"), so it must render real
+    // prop data, not the raw `sourceFiles` pointer a generic passthrough would.
+    const lines = [`# ${found.name ?? found.identifier} — \`api\` block`, ''];
+    renderApi20(found, lines, propsConfig);
+    if (lines.length === 2) lines.push('*No API data available for this entry.*', '');
+    const notice = getUpdateNotice();
+    if (notice) lines.push(notice);
+    return { content: [{ type: 'text', text: lines.join('\n') }] };
   }
 
   let block;

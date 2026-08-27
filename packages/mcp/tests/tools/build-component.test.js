@@ -175,7 +175,7 @@ const BUTTON_20 = {
   ],
   combos: [{ subject: 'level.primary', level: 'must-not', items: ['disabled'], note: 'A primary action cannot be disabled.' }],
   sections: [
-    { kind: 'guidelines', for: 'agent', context: 'when-to-use', items: [{ statement: 'Use for in-page actions only.', level: 'must' }] },
+    { kind: 'guidelines', for: 'agent', framing: 'when-to-use', items: [{ statement: 'Use for in-page actions only.', level: 'must' }] },
   ],
 };
 const getSystems20 = () => [{ filePath: 'mem://test', entities: [BUTTON_20] }];

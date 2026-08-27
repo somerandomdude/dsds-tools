@@ -1,4 +1,20 @@
 import { writeLog } from '../logger.js';
+import { renderSections20, resolveFileRef20 } from '../spec/render-0.20.0.js';
+
+const CHUNK_KINDS = ['chunk', 'blueprint', 'sanity.chunk'];
+
+/**
+ * A real 0.20.0 chunk names its code file via `refs`/`related` (`rel: file`,
+ * usually `role: source`) rather than inlining it — resolve and read it
+ * relative to the chunk's own file (see loader.js's `__filePath`), the same
+ * mechanism an inline example's code ref uses.
+ */
+function resolveChunkCode20(chunk) {
+  const fileRef = [...(chunk.related ?? []), ...(chunk.refs ?? [])].find(
+    r => r?.rel === 'file' && typeof r.href === 'string'
+  );
+  return resolveFileRef20(chunk.__filePath, fileRef);
+}
 
 export const getChunkDef = {
   name: 'dsds_get_chunk',
@@ -36,7 +52,7 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
 
   for (const system of systems) {
     for (const entity of system.entities) {
-      if ((entity.kind === 'chunk' || entity.kind === 'blueprint') && entity.identifier?.toLowerCase() === needle) {
+      if (CHUNK_KINDS.includes(entity.kind) && entity.identifier?.toLowerCase() === needle) {
         chunk = entity;
         break;
       }
@@ -47,7 +63,7 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
   if (!chunk) {
     const allChunks = systems
       .flatMap(s => s.entities)
-      .filter(e => e.kind === 'chunk' || e.kind === 'blueprint')
+      .filter(e => CHUNK_KINDS.includes(e.kind))
       .map(e => e.identifier);
 
     const hint = allChunks.length > 0
@@ -68,6 +84,43 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
 
   if (chunk.description) {
     lines.push(chunk.description, '');
+  }
+
+  if (chunk.__dsds20) {
+    const status20 = chunk.metadata?.status?.status;
+    if (status20) lines.push(`**Status:** ${status20}`, '');
+
+    // Real 0.20.0: the code isn't inlined on the entity — it's a sibling
+    // file named via `related`/`refs` (`rel: file`). Guidance lives in
+    // `sections`, not the legacy `useCases`/`guidelines` top-level fields.
+    const resolved = resolveChunkCode20(chunk);
+    lines.push(
+      '## Code',
+      '',
+      resolved
+        ? `\`\`\`${resolved.language}\n${resolved.code}\`\`\``
+        : '*No code file found for this chunk — check its `related`/`refs` for a `rel: file` pointer.*',
+      ''
+    );
+
+    if (chunk.relationships?.length) {
+      lines.push('## Relationships', '');
+      for (const r of chunk.relationships) {
+        const req = r.required ? ' *(required)*' : '';
+        const role = r.role ? ` — ${r.role}` : '';
+        lines.push(`- **${r.relation}** \`${r.target}\`${role}${req}`);
+      }
+      lines.push('');
+    }
+
+    if (chunk.sections?.length) {
+      renderSections20(chunk.sections, lines, { filePath: chunk.__filePath, sharedEntries: chunk.__sharedEntries });
+    } else {
+      lines.push('*No sections defined for this chunk.*');
+    }
+
+    await writeLog(logsDir, { type: 'chunk', tool: 'dsds_get_chunk', identifier: chunk.identifier, name: chunk.name });
+    return { content: [{ type: 'text', text: lines.join('\n') }] };
   }
 
   const meta = chunk.metadata;

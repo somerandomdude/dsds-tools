@@ -1,0 +1,10 @@
+id: test-button-20
+kind: component
+name: Test Button
+description: A minimal real 0.20.0 standalone entry, for CLI doctor regression tests.
+sections:
+  - kind: guidelines
+    for: all
+    items:
+      - statement: Use for actions, not navigation.
+        level: should

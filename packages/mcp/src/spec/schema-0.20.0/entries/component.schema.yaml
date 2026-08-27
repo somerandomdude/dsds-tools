@@ -79,6 +79,8 @@ allOf:
                         (like an `outlined` prop) and a runtime state
                         (like `hover`). Use `description` to explicitly
                         call out if necessary.
+                    setBy:
+                      $ref: "https://designsystemdocspec.org/v0.20.0/entries/component.schema.yaml#/$defs/traitSetBy"
                     refs:
                       $ref: https://designsystemdocspec.org/v0.20.0/common/ref.schema.yaml#/$defs/list
                       description: "Pointers to resources for this trait: a design tool entry, a source file, or a verifying test."
@@ -97,6 +99,8 @@ allOf:
                       description: The human-readable name of the dimension, for example 'Size'.
                     description:
                       description: What this dimension of variation controls.
+                    setBy:
+                      $ref: "https://designsystemdocspec.org/v0.20.0/entries/component.schema.yaml#/$defs/traitSetBy"
                     refs:
                       $ref: https://designsystemdocspec.org/v0.20.0/common/ref.schema.yaml#/$defs/list
                       description: "Pointers to resources for this dimension as a whole: a design tool entry, a source file, or a verifying test."
@@ -132,6 +136,16 @@ allOf:
             note: A control can't be simultaneously loading and disabled.
 unevaluatedProperties: false
 $defs:
+  traitSetBy:
+    type: string
+    enum: [consumer, component]
+    description: Whether this trait's value is passed in by the consumer, or set by the component itself.
+    $comment: >-
+      `consumer` is a value the caller chooses, like `size` or
+      `variant`. `component` is a condition the component sets on its
+      own, like `hover` or `loading` - the caller only observes it.
+      Matters most for codegen: a `consumer`-set trait becomes a prop;
+      a `component`-set trait never should. Optional.
   traitValue:
     type: object
     required: [id, description]

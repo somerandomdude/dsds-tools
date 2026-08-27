@@ -18,8 +18,8 @@ properties:
     type: string
     format: uri-reference
     description: An optional hint for editor tools, like autocomplete or validate-on-save.
-    $comment: "Usually a URL to the exact versioned schema file. Not authoritative: `schemaVersion` is the real source of truth for which version this document targets."
-    example: https://designsystemdocspec.org/v0.20.0/dsds.bundled.schema.json
+    $comment: "Usually a URL to the exact versioned schema file. Not authoritative: `schemaVersion` is the real source of truth for which version this document targets. The published bundle is YAML - most YAML-aware editors (ex: VS Code's YAML extension) resolve a YAML `$schema` target the same way they'd resolve a JSON one; a tool that only ever reads JSON schemas won't."
+    example: https://designsystemdocspec.org/v0.20.0/dsds.bundled.yaml
   name:
     type: string
     description: The name of the design system this document describes.

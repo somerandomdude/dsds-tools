@@ -77,7 +77,7 @@ Splitting a system across many files uses `refs` (`rel: file`) pointing at sibli
 Every entry's structured docs live in one `sections` array. Each section has a `kind` and a `for` (`human`, `agent`, or `all`, naming its audience):
 
 - **`definitions`** — term/definition pairs. Use for anatomy, naming conventions, or a prop/event list when there's no real source file to extract from.
-- **`guidelines`** — a `statement` paired with a `level` (`must`/`should`/`should-not`/`must-not`/`may`). Carries `context: when-to-use` (a fit judgment) or `how-to-use` (the default, an implementation rule).
+- **`guidelines`** — a `statement` paired with a `level` (`must`/`should`/`should-not`/`must-not`/`may`). Carries `framing: when-to-use` (a fit judgment) or `how-to-use` (the default, an implementation rule).
 - **`steps`** — an ordered procedure or unordered checklist.
 - **`section`** (generic) — for anything else, or purely `freeform` narrative prose.
 

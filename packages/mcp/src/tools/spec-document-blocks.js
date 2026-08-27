@@ -14,8 +14,7 @@ export const specDocumentBlocksDef = {
     properties: {
       kind: {
         type: 'string',
-        enum: DOCUMENT_BLOCK_KINDS,
-        description: 'The entity kind to list document blocks for. Ignored when spec:"0.20.0".',
+        description: 'The legacy 0.15.2 entity kind to list document blocks for (component, guide, pattern, foundation, theme, token, token-group). Ignored when spec:"0.20.0" — every 0.20.0 kind, including namespaced custom ones, accepts every section kind.',
       },
       spec: {
         type: 'string',

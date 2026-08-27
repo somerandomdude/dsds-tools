@@ -1,5 +1,10 @@
 import { validateDocument } from '../validator.js';
-import { BUNDLED_VERSION, SPEC_URL } from '../spec/version.js';
+import { SPEC_URL } from '../spec/version.js';
+
+// This wizard still authors legacy documentBlocks-shaped output (see the
+// 0.15.2 comment below) — it's independent of BUNDLED_VERSION, which now
+// declares the MCP's default spec version (0.20.0).
+const LEGACY_VERSION = '0.15.2';
 
 /**
  * dsds_author_component_doc — a stateless, step-by-step wizard for AUTHORING a
@@ -506,8 +511,8 @@ export function assembleComponent(data) {
   };
 
   return {
-    $schema: `${SPEC_URL}/v${BUNDLED_VERSION}/dsds.bundled.schema.json`,
-    dsdsVersion: BUNDLED_VERSION,
+    $schema: `${SPEC_URL}/v${LEGACY_VERSION}/dsds.bundled.schema.json`,
+    dsdsVersion: LEGACY_VERSION,
     entity,
   };
 }

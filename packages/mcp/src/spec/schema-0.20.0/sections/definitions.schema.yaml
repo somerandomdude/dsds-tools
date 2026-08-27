@@ -5,6 +5,16 @@ description: Term definitions. Can describe content labels within components or 
 $comment: >-
   A `definitions` section on an entry defines that entry's own terms.
   Distinct from `metadata.tags` or any other classification label.
+
+  `definitions` does several genuinely different jobs - a component's
+  anatomy, a glossary, a prop list stand-in, keyboard interactions,
+  event names - told apart only by `title` until `context` existed.
+  `context` (inherited from section.schema.yaml - see its own
+  $comment) makes the job machine-readable: a renderer can find "the
+  anatomy table" by checking `context: anatomy` instead of matching on
+  a human-written heading string, which drifts and gets localized.
+  `title` still carries the human-facing heading; `context` is what a
+  tool reads.
 allOf:
   - $ref: https://designsystemdocspec.org/v0.20.0/section.schema.yaml
   - type: object
@@ -23,6 +33,7 @@ allOf:
             id:
               $ref: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml
               description: An optional stable id, so a ref or a same-as pointer can address this term directly.
+              $comment: You can leave this out - a tool MUST derive one from this item's own text (see common/id.schema.yaml's own $comment for the rule).
             term:
               type: string
               description: The subject of the definition.

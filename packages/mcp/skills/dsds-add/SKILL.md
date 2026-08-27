@@ -54,13 +54,13 @@ imports:
 sections:
   - kind: guidelines
     for: all
-    context: how-to-use
+    framing: how-to-use
     items: []
 ```
 
 ## Sections to Include (Components)
 
-Include at minimum: a `guidelines` section (`context: how-to-use`) covering usage rules and accessibility requirements. Add `traits` (top-level, not a section) for variants/states, a `guidelines` section with `context: when-to-use` for fit judgments, and a `definitions` section for props/anatomy only when there's no real source file to point `sourceFiles` at instead. Add a `for: agent` section for firm rules an agent needs but a person wouldn't.
+Include at minimum: a `guidelines` section (`framing: how-to-use`) covering usage rules and accessibility requirements. Add `traits` (top-level, not a section) for variants/states, a `guidelines` section with `framing: when-to-use` for fit judgments, and a `definitions` section for props/anatomy only when there's no real source file to point `sourceFiles` at instead. Add a `for: agent` section for firm rules an agent needs but a person wouldn't.
 
 ## Extraction Guidelines
 

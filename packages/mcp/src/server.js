@@ -213,7 +213,7 @@ function promptMessage(text) {
   return { role: 'user', content: { type: 'text', text } };
 }
 
-export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true) {
+export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null) {
   const baseWithFeedback = enableFeedback
     ? `${BASE_INSTRUCTIONS}\n\n${FEEDBACK_INSTRUCTION}`
     : BASE_INSTRUCTIONS;
@@ -250,6 +250,7 @@ export function createServer(getSystems, getSummaries, introEntities = [], getLi
     getGraph,
     getLintConfig,
     getExportPaths,
+    getPropsConfig,
     feedbackDir,
     logsDir,
     enableFeedback,

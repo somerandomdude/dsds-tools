@@ -1,28 +1,7 @@
-# Canonical catalog of Layer 2 semantic conformance rules (see
-# docs/content/conformance.mdx). This is the single source of truth for
-# every DSDS-## id: tools/validate.js loads it to build its RULES lookup,
-# and docs/scripts/render-rule-catalog.mjs renders it into the Conformance
-# page. Neither copy is hand-maintained, so the catalog and the docs page
-# cannot drift out of sync - add a rule here once, not in two places.
-#
-# `name` is the JS-side key tools/validate.js uses (RULES.NO_DUPLICATE_PLATFORM,
-# etc.) - it must stay a valid identifier. `title` and `description` are
-# the prose rendered as the rule's bullet on the Conformance page.
-#
-# Renumbered DSDS-01 through DSDS-05 (sequential, no gaps) when spec/ was
-# dissolved and schema/ moved to the repo base - the prior numbering
-# (004, 006, 007, 008, 010) carried gaps from several retired rules
-# (duplicate-platform checks, section-kind placement, a removed
-# rules-resolve check) that no longer need documenting once the ids
-# themselves changed. Ids are still never reused once assigned going
-# forward - a stable, citable id is only stable if it never means
-# something else later.
-#
-# DSDS-06/07 added to restore graph-cycle safety the previously-published
-# v0.15.2 spec had (relationship cycle prohibition) and the rewrite had
-# dropped - added as validator-side rules, not a schema shape change, per
-# the graph-rigor-and-composition design.
-
+# Mirrored from the upstream spec repo (somerandomdude/design-system-
+# documentation-schema, 0.20.0 branch) as of commit 3fdf425 (2026-08-25).
+# validator-0.20.0.js's RULES lookup is built from this file's `name`/`id`
+# pairs — see its own header comment for which rules it implements and how.
 - id: DSDS-01
   name: ONE_API_PER_PLATFORM
   title: At most one `sourceFiles` entry per platform.
@@ -91,8 +70,36 @@
   title: A bare `to:` ref must resolve to a real entry or shared entry.
   description: >-
     When a `ref`'s `to` is a bare id (no `#itemId`), the entry or shared
-    entry it names must exist in the document - `entries` and `shared`
-    share one id space (see `DSDS-04`). Checked within one document; a
-    corpus split across files via `rel: file` needs the whole project
-    loaded to resolve a cross-file target, which this validator doesn't
-    do yet.
+    entry it names must exist - `entries` and `shared` share one id space
+    (see `DSDS-04`). Resolves against the whole project, not just the one
+    document handed to the validator: a `rel: file` link is followed
+    transitively, and every file passed to one CLI invocation is treated
+    as belonging to the same project. A target still not found this way
+    reports as a warning, not a hard error, unless nothing wider was
+    available to check against at all.
+
+- id: DSDS-09
+  name: COMBO_TARGET_RESOLVES
+  title: A `combo`'s `subject`/`items` must resolve.
+  description: >-
+    A `combo` target names one of three things: a trait on the same
+    entry (a bare id for a boolean trait, `traitId.valueId` for an enum
+    value), a token entry wrapped in braces (`{color.action.primary}`),
+    or a bare entry id. `subject: size.small` against a component with
+    no `size` trait, or a token reference to a token that doesn't exist,
+    now fails instead of passing silently. The trait form is always
+    checked against the owning entry's own `traits` - that space is
+    always fully visible, so it's a hard error unconditionally. The
+    token and entry forms follow the same project-scope search
+    `DSDS-05`/`DSDS-08` use, with the same warning-not-error treatment
+    when the search is incomplete.
+
+- id: DSDS-10
+  name: SAME_AS_LEVEL_MATCHES
+  title: A `same-as` item's `level` must match its target's.
+  description: >-
+    `level` is required on every guidelines item, even one that borrows
+    its `statement` from elsewhere via a `same-as` ref - so the
+    borrowing site and the shared rule each carry their own copy of
+    `level`, with nothing checking the two agree. Whenever the same-as
+    target resolves and has its own `level`, this checks they match.

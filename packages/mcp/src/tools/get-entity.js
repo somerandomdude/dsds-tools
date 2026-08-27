@@ -1,5 +1,5 @@
 import { getUpdateNotice } from '../spec/version.js';
-import { renderCombos20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
 
 export const getEntityDef = {
   name: 'dsds_get_entity',
@@ -17,7 +17,7 @@ export const getEntityDef = {
   },
 };
 
-export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null) {
+export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
   if (systems.length === 0 && introEntities.length === 0) {
@@ -126,11 +126,13 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     renderTraits20(found.traits, lines);
     renderCombos20(found.combos, lines);
     renderSourceAndImports20(found, lines);
+    renderApi20(found, lines, propsConfig);
     if (found.sections?.length) {
-      renderSections20(found.sections, lines);
+      renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
     } else {
       lines.push('*No sections defined for this entry.*');
     }
+    renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
   } else if (found.documentBlocks?.length) {
     lines.push(`## Documentation (${found.documentBlocks.length} block${found.documentBlocks.length !== 1 ? 's' : ''})`, '');
     for (const block of found.documentBlocks) {

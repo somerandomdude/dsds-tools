@@ -79,12 +79,37 @@ describe('loadSystems — real 0.20.0 (.dsds.yaml)', () => {
     expect(entity.relationships.every(r => typeof r.target === 'string' && !r.target.startsWith('http'))).toBe(true);
   });
 
+  it('also derives relationships from `related`, not just `refs` — both carry the same {to,rel} shape', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const entity = systems[0].entities[0];
+    const iconButtonEdge = entity.relationships.find(r => r.target === 'icon-button');
+    expect(iconButtonEdge).toBeDefined();
+    expect(iconButtonEdge.relation).toBe('alternative-to');
+  });
+
+  it('records the entity\'s own originating file path', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const entity = systems[0].entities[0];
+    expect(entity.__filePath).toBe(resolve(`${fixturesDir}/button.dsds.yaml`));
+  });
+
   it('follows rel:file refs transitively from a base document to a sibling file', async () => {
     const { systems, errors } = await loadSystems([`${fixturesDir}/base-with-refs.dsds.yaml`]);
     expect(errors).toHaveLength(0);
     const identifiers = systems[0].entities.map(e => e.identifier);
     expect(identifiers).toContain('pizza-party-design-system');
     expect(identifiers).toContain('button'); // from the sibling ./components/button.dsds.yaml
+  });
+
+  it('does not follow a rel:file ref to a non-YAML sibling (a chunk\'s own code file) as an entity document', async () => {
+    // Regression: extractEntities20 used to try loadYaml20() on ANY rel:file
+    // target regardless of extension. A short/simple non-YAML file (like a
+    // small .tsx chunk) can coincidentally parse as a valid (garbage) YAML
+    // scalar instead of throwing, silently adding a bogus string "entity".
+    const { systems, errors } = await loadSystems([`${fixturesDir}/chunk-example.dsds.yaml`]);
+    expect(errors).toHaveLength(0);
+    expect(systems[0].entities).toHaveLength(1);
+    expect(systems[0].entities[0].identifier).toBe('example-chunk');
   });
 
   it('does not set __dsds20 on legacy JSON entities', async () => {

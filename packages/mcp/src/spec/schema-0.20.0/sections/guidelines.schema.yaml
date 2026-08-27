@@ -4,8 +4,10 @@ title: GuidelinesSection
 description: Rules for an entry. How to use it and when it is the right choice. Each item pairs a rule with why it exists.
 $comment: >-
   The same structure covers both a how-to-build rule and a when-to-use
-  judgment. Only `context` is different (`context: when-to-use` for a
-  judgment).
+  judgment. Only `framing` is different (`framing: when-to-use` for a
+  judgment). Named `framing`, not `context`, to stay clear of
+  section.schema.yaml's own `context` field (what job this section is
+  doing) - this one is narrower, just how-to-use vs. when-to-use.
 
   `statement` is required unless the item points somewhere else
   instead. Use `same-as` for a statement already declared once elsewhere
@@ -22,6 +24,17 @@ $comment: >-
   or lint rule. `example` always matches `level`, so there's no need
   for a separate pass/fail flag.
 
+  An `external-link` item with no `statement` (just `level` plus the
+  `refs` entry) is intentional, not a gap: it says "this rule exists,
+  at this strictness, tracked in another system" without restating text
+  that lives there. It's genuinely unreadable on its own - there is no
+  local summary to fall back on - so a reader who wants the actual rule
+  MUST follow the link. A renderer SHOULD show the level and the link
+  clearly (not hide a level-with-nothing-under-it as if it were
+  empty content), and an author who expects a person to read the
+  guideline without following the link SHOULD add a `statement` instead
+  of leaving this form as the only text.
+
 allOf:
   - $ref: https://designsystemdocspec.org/v0.20.0/section.schema.yaml
   - type: object
@@ -29,7 +42,7 @@ allOf:
       kind:
         const: guidelines
         description: Marks this section as guidelines.
-      context:
+      framing:
         type: string
         enum: [when-to-use, how-to-use]
         default: how-to-use
@@ -60,11 +73,12 @@ allOf:
             id:
               $ref: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml
               description: A stable id for this guideline, so another item, like an agent-only refinement or a checklist entry, can point at it.
+              $comment: You can leave this out - a tool MUST derive one from this item's own text (see common/id.schema.yaml's own $comment for the rule).
             statement:
               $ref: https://designsystemdocspec.org/v0.20.0/common/markdown.schema.yaml
               description: An individual, concrete usage rule.
               $comment: >-
-                When the section's context is when-to-use, this states
+                When the section's framing is when-to-use, this states
                 a user situation. Leave it out only when `refs` carries a
                 same-as or external-link pointer instead (see the file
                 comment above).

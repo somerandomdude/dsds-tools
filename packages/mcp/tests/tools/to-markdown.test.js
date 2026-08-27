@@ -23,6 +23,12 @@ describe('toMarkdownHandler', () => {
 });
 
 describe('toMarkdownHandler — real 0.20.0 (.dsds.yaml)', () => {
+  // dsds_to_markdown targets the shape of the hand-authored reference docs
+  // (e.g. button.md in "Sanity UI component documentation"): traits split
+  // into States/Variants, guidelines split into headed Do/Don't and When
+  // (to/not to) use buckets, `for: agent` sections dropped from the human
+  // doc entirely — not the flat "Traits (variants & states)"/"Guidelines"
+  // dump that get-entity/get-agent-context still render for agent use.
   it('renders sourceFiles/traits/combos and every real section kind', async () => {
     const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
     const result = await toMarkdownHandler({ identifier: 'button' }, () => systems);
@@ -30,11 +36,17 @@ describe('toMarkdownHandler — real 0.20.0 (.dsds.yaml)', () => {
     expect(result.isError).toBeFalsy();
     expect(text).toContain('# Button');
     expect(text).toContain('**Status:** stable');
-    expect(text).toContain('Source files');
-    expect(text).toContain('Traits (variants & states)');
+    expect(text).toContain('## States');
+    expect(text).toContain('## Variants');
     expect(text).toContain('Combos (pairing rules)');
     expect(text).toContain('Definitions');
-    expect(text).toContain('Pre-release checklist');
-    expect(text).toContain('Guidelines');
+    // `for: human` renders (no title on this one, so it falls back to the
+    // generic "## Guidelines" heading rather than Best practices — it has
+    // no `context: when-to-use`/`how-to-use` to route it there).
+    expect(text).toContain('## Guidelines');
+    expect(text).toContain('Limit each surface to one primary button.');
+    // `for: agent` is agent-only and must not leak into the human doc.
+    expect(text).not.toContain('Pre-release checklist');
+    expect(text).not.toContain('Do not use button when the action navigates');
   });
 });

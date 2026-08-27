@@ -25,7 +25,7 @@ Modify an existing `.dsds.yaml` file in `packages/specs/`.
 | New variant value | Top-level `traits` item with `kind: enum`, in its `values` array |
 | New state | Top-level `traits` item with `kind: boolean` |
 | Anatomy change | The `definitions` section titled "Anatomy" |
-| New accessibility requirement | A `guidelines` item (`context: how-to-use`), or a `definitions` section titled "Keyboard interactions" |
+| New accessibility requirement | A `guidelines` item (`framing: how-to-use`), or a `definitions` section titled "Keyboard interactions" |
 | Status change | `metadata.status` (always an object: `{status: "..."}`) |
 | New agent rule | A section with `for: agent` |
 

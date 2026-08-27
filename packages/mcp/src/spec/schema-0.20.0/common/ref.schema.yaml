@@ -69,6 +69,15 @@ oneOf:
           is also how a theme entry points at its real source file,
           instead of listing every token it changes.
 
+          Use `refs` with `rel: source` for an entry's primary source
+          file (see button.yaml's GitHub link) - every tool reading
+          `common/ref` already understands it, unlike a custom field or
+          `$extensions`. Exception: a component uses its own
+          `sourceFiles` instead, since it's structured (one entry per
+          platform) and what tooling already extracts an API from.
+          `metadata.preview` and `examples[].ref` are for a sample, not
+          the real source.
+
           Namespaced custom values (ex: "acme.supersedes") are allowed
           too.
         example: depends-on

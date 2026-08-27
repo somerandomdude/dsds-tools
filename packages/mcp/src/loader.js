@@ -26,8 +26,14 @@ import { entriesIn20, isBaseDoc20, loadYaml20 } from './spec/dsds20-lib.js';
 //     list/search tools) never needs to check this flag at all.
 const YAML_EXTENSIONS = new Set(['.yaml', '.yml']);
 
-function relationshipsFromRefs(refs) {
-  return (refs ?? [])
+// `related` is the entry's primary typed-relationship list; `refs` is the
+// catch-all for everything else "not covered by related or extends" (per
+// common/ref.schema.yaml) but in practice also carries internal `to`
+// pointers (e.g. `rel: composes`) alongside file/external ones. Both use
+// the same {to, rel, role, required} shape, so both feed the graph.
+function relationshipsFromRefs(entity) {
+  const edges = [...(entity.related ?? []), ...(entity.refs ?? [])];
+  return edges
     .filter(r => r && typeof r.to === 'string' && r.rel !== 'file')
     .map(r => ({
       relation: r.rel,
@@ -38,11 +44,19 @@ function relationshipsFromRefs(refs) {
     }));
 }
 
-function normalizeEntity20(entity) {
+function normalizeEntity20(entity, filePath, sharedEntries) {
   if (!entity || typeof entity !== 'object') return entity;
   entity.identifier ??= entity.id;
-  entity.relationships ??= relationshipsFromRefs(entity.refs);
+  entity.relationships ??= relationshipsFromRefs(entity);
   entity.__dsds20 = true;
+  // The entry's own originating file — needed to resolve refs with `rel:
+  // file` that point at sibling non-YAML assets (e.g. a chunk's code file),
+  // which are never followed/inlined by extractEntities20 below.
+  entity.__filePath = filePath;
+  // The base document's `shared[]` pool this entity was loaded alongside —
+  // needed to resolve a `rel: same-as` ref (`to: "<sharedId>#<itemId>"`) at
+  // render time. Empty for a standalone entry file (no base doc, no pool).
+  entity.__sharedEntries = sharedEntries ?? [];
   return entity;
 }
 
@@ -53,9 +67,20 @@ function normalizeEntity20(entity) {
  * own composition mechanism. `visited` (absolute paths) prevents cycles.
  */
 async function extractEntities20(doc, absPath, visited) {
-  const here = isBaseDoc20(doc) ? entriesIn20(doc).map(normalizeEntity20) : [normalizeEntity20(doc)];
+  const sharedEntries = isBaseDoc20(doc) ? (doc.shared ?? []) : [];
+  const here = isBaseDoc20(doc)
+    ? entriesIn20(doc).map(e => normalizeEntity20(e, absPath, sharedEntries))
+    : [normalizeEntity20(doc, absPath, sharedEntries)];
 
-  const fileRefs = (doc.refs ?? []).filter(r => r?.rel === 'file' && typeof r.href === 'string');
+  // Only a YAML-extensioned rel:file target is a sibling *entity* document —
+  // a chunk's own code file (role: source, .tsx/.ts/etc.) is also rel:file
+  // but must never be parsed as YAML. Relying on a parse-failure catch alone
+  // is unsafe: a short/simple non-YAML file can coincidentally parse as a
+  // valid (garbage) YAML scalar instead of throwing, silently adding a bogus
+  // string "entity" to the loaded system.
+  const fileRefs = (doc.refs ?? []).filter(
+    r => r?.rel === 'file' && typeof r.href === 'string' && YAML_EXTENSIONS.has(extname(r.href))
+  );
   if (fileRefs.length === 0) return here;
 
   const baseDir = dirname(absPath);
@@ -205,7 +230,7 @@ export async function loadIntroEntity(filePath) {
         process.stderr.write(`[dsds-mcp] Intro file at ${filePath} has no valid entry — skipping.\n`);
         return null;
       }
-      return normalizeEntity20(entity);
+      return normalizeEntity20(entity, absPath);
     }
     const doc = JSON.parse(raw);
     const entity = doc.entity ?? doc;

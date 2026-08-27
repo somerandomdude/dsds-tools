@@ -63,3 +63,15 @@ export function findRefs20(value, at, out) {
     }
   }
 }
+
+// The 5 well-known entry kinds (entries/entry.schema.yaml); everything else
+// must be a namespaced custom kind — dotted, lowercase-dash segments, at
+// least one dot (common/id.schema.yaml's `namespaced` $def) — e.g.
+// `sanity.guide`, `acme.case-study`. Shared by the validator (deciding
+// whether a document looks like 0.20.0 at all) and the spec_* authoring
+// tools (falling back to the generic `entry` shape for an unrecognized but
+// validly-namespaced kind, instead of a flat "unknown kind" error).
+export const WELL_KNOWN_KINDS_0_20_0 = new Set(['system', 'component', 'token', 'theme', 'entry']);
+export const NAMESPACED_KIND_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)+$/;
+export const isValidKind20 = (kind) =>
+  WELL_KNOWN_KINDS_0_20_0.has(kind) || NAMESPACED_KIND_PATTERN.test(kind);

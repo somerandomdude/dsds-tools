@@ -1,4 +1,5 @@
-import { renderCombos20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { getApiForEntry } from '../spec/prop-extractor-0.20.0.js';
+import { renderCombos20, renderExtensions20, renderGuidelineItem, renderSections20 } from '../spec/render-0.20.0.js';
 
 const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
 
@@ -282,22 +283,201 @@ function renderSections(block, lines, depth = 2) {
 
 // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields, and
 // `sections` (definitions/guidelines/steps/section) replaces the whole
-// documentBlocks/agentDocumentBlocks model. No `for: human`/`for: agent`
-// filtering here — a human-readable markdown doc renders every section.
-function entityToMarkdown20(entity, lines) {
-  renderSourceAndImports20(entity, lines);
-  renderTraits20(entity.traits, lines);
-  renderCombos20(entity.combos, lines);
-  renderSections20(entity.sections, lines, { depth: 2 });
+// documentBlocks/agentDocumentBlocks model.
+//
+// `dsds_to_markdown` is the human-facing doc export (feeds dsds-gdocs-export),
+// so it targets the shape of the hand-authored reference docs in
+// "Sanity UI component documentation" (e.g. button.md): Basic example → API
+// documentation → Usage guidelines → Best practices → States → Variants →
+// Accessibility → Content, with `for: agent` sections dropped entirely (they
+// restate the same guidance for a different audience — get-agent-context.js
+// is where that copy belongs, not the human doc). This reshapes the same
+// section/trait data the generic renderSections20/renderTraits20 render
+// flatly, by feeding it through the block-shaped legacy renderers above
+// (renderImports/renderApi/renderUseCases/renderGuidelines/renderStates/
+// renderVariants/renderAccessibility/renderContent) — those already produce
+// the target format, for the legacy documentBlocks shape; adapting 0.20.0
+// data into that same block shape reuses them instead of re-implementing.
+// section.schema.yaml's `for` enum is human|agent|all (default all) — a
+// human-facing doc renders `human` and `all`, never an `agent`-only section.
+const isHumanSection = (s) => s.for === 'human' || s.for === 'all' || !s.for;
 
-  const agentSections = (entity.agentDocumentBlocks ?? []).filter(b => b.kind === 'sections' || b.kind === 'section');
-  if (agentSections.length > 0) {
-    lines.push('## Notes', '');
-    for (const block of agentSections) renderSections(block, lines, 3);
+function apiPropsBlock(entity, propsConfig) {
+  const result = getApiForEntry(entity, propsConfig);
+  if (result.status !== 'fresh' && result.status !== 'unverified') return null;
+  const props = result.props?.props ?? [];
+  if (!props.length) return null;
+  return {
+    unverified: result.status === 'unverified',
+    alsoAccepts: result.props?.alsoAccepts ?? [],
+    properties: props.map(p => ({
+      identifier: p.name,
+      description: p.description,
+      type: p.type,
+      values: p.values,
+      defaultValue: p.defaultValue ?? p.default,
+      required: p.required,
+    })),
+  };
+}
+
+function renderApi20Rich(entity, lines, propsConfig) {
+  const result = getApiForEntry(entity, propsConfig);
+  if (result.status === 'unconfigured' || result.status === 'no-source') return;
+  if (result.status === 'missing') {
+    lines.push('## API documentation', '', '*No extracted prop data yet for this entry. See `sourceFiles` on the entity.*', '');
+    return;
+  }
+  if (result.status === 'stale') {
+    lines.push(
+      '## API documentation', '',
+      '> **Stale prop cache** — the source has changed since the last extraction and the ' +
+        'extractor toolchain (Node ≥22.6) is unavailable to regenerate it. Omitting the table ' +
+        'rather than risk showing an outdated one.',
+      ''
+    );
+    return;
+  }
+  const block = apiPropsBlock(entity, propsConfig);
+  if (!block) return;
+  if (block.unverified) lines.push('*Freshness not verified against source (`uiSourceRoot` not configured).*', '');
+  renderApi({ properties: block.properties }, lines);
+  if (block.alsoAccepts.length) {
+    lines.push(`Native HTML attributes (\`${block.alsoAccepts.join('`, `')}\`, etc.) pass through to the base element.`, '');
   }
 }
 
-function entityToMarkdown(entity) {
+function hasA11yTag(item) {
+  return (item.tags ?? []).includes('accessibility');
+}
+
+const isRecommended = (item) => item.level === 'should' || item.level === 'must';
+
+/** Splits items into two headed buckets by level, rendering each via renderGuidelineItem (preserves same-as/example/$extensions/alternatives) rather than a lossy plain-bullet adapter. */
+function renderSplitGuidelines20(items, lines, ctx, { yesHeading, noHeading, showChecklistExample = true }) {
+  const yes = items.filter(isRecommended);
+  const no = items.filter((i) => !isRecommended(i));
+  if (yes.length) {
+    lines.push(yesHeading, '');
+    for (const item of yes) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false });
+    lines.push('');
+  }
+  if (no.length) {
+    lines.push(noHeading, '');
+    for (const item of no) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false });
+    lines.push('');
+  }
+}
+
+function entityToMarkdown20(entity, lines, propsConfig) {
+  const sections = entity.sections ?? [];
+  const ctx = { filePath: entity.__filePath, sharedEntries: entity.__sharedEntries };
+  const consumed = new Set();
+  const collectMatches = (matches) => {
+    matches.forEach((s) => consumed.add(s));
+    const items = matches.flatMap((s) => s.items ?? []);
+    return { items, sections: matches };
+  };
+  // `framing` (when-to-use/how-to-use) only exists on `guidelines` sections
+  // — not to be confused with the base `context` field below, a same-named-
+  // sounding but distinct concept the spec renamed this one away from to
+  // make room for.
+  const collectByFraming = (framing) => collectMatches(sections.filter((s) => isHumanSection(s) && s.kind === 'guidelines' && s.framing === framing));
+  // `context` (anatomy/terms/keyboard/events/namespaced) is the section
+  // base schema's newer, machine-readable way to say what job a
+  // `definitions` section is doing — matched here alongside the older
+  // title-string convention (`title: 'Content'`) the real corpus still
+  // uses everywhere, since nothing has been re-authored to the new field
+  // yet. Either one earns the same treatment.
+  const collectByTitleOrContext = (title, context) =>
+    collectMatches(sections.filter((s) => isHumanSection(s) && s.kind === 'definitions' && (s.title === title || (context && s.context === context))));
+  const collectByGuidelinesTitle = (title) =>
+    collectMatches(sections.filter((s) => isHumanSection(s) && s.kind === 'guidelines' && s.title === title));
+  const renderSectionExtensions = (matches) => {
+    for (const s of matches) renderExtensions20(s.$extensions, lines);
+  };
+
+  if (entity.imports?.length) {
+    // entity.imports has no explicit language field — every real corpus entry
+    // so far is a `platform: react` code sample, so default to tsx rather
+    // than guessing per-entity.
+    renderImports({ items: entity.imports.map(i => ({ package: i.package, code: i.code, language: 'tsx' })) }, lines);
+  }
+
+  renderApi20Rich(entity, lines, propsConfig);
+
+  const whenToUse = collectByFraming('when-to-use');
+  if (whenToUse.items.length) {
+    lines.push('## Usage guidelines', '');
+    renderSplitGuidelines20(whenToUse.items, lines, ctx, { yesHeading: '### When to use', noHeading: '### When not to use' });
+    renderSectionExtensions(whenToUse.sections);
+  }
+
+  const howToUse = collectByFraming('how-to-use');
+  const bestPracticeItems = howToUse.items.filter((i) => !hasA11yTag(i));
+  if (bestPracticeItems.length) {
+    lines.push('## Best practices', '');
+    renderSplitGuidelines20(bestPracticeItems, lines, ctx, { yesHeading: '### Do', noHeading: "### Don't", showChecklistExample: false });
+    renderSectionExtensions(howToUse.sections);
+  }
+
+  const booleanTraits = (entity.traits ?? []).filter((t) => t.kind !== 'enum');
+  if (booleanTraits.length) {
+    renderStates({
+      items: booleanTraits.map(t => ({ identifier: t.id, description: t.description, rationale: t.purpose })),
+    }, lines);
+  }
+
+  const enumTraits = (entity.traits ?? []).filter((t) => t.kind === 'enum');
+  if (enumTraits.length) {
+    renderVariants({
+      items: enumTraits.map(t => ({
+        identifier: t.id,
+        kind: 'enum',
+        description: t.description,
+        values: (t.values ?? []).map(v => ({ identifier: v.id, description: v.description })),
+      })),
+    }, lines);
+  }
+
+  renderCombos20(entity.combos, lines);
+
+  const a11ySection = collectByGuidelinesTitle('Accessibility');
+  const a11yTaggedItems = howToUse.items.filter(hasA11yTag);
+  const a11yItems = [...a11ySection.items, ...a11yTaggedItems];
+  const keyboardSection = collectByTitleOrContext('Keyboard interactions', 'keyboard');
+  if (a11yItems.length || keyboardSection.items.length) {
+    lines.push('## Accessibility', '');
+    for (const item of a11yItems) renderGuidelineItem(item, lines, ctx, { showLevel: false, showCheckedBy: false });
+    if (a11yItems.length) lines.push('');
+    if (keyboardSection.items.length) {
+      lines.push('### Keyboard interactions', '');
+      lines.push('| Key | Action |');
+      lines.push('| :---- | :---- |');
+      for (const k of keyboardSection.items) lines.push(`| \`${cell(k.term)}\` | ${cell(asText(k.definition))} |`);
+      lines.push('');
+    }
+    renderSectionExtensions(a11ySection.sections);
+    renderSectionExtensions(keyboardSection.sections);
+  }
+
+  const contentSection = collectByTitleOrContext('Content', 'terms');
+  if (contentSection.items.length) {
+    renderContent({ labels: contentSection.items.map(i => ({ term: i.term, definition: i.definition })) }, lines);
+    renderSectionExtensions(contentSection.sections);
+  }
+
+  // Anything not claimed above (custom section kinds, freeform-only notes
+  // like a migration guide, other titled definitions/guidelines/steps) still
+  // renders — via the generic per-kind renderer — so nothing silently
+  // disappears just because it doesn't match one of the named patterns above.
+  const leftover = sections.filter((s) => isHumanSection(s) && !consumed.has(s));
+  renderSections20(leftover, lines, { depth: 2, filePath: entity.__filePath, sharedEntries: entity.__sharedEntries });
+
+  renderExtensions20(entity.$extensions, lines, { heading: '## Tool data' });
+}
+
+function entityToMarkdown(entity, propsConfig) {
   const lines = [];
 
   // Header
@@ -314,7 +494,7 @@ function entityToMarkdown(entity) {
   else if (meta.status) lines.push(`**Status:** ${meta.status}  `, '');
 
   if (entity.__dsds20) {
-    entityToMarkdown20(entity, lines);
+    entityToMarkdown20(entity, lines, propsConfig);
     return lines.join('\n');
   }
 
@@ -386,7 +566,7 @@ export const toMarkdownDef = {
   },
 };
 
-export async function toMarkdownHandler({ identifier }, getSystems) {
+export async function toMarkdownHandler({ identifier }, getSystems, propsConfig = null) {
   const systems = getSystems();
 
   if (!systems || systems.length === 0) {
@@ -419,6 +599,6 @@ export async function toMarkdownHandler({ identifier }, getSystems) {
     };
   }
 
-  const markdown = entityToMarkdown(found);
+  const markdown = entityToMarkdown(found, propsConfig);
   return { content: [{ type: 'text', text: markdown }] };
 }

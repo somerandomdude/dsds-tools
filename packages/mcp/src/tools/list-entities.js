@@ -50,7 +50,7 @@ export async function listEntitiesHandler(_args, getSystems, getSummaries) {
   const lines = [`# Design System Entities (${summaries.length} total)`, ''];
 
   for (const [kind, entities] of Object.entries(byKind)) {
-    lines.push(`## ${capitalize(kind)}s (${entities.length})`, '');
+    lines.push(`## ${humanizeKindPlural(kind)} (${entities.length})`, '');
     // Name column dropped — it is almost always the identifier in title case
     // (button → Button), so it doubled the table width for no information.
     lines.push('| Identifier | Status | Summary |');
@@ -69,6 +69,15 @@ export async function listEntitiesHandler(_args, getSystems, getSummaries) {
 
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// A real 0.20.0 namespaced kind (e.g. "sanity.chunk") naively capitalized +
+// pluralized reads as "Sanity.chunks" — replace the dot with a space first
+// so it reads as "Sanity chunks".
+function humanizeKindPlural(kind) {
+  const humanized = capitalize(kind.replace(/\./g, ' '));
+  // Standard English pluralization: "entry" -> "entries", not "entrys".
+  return /[^aeiou]y$/i.test(humanized) ? `${humanized.slice(0, -1)}ies` : `${humanized}s`;
 }
 
 function truncate(str, max) {

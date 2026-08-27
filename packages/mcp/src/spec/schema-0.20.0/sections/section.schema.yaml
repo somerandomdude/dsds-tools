@@ -47,6 +47,26 @@ properties:
     type: string
     description: An optional one-line intro for the section.
     example: Rules for using this component correctly.
+  context:
+    description: What job this section is doing.
+    $comment: >-
+      Open, the same way `entry.kind`/`section.kind` are: one of the
+      well-known values below, or a namespaced custom one (ex:
+      "acme.slots"). Optional - a section with no stated `context` is
+      just its kind's default shape. Named to match `metadata.context`
+      (why this entry exists) - this is the same idea one level down,
+      why this section exists. Lives on the shared base, not a single
+      kind's file, since more than one kind can use it: a `definitions`
+      section's anatomy table vs. glossary vs. prop list is the
+      original case, but any section kind can be doing a distinguishable
+      job its `title` alone doesn't make machine-readable.
+    oneOf:
+      - type: string
+        enum: [anatomy, terms, keyboard, events]
+      - $ref: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml#/$defs/namespaced
+        description: A namespaced custom value.
+        example: acme.slots
+    example: anatomy
   metadata:
     $ref: https://designsystemdocspec.org/v0.20.0/metadata.schema.yaml
   items:
@@ -111,7 +131,7 @@ $defs:
       id:
         $ref: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml
         description: A stable id for linking to this entry directly, unique within the section.
-        $comment: Tools MAY derive one from the title when this is left out.
+        $comment: You can leave this out - a tool MUST derive one from this item's own text (see common/id.schema.yaml's own $comment for the rule).
         example: install
       title:
         type: string

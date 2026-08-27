@@ -29,6 +29,7 @@ allOf:
             id:
               $ref: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml
               description: An optional stable id, so a ref or a same-as pointer can address this step directly.
+              $comment: You can leave this out - a tool MUST derive one from this item's own text (see common/id.schema.yaml's own $comment for the rule).
             title:
               type: string
               description: "A short heading for this entry, for example 'Install the package' or 'Focus ring is visible'."

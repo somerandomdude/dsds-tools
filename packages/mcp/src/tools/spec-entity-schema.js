@@ -1,20 +1,19 @@
 import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0, VALID_BLOCKS_BY_KIND, METADATA_FIELDS } from '../spec/knowledge.js';
+import { isValidKind20 } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
-
-const ALL_KINDS = [...new Set([...ENTITY_KINDS, ...ENTITY_KINDS_0_20_0])];
 
 export const specEntitySchemaDef = {
   name: 'dsds_spec_entity_schema',
   description:
     'Get the full field definitions for a DSDS entity kind. Use this before authoring or scaffolding to understand what fields are available. ' +
-    'For a real 0.20.0 document (.dsds.yaml), pass spec:"0.20.0" — prefer dsds_get_skill({id:"dsds-specs"}) for the fuller picture, this tool only covers one kind at a time.',
+    'For a real 0.20.0 document (.dsds.yaml), pass spec:"0.20.0" — prefer dsds_get_skill({id:"dsds-specs"}) for the fuller picture, this tool only covers one kind at a time. ' +
+    'A namespaced custom kind (e.g. "sanity.guide") is valid with spec:"0.20.0" — it falls back to the generic entry shape.',
   inputSchema: {
     type: 'object',
     properties: {
       kind: {
         type: 'string',
-        enum: ALL_KINDS,
-        description: 'The entity kind to describe.',
+        description: 'The entity kind to describe. For 0.20.0, either a well-known kind (component, token, theme, system, entry) or a namespaced custom kind (e.g. "sanity.guide").',
       },
       spec: {
         type: 'string',
@@ -27,7 +26,9 @@ export const specEntitySchemaDef = {
 };
 
 export async function specEntitySchemaHandler({ kind, spec }) {
-  const is20Only = kind === 'system' || kind === 'entry';
+  // A namespaced custom kind (e.g. "sanity.guide") can't exist under legacy
+  // 0.15.2 at all, so it always routes to the 0.20.0 path regardless of spec.
+  const is20Only = kind === 'system' || kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
   if (spec === '0.20.0' || is20Only) return render20(kind);
 
   const def = ENTITY_DESCRIPTIONS[kind];
@@ -94,16 +95,29 @@ export async function specEntitySchemaHandler({ kind, spec }) {
 }
 
 function render20(kind) {
-  const def = ENTITY_DESCRIPTIONS_0_20_0[kind];
+  const isNamespacedCustomKind = !ENTITY_DESCRIPTIONS_0_20_0[kind] && isValidKind20(kind);
+  const def = ENTITY_DESCRIPTIONS_0_20_0[isNamespacedCustomKind ? 'entry' : kind];
   if (!def) {
     return {
       isError: true,
-      content: [{ type: 'text', text: `Unknown 0.20.0 entity kind "${kind}". Valid kinds: ${ENTITY_KINDS_0_20_0.join(', ')}.` }],
+      content: [{
+        type: 'text',
+        text: `Unknown 0.20.0 entity kind "${kind}". Valid kinds: ${ENTITY_KINDS_0_20_0.join(', ')}, or a namespaced custom kind (e.g. "sanity.guide" — dotted, lowercase-dash segments).`,
+      }],
     };
   }
   const lines = [
     `# Entity Schema (real 0.20.0): \`${kind}\``,
     '',
+  ];
+  if (isNamespacedCustomKind) {
+    lines.push(
+      `"${kind}" is a namespaced custom kind, not one of the 5 well-known kinds — it follows the generic ` +
+        '`entry` shape shown below (the same shape underlies every foundation, pattern, guide, and custom kind):',
+      ''
+    );
+  }
+  lines.push(
     def.summary,
     '',
     '## Required Fields',
@@ -117,7 +131,7 @@ function render20(kind) {
     `> **Note:** ${def.notes}`,
     '',
     'Prefer `dsds_get_skill({ id: "dsds-specs" })` for the full model (section kinds, refs, metadata) — this tool covers only this one kind\'s own top-level shape.',
-  ];
+  );
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
   return { content: [{ type: 'text', text: lines.join('\n') }] };

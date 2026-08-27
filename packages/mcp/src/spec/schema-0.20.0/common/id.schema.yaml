@@ -3,7 +3,12 @@ $id: https://designsystemdocspec.org/v0.20.0/common/id.schema.yaml
 title: Id
 type: string
 description: Lowercase, dash-separated segments, optionally chained with dots.
-$comment: An id from an outside tool that doesn't fit this format goes under `$extensions.<namespace>.displayName` instead.
+$comment: >-
+  An id from an outside tool that doesn't fit this format goes under
+  `$extensions.<namespace>.displayName` instead.
+
+  A section item's own `id` is always optional to write, but a consuming tool MUST be able to address every item. An agent citing "why did you do that" needs something to cite, and same-as/refines/checks all point at an item by id. When an item has no `id`, a tool MUST derive one so content has a consistent id. Lowercase the item's own primary text field (a definitions item's `term`, a guidelines item's `statement`, a steps item's or freeform entry's `title`), replace each run of characters outside `[a-z0-9]` with a single dash, then trim any leading or trailing dash. This is the same rule this site's own `<ds-heading>` component already uses for a page's own heading
+  anchors - one algorithm, not a new one invented for this.
 pattern: '^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$'
 example: color.action.primary
 $defs:

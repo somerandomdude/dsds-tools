@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { validateDocument, validateJsonString } from '../src/validator.js';
-import { BUNDLED_VERSION } from '../src/spec/version.js';
 
-// Use the bundled version so these fixtures don't drift on every schema bump —
-// the schema pins `dsdsVersion` to a const equal to BUNDLED_VERSION.
+// This validator targets the legacy 0.15.2 schema, which pins `dsdsVersion`
+// to a const of '0.15.2' — independent of BUNDLED_VERSION, which now
+// declares the MCP's default spec version (0.20.0).
+const LEGACY_VERSION = '0.15.2';
 const validButton = {
-  dsdsVersion: BUNDLED_VERSION,
+  dsdsVersion: LEGACY_VERSION,
   entity: {
     kind: 'component',
     identifier: 'button',
@@ -27,7 +28,7 @@ describe('validateDocument', () => {
 
   it('returns errors when required entity field is missing', () => {
     const result = validateDocument({
-      dsdsVersion: BUNDLED_VERSION,
+      dsdsVersion: LEGACY_VERSION,
       entity: { kind: 'component', identifier: 'x' }, // missing name
     });
     expect(result.valid).toBe(false);
@@ -35,7 +36,7 @@ describe('validateDocument', () => {
 
   it('returns errors for unknown entity kind', () => {
     const result = validateDocument({
-      dsdsVersion: BUNDLED_VERSION,
+      dsdsVersion: LEGACY_VERSION,
       entity: { kind: 'widget', identifier: 'x', name: 'X' },
     });
     expect(result.valid).toBe(false);
@@ -43,7 +44,7 @@ describe('validateDocument', () => {
 
   it('validates a multi-entity document', () => {
     const result = validateDocument({
-      dsdsVersion: BUNDLED_VERSION,
+      dsdsVersion: LEGACY_VERSION,
       entityGroups: [
         {
           name: 'Components',

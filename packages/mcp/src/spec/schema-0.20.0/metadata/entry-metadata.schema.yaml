@@ -55,12 +55,10 @@ allOf:
         description: The version this entry was first introduced.
       group:
         type: string
-        description: A group name this entry belongs to, for example "color.action" on a set of related tokens.
+        description: A group name this entry belongs to, for example "color.action" on a set of related tokens, or "action" on a family of related components.
         $comment: >-
-          The recommended way to group tokens - there is no separate
-          token-group entry kind. A group is a fact about its members,
-          not a second artifact wrapping them, so it lives here rather
-          than as an entry other tokens point at.
+          Any entry can be grouped. Components, tokens, themes, etc. This
+          property is used for simple organization and categorization.
         example: color.action
       aliases:
         type: array

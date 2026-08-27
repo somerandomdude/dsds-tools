@@ -361,10 +361,10 @@ function buildOverview(entity, questionCount) {
 
   if (entity.__dsds20) {
     // Real 0.20.0 has no useCases block — a guidelines section with
-    // `context: when-to-use` is the direct analogue, and `combos` (pairing
+    // `framing: when-to-use` is the direct analogue, and `combos` (pairing
     // rules between traits) is directly relevant to a wizard walking those
     // same traits question by question.
-    const whenToUse = (entity.sections ?? []).filter(s => s.kind === 'guidelines' && s.context === 'when-to-use');
+    const whenToUse = (entity.sections ?? []).filter(s => s.kind === 'guidelines' && s.framing === 'when-to-use');
     for (const section of whenToUse) {
       for (const item of section.items ?? []) {
         const text = item.statement ?? item.guidance;

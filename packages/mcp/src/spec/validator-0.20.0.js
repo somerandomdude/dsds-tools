@@ -11,14 +11,17 @@
 // behavior when it has no file path to resolve a project from — an
 // unresolved bare `to:` ref is a hard error only when this document
 // declares no `rel: file` links at all (i.e. isn't part of a larger,
-// unseen project); DSDS-04/05/08 and the composes/depends-on cycle checks
-// (06/07) all still run fully within this one document's own entries.
+// unseen project); DSDS-04/05/08/09 and the composes/depends-on cycle
+// checks (06/07) all still run fully within this one document's own
+// entries. DSDS-10 (same-as level match) needs no project-scope fallback
+// at all — an unresolved same-as target is already ITEM_REF_RESOLVES's
+// job to flag, so this rule only fires once resolution has succeeded.
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { entriesIn20, findRefs20, loadYaml20, walkSchemaYamlFiles } from './dsds20-lib.js';
+import { entriesIn20, findRefs20, isValidKind20, loadYaml20, walkSchemaYamlFiles } from './dsds20-lib.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.20.0');
@@ -123,7 +126,7 @@ function traitsBranches() {
 function validateSections(sections, label, errors) {
   for (const [i, section] of (sections ?? []).entries()) {
     const sectionSchemaId = specUrl(`sections/${section.kind}.schema.yaml`);
-    const validateSection = schemaFor(sectionSchemaId, specUrl('sections/section.schema.yaml'));
+    const validateSection = schemaFor(sectionSchemaId, specUrl('section.schema.yaml'));
     const sectionLabel = `${label} section[${i}] (${section.kind})`;
 
     if (!validateSection(section)) {
@@ -136,6 +139,12 @@ function validateSections(sections, label, errors) {
 
 const NESTED_SECTION_ERROR = /^\/sections\/\d/;
 
+// Note: does NOT call validateItemRefs — when this runs per-entry inside
+// validateBase's loop, each entry would otherwise see only itself as
+// "local" and falsely flag every sibling-entry ref as unresolved. Base
+// documents get ref checking once, over the whole doc, at the end of
+// validateBase. A standalone entry gets it separately (see validateDoc20)
+// since entriesIn20() already treats `[entry]` as its own tiny document.
 function validateEntry(entry, errors) {
   const entrySchemaId = specUrl(`entries/${entry.kind}.schema.yaml`);
   const validate = schemaFor(entrySchemaId, specUrl('entry.schema.yaml'));
@@ -247,6 +256,8 @@ function validateBase(doc, errors, warnings) {
   }
 
   validateItemRefs(doc, errors, warnings);
+  validateCombos(doc, errors, warnings);
+  validateSameAsLevels(doc, errors);
   validateGraphCycles(doc, errors);
 }
 
@@ -325,13 +336,149 @@ function collectItemIds(entry) {
   return ids;
 }
 
+// Same traversal as collectItemIds, but keeps the actual item object (not
+// just its id) — validateSameAsLevels needs to read a resolved item's own
+// `level`, not just confirm the id exists.
+function collectItemsById(entry) {
+  const byId = new Map();
+  function walk(item) {
+    if (!item || typeof item !== 'object') return;
+    if (typeof item.id === 'string') byId.set(item.id, item);
+    for (const value of Object.values(item)) {
+      if (Array.isArray(value)) {
+        for (const child of value) walk(child);
+      }
+    }
+  }
+  for (const section of entry.sections ?? []) {
+    for (const item of section.items ?? []) walk(item);
+    for (const item of section.freeform ?? []) walk(item);
+  }
+  for (const trait of entry.traits ?? []) walk(trait);
+  return byId;
+}
+
+// A combo target names one of three things (DSDS-09): a trait on the SAME
+// entry (bare id for a boolean trait, `traitId.valueId` for an enum value),
+// a token entry wrapped in braces (`{color.action.primary}`), or a bare
+// entry id. Trait ids can themselves contain dots (id.schema.yaml allows
+// chained segments), so `traitId.valueId` is only treated as a trait
+// reference when the owning entry actually has that trait — otherwise it
+// falls through to entry-id resolution, same as a target with no dot at all.
+function resolveComboTarget(target, entry) {
+  if (typeof target !== 'string') return { kind: 'invalid' };
+  const braceMatch = /^\{(.+)\}$/.exec(target);
+  if (braceMatch) return { kind: 'token', id: braceMatch[1] };
+
+  const dotIdx = target.indexOf('.');
+  if (dotIdx !== -1) {
+    const traitId = target.slice(0, dotIdx);
+    const valueId = target.slice(dotIdx + 1);
+    const trait = (entry.traits ?? []).find((t) => t.id === traitId);
+    if (trait) return { kind: 'traitValue', trait, valueId };
+  }
+
+  const boolTrait = (entry.traits ?? []).find((t) => t.id === target);
+  if (boolTrait) return { kind: 'trait', trait: boolTrait };
+
+  return { kind: 'entry', id: target };
+}
+
+// DSDS-09: resolve every combo's subject and items. The trait form is
+// always fully visible on the owning entry, so a miss there is a hard
+// error unconditionally; the token/entry forms follow the same
+// project-scope search (and warn-not-error-when-incomplete treatment) as
+// ENTRY_REF_RESOLVES/ITEM_REF_RESOLVES.
+function validateCombos(doc, errors, warnings, { alwaysWarn = false } = {}) {
+  const isSplitAcrossFiles = alwaysWarn || (doc.refs ?? []).some((r) => r?.rel === 'file');
+  const unresolvedHint = alwaysWarn
+    ? 'a standalone entry file can\'t prove it\'s self-contained — this may resolve in a sibling file this validator can\'t see without disk access'
+    : 'this document declares rel: file links this validator can\'t follow without disk access';
+  const localEntities = entriesIn20(doc);
+  const localIds = new Set(localEntities.map((e) => e.id));
+
+  for (const entity of localEntities) {
+    for (const combo of entity.combos ?? []) {
+      const targets = [combo.subject, ...(combo.items ?? [])];
+      for (const target of targets) {
+        const resolved = resolveComboTarget(target, entity);
+        const label = `entry "${entity.id}" combo (subject: ${combo.subject}) target "${target}"`;
+
+        if (resolved.kind === 'trait') continue;
+
+        if (resolved.kind === 'traitValue') {
+          const hasValue = (resolved.trait.values ?? []).some((v) => v.id === resolved.valueId);
+          if (!hasValue) {
+            errors.push(err(RULES.COMBO_TARGET_RESOLVES, `${label} references value "${resolved.valueId}" on trait "${resolved.trait.id}", which has no such value`));
+          }
+          continue;
+        }
+
+        if (localIds.has(resolved.id)) continue;
+        if (!isSplitAcrossFiles) {
+          errors.push(err(RULES.COMBO_TARGET_RESOLVES, `${label} targets unknown ${resolved.kind} "${resolved.id}"`));
+        } else {
+          warnings.push(err(RULES.COMBO_TARGET_RESOLVES, `${label} targets unknown ${resolved.kind} "${resolved.id}" (${unresolvedHint})`));
+        }
+      }
+    }
+  }
+}
+
+// DSDS-10: a guidelines item borrowing its statement via `same-as` still
+// carries its own `level` (required on every guidelines item — same-as
+// only exempts `statement`), so nothing schema-level stops that copy from
+// drifting from the target's. Only checked when the target resolves and
+// itself has a `level` — an unresolved same-as ref is already reported by
+// ITEM_REF_RESOLVES, and a target with no `level` (e.g. a non-guidelines
+// item) has nothing to compare against.
+function validateSameAsLevels(doc, errors) {
+  const localEntities = entriesIn20(doc);
+  const itemsByEntity = new Map(localEntities.map((e) => [e.id, collectItemsById(e)]));
+
+  for (const entity of localEntities) {
+    for (const section of entity.sections ?? []) {
+      if (section.kind !== 'guidelines') continue;
+      for (const [i, item] of (section.items ?? []).entries()) {
+        if (typeof item.level !== 'string') continue;
+        const sameAs = (item.refs ?? []).find((r) => r?.rel === 'same-as' && typeof r.to === 'string');
+        if (!sameAs) continue;
+        const hashIdx = sameAs.to.indexOf('#');
+        if (hashIdx === -1) continue;
+        const targetEntityId = sameAs.to.slice(0, hashIdx);
+        const targetItemId = sameAs.to.slice(hashIdx + 1);
+        const targetItem = itemsByEntity.get(targetEntityId)?.get(targetItemId);
+        if (!targetItem || typeof targetItem.level !== 'string') continue;
+        if (targetItem.level !== item.level) {
+          errors.push(
+            err(RULES.SAME_AS_LEVEL_MATCHES, `entry "${entity.id}" guidelines item[${i}] has level "${item.level}" but its same-as target "${sameAs.to}" has level "${targetItem.level}" — these must match`),
+          );
+        }
+      }
+    }
+  }
+}
+
 // Single-document resolution only — no filesystem access to a `rel: file`
 // sibling. A document that declares one is treated as "part of a larger
 // project we can't see," so an unresolved ref there is a warning, not a
-// hard error; a fully self-contained document has nowhere else the target
-// could be, so unresolved there is a real error.
-function validateItemRefs(doc, errors, warnings) {
-  const isSplitAcrossFiles = (doc.refs ?? []).some((r) => r?.rel === 'file');
+// hard error; a fully self-contained base document has nowhere else the
+// target could be, so unresolved there is a real error.
+//
+// A standalone entry file is different: in the real corpus, the split-file
+// relationship is declared by the *index* (`rel: file` pointing OUT at each
+// leaf), not by each leaf pointing back — so a lone entry almost always has
+// ordinary `to:` refs to siblings it legitimately can't see, with no
+// `rel: file` of its own to signal that. Treating that as a hard error
+// produces mass false positives (245 across 56 of 135 real corpus files,
+// measured directly). A standalone file can never prove it's fully
+// self-contained, so `alwaysWarn` forces the same lenient treatment a base
+// document only gets when it explicitly declares a split.
+function validateItemRefs(doc, errors, warnings, { alwaysWarn = false } = {}) {
+  const isSplitAcrossFiles = alwaysWarn || (doc.refs ?? []).some((r) => r?.rel === 'file');
+  const unresolvedHint = alwaysWarn
+    ? 'a standalone entry file can\'t prove it\'s self-contained — this may resolve in a sibling file this validator can\'t see without disk access'
+    : 'this document declares rel: file links this validator can\'t follow without disk access';
   const localEntities = entriesIn20(doc);
   const localIds = new Set(localEntities.map((e) => e.id));
   const localItemIdsByEntity = new Map(localEntities.map((e) => [e.id, collectItemIds(e)]));
@@ -349,7 +496,7 @@ function validateItemRefs(doc, errors, warnings) {
         if (!isSplitAcrossFiles) {
           errors.push(err(RULES.ENTRY_REF_RESOLVES, `${label} targets unknown entry/shared "${to}"`));
         } else {
-          warnings.push(err(RULES.ENTRY_REF_RESOLVES, `${label} targets unknown entry/shared "${to}" (this document declares rel: file links this validator can't follow without disk access)`));
+          warnings.push(err(RULES.ENTRY_REF_RESOLVES, `${label} targets unknown entry/shared "${to}" (${unresolvedHint})`));
         }
         continue;
       }
@@ -369,7 +516,7 @@ function validateItemRefs(doc, errors, warnings) {
       if (!isSplitAcrossFiles) {
         errors.push(err(RULES.ITEM_REF_RESOLVES, `${label} targets unknown entry/shared "${targetId}"`));
       } else {
-        warnings.push(err(RULES.ITEM_REF_RESOLVES, `${label} targets unknown entry/shared "${targetId}" (this document declares rel: file links this validator can't follow without disk access)`));
+        warnings.push(err(RULES.ITEM_REF_RESOLVES, `${label} targets unknown entry/shared "${targetId}" (${unresolvedHint})`));
       }
     }
   }
@@ -388,6 +535,13 @@ export function validateDoc20(doc) {
     validateBase(doc, errors, warnings);
   } else {
     validateEntry(doc, errors);
+    // Standalone entry files (142 of 143 in the real corpus) previously got
+    // no reference checking at all — validateItemRefs was only reached via
+    // validateBase. entriesIn20() already treats a non-base doc as its own
+    // one-entry document, so this needs no changes to validateItemRefs itself.
+    validateItemRefs(doc, errors, warnings, { alwaysWarn: true });
+    validateCombos(doc, errors, warnings, { alwaysWarn: true });
+    validateSameAsLevels(doc, errors);
   }
   return { errors, warnings };
 }
@@ -398,11 +552,10 @@ export function looksLike20(doc) {
   if (typeof doc.schemaVersion !== 'undefined' && Array.isArray(doc.entries)) return true;
   // Standalone entry: real 0.20.0 kinds, addressed by `id` not `identifier`,
   // with no legacy wrapper (`entity`/`entityGroups`/`documentation`).
-  const REAL_KINDS = new Set(['component', 'token', 'theme', 'system', 'entry']);
   return (
     typeof doc.id === 'string' &&
     typeof doc.kind === 'string' &&
-    REAL_KINDS.has(doc.kind) &&
+    isValidKind20(doc.kind) &&
     !doc.entity &&
     !doc.entityGroups &&
     !doc.documentation

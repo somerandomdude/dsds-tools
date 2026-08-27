@@ -1,4 +1,3 @@
-import { ENTITY_KINDS } from '../spec/knowledge.js';
 import { getUpdateNotice } from '../spec/version.js';
 
 export const searchEntitiesDef = {
@@ -10,8 +9,10 @@ export const searchEntitiesDef = {
     properties: {
       kind: {
         type: 'string',
-        enum: ENTITY_KINDS,
-        description: 'Filter by entity kind.',
+        description:
+          'Filter by entity kind. Legacy kinds: component, guide, pattern, foundation, theme, token, ' +
+          'token-group, chunk. Real 0.20.0 kinds: component, token, theme, system, entry, or a namespaced ' +
+          'custom kind (e.g. "sanity.guide", "sanity.chunk") — check dsds_list_entities for the kinds actually loaded.',
       },
       status: {
         type: 'string',

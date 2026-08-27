@@ -9,6 +9,10 @@ metadata:
   tags: [actions, button, cta, form-control]
   aliases: [btn]
 
+related:
+  - to: icon-button
+    rel: alternative-to
+
 refs:
   - to: button-group
     rel: part-of
@@ -126,7 +130,7 @@ sections:
 
   - kind: guidelines
     for: agent
-    context: when-to-use
+    framing: when-to-use
     items:
       - statement: Do not use button when the action navigates to a new URL; use the link entry instead.
         level: must-not

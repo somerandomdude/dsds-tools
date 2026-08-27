@@ -4,7 +4,10 @@ title: Combo
 type: object
 description: Defines what an element can or cannot be paired with. Relates to traits, tokens, and entries.
 $comment: >-
-  [TODO: FILL OUT]
+  A combo is a pairing rule, It lives on the entry the rule is about
+  (`subject`), naming what else (`items`) can or cannot be used with
+  it, and how strict the rule is (`level`). `subject` and each of
+  `items` do not need to be the same type.
 required: [subject, items, level]
 properties:
   subject:
@@ -19,7 +22,7 @@ properties:
       $ref: "#/$defs/target"
     description: The elements paired with the subject.
     $comment: What `level` says (permitted or forbidden) applies to every entry here.
-    example: ["color.surface.default", "color.surface.raised"]
+    example: ["{color.surface.default}", "{color.surface.raised}"]
   level:
     $ref: https://designsystemdocspec.org/v0.20.0/common/requirement-level.schema.yaml
     description: Whether the elements in `items` can or cannot be paired with the subject—and how strict the rule is.

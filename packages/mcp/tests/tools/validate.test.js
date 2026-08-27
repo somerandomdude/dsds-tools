@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateHandler } from '../../src/tools/validate.js';
-import { BUNDLED_VERSION } from '../../src/spec/version.js';
+
+// The legacy schema pins `dsdsVersion` to a const of '0.15.2', independent
+// of BUNDLED_VERSION (which now declares the MCP's default spec, 0.20.0).
+const LEGACY_VERSION = '0.15.2';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const fixturesDir = resolve(__dirname, '../../fixtures');
@@ -11,7 +14,7 @@ const fixturesDir = resolve(__dirname, '../../fixtures');
 describe('validateHandler — auto-detects legacy JSON vs real 0.20.0 YAML', () => {
   it('validates a legacy 0.15.2 JSON document', async () => {
     const document = JSON.stringify({
-      dsdsVersion: BUNDLED_VERSION,
+      dsdsVersion: LEGACY_VERSION,
       entity: { kind: 'component', identifier: 'x', name: 'X' },
     });
     const result = await validateHandler({ document });

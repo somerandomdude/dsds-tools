@@ -78,6 +78,7 @@ function errorResponse(message) {
  * @param {() => object} deps.getGraph - relationship graph (see createGraphGetter in graph.js)
  * @param {(() => {plugins: string[], resolveDir: string, sourceDir?: string})|null} [deps.getLintConfig]
  * @param {(() => Map<string, string>)|null} [deps.getExportPaths]
+ * @param {(() => {propsExtractorDir: string|null, uiSourceRoot: string|null})|null} [deps.getPropsConfig]
  * @param {string|null} [deps.feedbackDir]
  * @param {string|null} [deps.logsDir]
  * @param {boolean} [deps.enableFeedback]
@@ -90,10 +91,12 @@ export function createToolRuntime({
   getGraph,
   getLintConfig = null,
   getExportPaths = null,
+  getPropsConfig = null,
   feedbackDir = null,
   logsDir = null,
   enableFeedback = true,
 }) {
+  const propsConfig = getPropsConfig ?? (() => ({ propsExtractorDir: null, uiSourceRoot: null }));
   const toolDefs = [
     contextBriefDef,
     specOverviewDef,
@@ -144,10 +147,10 @@ export function createToolRuntime({
         case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);
         case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
-        case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph);
+        case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig());
         case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries);
-        case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems);
-        case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph);
+        case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
+        case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
         case 'dsds_get_dependents':       return getDependentsHandler(args, getGraph);
         case 'dsds_get_dependencies':     return getDependenciesHandler(args, getGraph);
@@ -159,7 +162,7 @@ export function createToolRuntime({
         case 'dsds_explain_error':        return explainErrorHandler(args);
         case 'dsds_list_skills':          return listSkillsHandler(args);
         case 'dsds_get_skill':            return getSkillHandler(args);
-        case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems);
+        case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems, propsConfig());
         case 'dsds_feedback':             return feedbackHandler(args, feedbackDir);
         default:                          return errorResponse(`Unknown tool: "${name}"`);
       }

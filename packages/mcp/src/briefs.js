@@ -48,7 +48,7 @@ If you are unsure what exists, search broadly first, then narrow.
 
 ### Step 3 — Check for applicable patterns
 
-Call \`dsds_search_entities\` with \`kind=pattern\` to find patterns that may already document the layout or interaction flow you are about to build.
+Call \`dsds_list_entities\` to see what's loaded, then \`dsds_search_entities\` for this system's pattern category (a legacy system names it plain "pattern"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.pattern") to find patterns that may already document the layout or interaction flow you are about to build.
 
 If a pattern matches your task, read it with \`dsds_get_entity\` before composing anything from primitives. A documented pattern tells you the correct component combinations, required props, and rules the design system team has already worked out.
 
@@ -85,9 +85,10 @@ add a component to code. This is the required way of adding components.
 
 ### Step 5 — Use tokens, not hardcoded values
 
-Call \`dsds_search_entities\` with \`kind=token-group\` to find the design token
-scales that apply to your work (spacing, radius, typography, and the rest). Open
-a group with \`dsds_get_entity\` to see its individual tokens.
+Call \`dsds_list_entities\` to find the design token scales that apply to your
+work (spacing, radius, typography, and the rest) — a legacy system groups them
+under the kind named "token-group"; a real 0.20.0 system lists tokens flat
+with a \`metadata.group\` instead. Open a group or token with \`dsds_get_entity\`.
 
 Never hardcode color values, spacing, or type sizes. Always reference the
 token identifier from the design system.
@@ -96,7 +97,7 @@ token identifier from the design system.
 
 ### Step 6 — Check for an applicable chunk
 
-Call \`dsds_search_entities\` with \`kind=chunk\` to find pre-assembled code that may cover your use case.
+Call \`dsds_list_entities\` to find pre-assembled code that may cover your use case — a legacy system names the kind plain "chunk"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.chunk".
 
 If a chunk matches, call \`dsds_get_chunk(identifier)\` to retrieve the full code and its guidelines. Chunks are production-ready compositions — copy the code directly rather than assembling the same pattern from scratch.
 
