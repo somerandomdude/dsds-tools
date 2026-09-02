@@ -59,3 +59,24 @@ describe('getEntityHandler', () => {
     expect(result.content[0].text).toContain('Getting Started');
   });
 });
+
+describe('getEntityHandler — real 0.20.0 (.dsds.yaml)', () => {
+  it('renders traits, combos, sourceFiles, and every real section kind', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const result = await getEntityHandler({ identifier: 'button' }, ...makeGetters(systems));
+    const text = result.content[0].text;
+    expect(result.isError).toBeFalsy();
+    expect(text).toContain('Traits (variants & states)');
+    expect(text).toContain('Combos (pairing rules)');
+    expect(text).toContain('Source files');
+    expect(text).toContain('Definitions');
+    expect(text).toContain('Pre-release checklist'); // steps section title
+    expect(text).toContain('Guidelines');
+  });
+
+  it('resolves the real {status: "..."} metadata shape', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const result = await getEntityHandler({ identifier: 'button' }, ...makeGetters(systems));
+    expect(result.content[0].text).toContain('stable');
+  });
+});

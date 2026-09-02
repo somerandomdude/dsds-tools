@@ -1,0 +1,9 @@
+{
+  "id": "spinner-progress",
+  "stratum": "supported",
+  "task": "According to the documented guidance, what should be used instead of Spinner when progress is known?",
+  "expect": {
+    "requiredLiterals": ["progress bar"],
+    "forbiddenLiterals": []
+  }
+}

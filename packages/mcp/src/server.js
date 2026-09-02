@@ -22,6 +22,13 @@ import { createGraphGetter } from './graph.js';
 const BASE_INSTRUCTIONS = `
 DSDS MCP — Design System Documentation Spec v${BUNDLED_VERSION}
 
+HARD RULE — before using ANY component from this design system in code, you MUST call
+dsds_get_agent_context(identifier) for it, or at minimum dsds_get_document_block(identifier, "api").
+This applies even if you already called dsds_context_brief this session, even for a component
+you are confident about, and even for one you already used earlier in the same file or a chunk.
+Skipping this check for even one component is the single most common cause of avoidable build
+failures — do not rely on general training knowledge for this design system's API surface.
+
 START HERE: Call dsds_context_brief first to get a full briefing before any work begins.
 - dsds_context_brief(useCase="build") — before implementing UI with the design system. To implement an existing component interactively, use dsds_build_component (a prop-by-prop wizard, listed under DESIGN SYSTEM TOOLS); for one-shot context use dsds_get_chunk / dsds_get_entity / dsds_get_agent_context.
 - dsds_context_brief(useCase="author") — before documenting a design system in DSDS format
@@ -55,6 +62,13 @@ LINT TOOLS — for linting code against configured ESLint plugins (requires LINT
 
 EXPORT CHECK — before importing a component, confirm it exists in the package (requires PACKAGE_EXPORT_PATHS):
 - dsds_check_exports(components=["Box", "TextInput"]) — verify each name is actually exported. Read-only: does NOT modify packages or install anything.
+
+ERROR EXPLAINER — always available, no configuration needed:
+- dsds_explain_error(error) — paste a raw TypeScript/build error and get an actionable fix hint instead of re-guessing from the raw compiler output. Call this reactively the moment a build or typecheck fails. Matches generic patterns (invalid prop, missing required prop, boolean given a string, number given where a CSS string is expected, implicit any, editing scaffold config files) — it does not know this project's specific components, so still cross-check dsds_get_agent_context for the actual fix.
+
+SKILLS — real DSDS 0.20.0 authoring skills, bundled verbatim from the spec repo's own 0.20.0 branch (not generated from this server's own knowledge):
+- dsds_list_skills() — see what's available (dsds-specs, dsds-add, dsds-update, dsds-validate) before authoring or editing a .dsds.yaml document.
+- dsds_get_skill(id) — read one in full. Start here before authoring against real 0.20.0, instead of dsds_context_brief(useCase="author")'s legacy 0.15.2 guidance.
 `.trim();
 
 // Appended to the instructions only when the feedback tool is enabled.
@@ -199,7 +213,7 @@ function promptMessage(text) {
   return { role: 'user', content: { type: 'text', text } };
 }
 
-export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true) {
+export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null) {
   const baseWithFeedback = enableFeedback
     ? `${BASE_INSTRUCTIONS}\n\n${FEEDBACK_INSTRUCTION}`
     : BASE_INSTRUCTIONS;
@@ -236,6 +250,7 @@ export function createServer(getSystems, getSummaries, introEntities = [], getLi
     getGraph,
     getLintConfig,
     getExportPaths,
+    getPropsConfig,
     feedbackDir,
     logsDir,
     enableFeedback,

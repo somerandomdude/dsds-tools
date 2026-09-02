@@ -135,7 +135,36 @@ function availableComponents(getSystems) {
  * a variant and an api prop sharing a name yield one question (variant wins,
  * since its options are richer).
  */
+// Real 0.20.0: `traits` (top-level, not a documentBlock) is the direct
+// analogue of legacy variants/api-enum questions — enum traits map to enum
+// questions, boolean traits to flags. There's no `api` block to source a
+// "children"/free-text prop list from (that comes from `sourceFiles`, which
+// this server doesn't read), so this wizard is necessarily narrower for a
+// 0.20.0 component: traits + the synthetic "children" question only.
+function buildQuestions20(entity) {
+  const questions = [];
+  for (const trait of entity.traits ?? []) {
+    if (!trait?.id) continue;
+    if (trait.kind === 'enum') {
+      questions.push({
+        id: trait.id, source: 'trait', kind: 'enum', required: false,
+        description: trait.description,
+        options: (trait.values ?? []).map(v => ({ value: v.id, description: v.description })),
+      });
+    } else {
+      questions.push({ id: trait.id, source: 'trait', kind: 'flag', required: false, description: trait.description });
+    }
+  }
+  questions.push({
+    id: 'children', source: 'synthetic', kind: 'children', required: false,
+    description: 'Content rendered between the component\'s tags (text or child elements). Skip for a self-closing element.',
+  });
+  return questions;
+}
+
 function buildQuestions(entity) {
+  if (entity.__dsds20) return buildQuestions20(entity);
+
   const blocks = entity.documentBlocks ?? [];
   const variants = blocks.find(b => b.kind === 'variants');
   const api = blocks.find(b => b.kind === 'api');
@@ -329,6 +358,28 @@ function handleStart({ identifier }, getSystems) {
 function buildOverview(entity, questionCount) {
   const lines = [`# Implementing ${entity.name ?? entity.identifier}`];
   if (entity.description) lines.push('', resolveText(entity.description));
+
+  if (entity.__dsds20) {
+    // Real 0.20.0 has no useCases block — a guidelines section with
+    // `framing: when-to-use` is the direct analogue, and `combos` (pairing
+    // rules between traits) is directly relevant to a wizard walking those
+    // same traits question by question.
+    const whenToUse = (entity.sections ?? []).filter(s => s.kind === 'guidelines' && s.framing === 'when-to-use');
+    for (const section of whenToUse) {
+      for (const item of section.items ?? []) {
+        const text = item.statement ?? item.guidance;
+        if (text) lines.push('', `- **${item.level}** — ${resolveText(text)}`);
+      }
+    }
+    if (entity.combos?.length) {
+      lines.push('', '**Trait pairing rules:**');
+      for (const combo of entity.combos) {
+        lines.push(`- **${combo.level}** — \`${combo.subject}\` with ${(combo.items ?? []).map(i => `\`${i}\``).join(', ')}`);
+      }
+    }
+    lines.push('', `${questionCount} trait${questionCount === 1 ? '' : 's'} to consider — the wizard asks about each, offering only the options it allows.`);
+    return lines.join('\n');
+  }
 
   const useCases = (entity.documentBlocks ?? []).find(b => b.kind === 'useCases');
   const items = useCases?.items ?? [];

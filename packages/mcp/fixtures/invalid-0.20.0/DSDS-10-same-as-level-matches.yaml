@@ -1,0 +1,27 @@
+# expect: DSDS-10
+schemaVersion: "0.20.0"
+name: Bad Same-As Level
+entries:
+  - id: consumer
+    kind: component
+    name: Consumer
+    description: Borrows a statement via same-as but disagrees with its level.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - level: should
+            refs:
+              - to: shared-a11y#focus-visible
+                rel: same-as
+shared:
+  - id: shared-a11y
+    name: Shared Accessibility Rules
+    description: Rules borrowed by same-as across multiple entries.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: focus-visible
+            statement: Focus must be visible at all times.
+            level: must

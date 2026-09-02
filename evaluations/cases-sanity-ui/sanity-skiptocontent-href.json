@@ -1,0 +1,20 @@
+{
+  "id": "sanity-skiptocontent-href",
+  "stratum": "supported",
+  "task": "State the exact required character SkipToContent's href value must include, and which older prop name it replaced.",
+  "evidence": [
+    ["get", "skip-to-content", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: requiredCharacter and replacedProp.",
+  "expect": {
+    "requiredFields": ["requiredCharacter", "replacedProp"],
+    "fields": {
+      "requiredCharacter": {
+        "requiredLiterals": ["#"]
+      },
+      "replacedProp": {
+        "requiredLiterals": ["hash"]
+      }
+    }
+  }
+}

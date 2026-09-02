@@ -13,6 +13,32 @@ npm install
 
 Requires Node.js >= 18.
 
+### Linking a local lint plugin (e.g. `eslint-plugin-sanity-ui`)
+
+`dsds doctor` checks that every plugin in a consuming project's `lintPlugins` config
+resolves from `lintResolveDir` (see `packages/cli/src/doctor.js`, "lint plugins
+resolve"). If that plugin is an unpublished local package — not on npm — plain
+`npm install` won't find it, and the check fails with:
+
+```
+✗ lint plugins resolve
+    eslint-plugin-sanity-ui — not resolvable from /path/to/dsds-mcp
+```
+
+Fix by symlinking the local package into this repo's `node_modules`:
+
+```sh
+cd /path/to/eslint-plugin-sanity-ui
+npm link                       # registers the package globally
+
+cd /path/to/dsds-mcp
+npm link eslint-plugin-sanity-ui   # symlinks it into node_modules here
+```
+
+This only needs to be redone after a fresh clone or a `node_modules` wipe — the
+link doesn't survive either. To undo: `npm unlink eslint-plugin-sanity-ui` from
+`dsds-mcp`.
+
 ## Running locally
 
 ```sh

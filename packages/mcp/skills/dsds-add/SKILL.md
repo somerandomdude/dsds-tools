@@ -1,0 +1,85 @@
+---
+name: dsds-add
+description: Author a new Design System Doc Spec (DSDS) spec from component implementation, Figma design, or written requirements. Triggers on "add spec", "create spec", "new spec", "author spec", "spec from component", "spec from Figma".
+metadata:
+  version: 0.20.0
+---
+
+# Add a DSDS Spec
+
+Create a new standalone `.dsds.yaml` entry file in `packages/specs/`.
+
+## Procedure
+
+1. Determine entry kind: `component`, `token`, `theme`, or the generic `entry` kind (for a foundation, pattern, guide, or anything else — use a namespaced custom kind like `acme.icon-library` instead if the document wants its own recognizable name).
+2. Gather inputs — read the source (component source code, Figma frame, requirements doc).
+3. Create `{directory}/{id}.dsds.yaml` using the template below.
+4. Add a `refs` entry (`rel: file`) in `index.dsds.yaml` pointing at the new file.
+5. Run `npm run validate -w packages/specs` — fix errors until it passes.
+6. Run `npm run build -w packages/specs` to regenerate the index, if applicable.
+
+## File Placement
+
+| Kind | Directory |
+| --- | --- |
+| `component` | `components/` |
+| `token` | `tokens/` |
+| `theme` | `themes/` |
+| `entry` (foundation) | `foundations/` |
+| `entry` (pattern) | `patterns/` |
+| `entry` (guide) | `guides/` |
+
+## Template (Component)
+
+```yaml
+id: <filename-without-extension>
+kind: component
+name: <PascalCase>
+description: <one-sentence summary>
+
+metadata:
+  status: {status: draft}
+  since: <version>
+  tags: [<action|feedback|form|disclosure|overlay|navigation|layout>]
+
+sourceFiles:
+  - platform: <react|web-component|...>
+    file: <path to the real source file>
+
+imports:
+  - platform: <react|web-component|...>
+    code: <import statement, written out>
+    package: <package name>
+
+sections:
+  - kind: guidelines
+    for: all
+    framing: how-to-use
+    items: []
+```
+
+## Sections to Include (Components)
+
+Include at minimum: a `guidelines` section (`framing: how-to-use`) covering usage rules and accessibility requirements. Add `traits` (top-level, not a section) for variants/states, a `guidelines` section with `framing: when-to-use` for fit judgments, and a `definitions` section for props/anatomy only when there's no real source file to point `sourceFiles` at instead. Add a `for: agent` section for firm rules an agent needs but a person wouldn't.
+
+## Extraction Guidelines
+
+- **From code**: Point `sourceFiles` at the real file instead of hand-typing props — that's the whole point of the field. Map variant/state props → `traits` (`kind: enum` or `kind: boolean`). Map CSS parts or named sub-elements → a `definitions` section titled "Anatomy".
+- **From Figma**: Map component properties → `traits`, layer structure → a `definitions` section, variable bindings → token `refs`.
+- **From requirements**: Map acceptance criteria → `guidelines` items (`level` from RFC 2119: `must`/`should`/`should-not`/`must-not`/`may`), interaction requirements → a `definitions` section titled "Keyboard interactions" (term = key, definition = action).
+
+## Schema References
+
+When unsure about field shapes or required properties, consult:
+
+- **Bundled schema** (in-repo): `packages/specs/schema/dsds.bundled.schema.json`
+- **Entry docs**: `https://designsystemdocspec.org/entries-{kind}` (e.g. `/entries-component`)
+- **Section docs**: `https://designsystemdocspec.org/sections-{kind}` (e.g. `/sections-guidelines`)
+- **Quick start examples**: https://designsystemdocspec.org/quickstart.html
+
+## Gotchas
+
+- `id` must match the filename (e.g. `checkbox` → `checkbox.dsds.yaml`).
+- A component's `sourceFiles`, `imports`, `traits`, and `combos` are top-level fields on the entry, never inside a section.
+- Use RFC 2119 levels in guidelines: `must`, `should`, `should-not`, `must-not`, `may`.
+- `metadata.status` is one object (`{status: "draft"}`), or an array of one per platform when maturity differs by platform — never a bare string.

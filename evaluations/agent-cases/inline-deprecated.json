@@ -1,0 +1,9 @@
+{
+  "id": "inline-deprecated",
+  "stratum": "supported",
+  "task": "Inline is deprecated. What component should be used instead in new code?",
+  "expect": {
+    "requiredLiterals": ["HStack"],
+    "forbiddenLiterals": []
+  }
+}

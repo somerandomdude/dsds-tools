@@ -1,4 +1,4 @@
-import { ENTITY_KINDS, DOCUMENT_BLOCK_DESCRIPTIONS, VALID_BLOCKS_BY_KIND } from '../spec/knowledge.js';
+import { ENTITY_KINDS, DOCUMENT_BLOCK_DESCRIPTIONS, VALID_BLOCKS_BY_KIND, SECTION_KIND_DESCRIPTIONS_0_20_0, SECTION_FREEFORM_NOTE } from '../spec/knowledge.js';
 import { getUpdateNotice } from '../spec/version.js';
 
 // Chunks don't use documentBlocks — their guidelines/useCases are top-level.
@@ -7,21 +7,42 @@ const DOCUMENT_BLOCK_KINDS = ENTITY_KINDS.filter(k => k !== 'chunk');
 export const specDocumentBlocksDef = {
   name: 'dsds_spec_document_blocks',
   description:
-    'List the document block types available for a DSDS entity kind, with descriptions of what each block captures. Not applicable to chunks — use dsds_spec_entity_schema for chunk field details.',
+    'List the document block types available for a DSDS entity kind, with descriptions of what each block captures. Not applicable to chunks — use dsds_spec_entity_schema for chunk field details. ' +
+    'For real 0.20.0 (.dsds.yaml), pass spec:"0.20.0" — every 0.20.0 section kind is valid on every entity kind, so the "kind" argument is ignored in that mode.',
   inputSchema: {
     type: 'object',
     properties: {
       kind: {
         type: 'string',
-        enum: DOCUMENT_BLOCK_KINDS,
-        description: 'The entity kind to list document blocks for.',
+        description: 'The legacy 0.15.2 entity kind to list document blocks for (component, guide, pattern, foundation, theme, token, token-group). Ignored when spec:"0.20.0" — every 0.20.0 kind, including namespaced custom ones, accepts every section kind.',
+      },
+      spec: {
+        type: 'string',
+        enum: ['0.15.2', '0.20.0'],
+        description: 'Which DSDS model to describe. Defaults to 0.15.2 (legacy), which requires "kind"; 0.20.0 ignores "kind" entirely.',
       },
     },
-    required: ['kind'],
+    required: [],
   },
 };
 
-export async function specDocumentBlocksHandler({ kind }) {
+export async function specDocumentBlocksHandler({ kind, spec }) {
+  if (spec === '0.20.0') {
+    const lines = [
+      '# Section kinds (real 0.20.0)',
+      '',
+      'Every section kind below is valid on every entity kind (component, token, theme, system, entry) — there is no per-kind allow-list the way legacy 0.15.2 document blocks have one.',
+      '',
+    ];
+    for (const [sectionKind, desc] of Object.entries(SECTION_KIND_DESCRIPTIONS_0_20_0)) {
+      lines.push(`### \`${sectionKind}\``, desc.summary, '');
+    }
+    lines.push(SECTION_FREEFORM_NOTE, '', 'Prefer `dsds_get_skill({ id: "dsds-specs" })` for the full model.');
+    const notice = getUpdateNotice();
+    if (notice) lines.push(notice);
+    return { content: [{ type: 'text', text: lines.join('\n') }] };
+  }
+
   const validBlocks = VALID_BLOCKS_BY_KIND[kind];
   if (!validBlocks) {
     return {

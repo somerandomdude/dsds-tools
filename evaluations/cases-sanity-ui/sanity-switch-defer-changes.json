@@ -1,0 +1,18 @@
+{
+  "id": "sanity-switch-defer-changes",
+  "stratum": "supported",
+  "task": "State which component to use instead of Switch when making a binary decision within a form that defers changes until submission.",
+  "evidence": [
+    ["get", "switch", "--block", "use-cases"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["Checkbox"],
+        "forbiddenLiterals": ["Select", "Radio"]
+      }
+    }
+  }
+}

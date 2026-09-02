@@ -1,0 +1,9 @@
+{
+  "id": "text-truncate-rename",
+  "stratum": "supported",
+  "task": "What was Text's truncate prop renamed from?",
+  "expect": {
+    "requiredLiterals": ["lineClamp"],
+    "forbiddenLiterals": []
+  }
+}

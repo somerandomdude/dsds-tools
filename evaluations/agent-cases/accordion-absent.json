@@ -1,0 +1,9 @@
+{
+  "id": "accordion-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to build a collapsible accordion?",
+  "expect": {
+    "requiredLiterals": [],
+    "forbiddenLiterals": ["Accordion"]
+  }
+}

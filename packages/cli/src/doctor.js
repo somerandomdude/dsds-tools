@@ -14,6 +14,8 @@ import { createRequire } from 'node:module';
 import { resolveConfig } from 'dsds-mcp/src/config.js';
 import { loadSystems } from 'dsds-mcp/src/loader.js';
 import { validateDocument } from 'dsds-mcp/src/validator.js';
+import { looksLike20, validateDoc20 } from 'dsds-mcp/src/spec/validator-0.20.0.js';
+import { loadYaml20 } from 'dsds-mcp/src/spec/dsds20-lib.js';
 import { buildGraph, integrity as graphIntegrity } from 'dsds-mcp/src/graph.js';
 import {
   checkExampleProps,
@@ -24,6 +26,42 @@ import {
 } from 'dsds-mcp/src/integrity.js';
 import { BUILD_BRIEF } from 'dsds-mcp/src/briefs.js';
 import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
+
+// Dispatches to the real 0.20.0 validator for a real 0.20.0 document (YAML
+// entries/sections shape), the legacy validator otherwise — mirrors the
+// dsds_validate MCP tool's own auto-detection so `dsds doctor` doesn't run
+// the wrong schema against a real 0.20.0 doc (it did, before this: every
+// 0.20.0 document failed with "(root): must have required property
+// 'entityGroups'", a legacy-only field).
+function validateAny(doc, filePath) {
+  if (looksLike20(doc)) {
+    const { errors, warnings } = validateDoc20(doc, { filePath });
+    // DSDS-11 (a sourceFiles/source/rel:file href that doesn't exist on
+    // disk) only runs when filePath is supplied — doctor always has one,
+    // unlike the dsds_validate MCP tool's pasted-document case — and is
+    // exactly the kind of "does this actually point at something real"
+    // build-health problem doctor already looks for elsewhere, so it's
+    // folded into `errors` here rather than silently dropped.
+    const fileRefWarnings = warnings.filter((w) => w.startsWith('[DSDS-11]'));
+    return {
+      valid: errors.length === 0 && fileRefWarnings.length === 0,
+      errors: [...errors, ...fileRefWarnings].map(message => ({ path: '(root)', message })),
+    };
+  }
+  return validateDocument(doc);
+}
+
+// loadSystems() mutates each 0.20.0 entity object in place as it normalizes
+// it (identifier/relationships/__dsds20/__filePath/__sharedEntries all get
+// added directly onto the object living inside doc.entries[]) — so
+// re-validating `system.document` after loading trips the schema's
+// `unevaluatedProperties: false` on every one of those injected fields.
+// Re-reading the file fresh validates what's actually on disk, not a
+// runtime-mutated copy of it.
+function loadFreshForValidation(filePath) {
+  const raw = readFileSync(filePath, 'utf-8');
+  return filePath.endsWith('.yaml') || filePath.endsWith('.yml') ? loadYaml20(raw) : JSON.parse(raw);
+}
 
 // Files referenced from a root document's entity groups ($ref at group level
 // or inside a group's entities array). Fragments are stripped — we validate
@@ -113,7 +151,7 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
     let filesChecked = 0;
     for (const system of systems) {
       filesChecked += 1;
-      const rootResult = validateDocument(system.document);
+      const rootResult = validateAny(loadFreshForValidation(system.filePath), system.filePath);
       if (!rootResult.valid) {
         const first = rootResult.errors[0];
         problems.push(`${basename(system.filePath)}: ${rootResult.errors.length} schema error(s) — first: ${first.path}: ${first.message}`);
@@ -122,7 +160,7 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
         filesChecked += 1;
         try {
           const doc = JSON.parse(readFileSync(refFile, 'utf-8'));
-          const result = validateDocument(doc);
+          const result = validateAny(doc, refFile);
           if (!result.valid) {
             const first = result.errors[0];
             problems.push(`${basename(refFile)}: ${result.errors.length} schema error(s) — first: ${first.path}: ${first.message}`);

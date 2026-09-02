@@ -1,0 +1,20 @@
+{
+  "id": "sanity-text-truncate-rename",
+  "stratum": "supported",
+  "task": "State what Text's truncate prop was renamed from, and in which release.",
+  "evidence": [
+    ["get", "text", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: previousName and release.",
+  "expect": {
+    "requiredFields": ["previousName", "release"],
+    "fields": {
+      "previousName": {
+        "requiredLiterals": ["lineClamp"]
+      },
+      "release": {
+        "requiredLiterals": ["alpha.22"]
+      }
+    }
+  }
+}

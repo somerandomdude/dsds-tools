@@ -1,0 +1,20 @@
+{
+  "id": "sanity-listitembutton-selected",
+  "stratum": "supported",
+  "task": "Does List.ButtonItem's selected prop set any ARIA state? Answer yes or no, and name the attribute it does set.",
+  "evidence": [
+    ["get", "list-item-button", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: setsAria (exactly 'yes' or 'no') and attributeSet.",
+  "expect": {
+    "requiredFields": ["setsAria", "attributeSet"],
+    "fields": {
+      "setsAria": {
+        "equals": "no"
+      },
+      "attributeSet": {
+        "requiredLiterals": ["data-selected"]
+      }
+    }
+  }
+}

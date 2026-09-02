@@ -1,0 +1,17 @@
+{
+  "id": "sanity-link-newtab",
+  "stratum": "supported",
+  "task": "State exactly what Link's openInNewTab prop sets on the rendered anchor, including the target and rel attribute values.",
+  "evidence": [
+    ["get", "link", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["_blank", "noopener", "noreferrer"]
+      }
+    }
+  }
+}

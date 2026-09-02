@@ -1,0 +1,18 @@
+{
+  "id": "sanity-progressbar-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to render a determinate progress bar?",
+  "evidence": [
+    ["search", "progress bar"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, status. If no matching component exists in the evidence, set status to exactly insufficient evidence.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence",
+        "forbiddenLiterals": ["ProgressBar", "progress-bar"]
+      }
+    }
+  }
+}

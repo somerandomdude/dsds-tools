@@ -1,0 +1,20 @@
+{
+  "id": "sanity-divider-props",
+  "stratum": "supported",
+  "task": "Aside from margin props, does Divider accept any other component-specific props? Answer yes or no, and briefly explain.",
+  "evidence": [
+    ["get", "divider", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with two fields: hasOtherProps (exactly 'yes' or 'no') and reason.",
+  "expect": {
+    "requiredFields": ["hasOtherProps", "reason"],
+    "fields": {
+      "hasOtherProps": {
+        "equals": "no"
+      },
+      "reason": {
+        "requiredLiterals": ["margin"]
+      }
+    }
+  }
+}

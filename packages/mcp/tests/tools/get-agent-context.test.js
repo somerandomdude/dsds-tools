@@ -55,3 +55,23 @@ describe('getAgentContextHandler', () => {
     expect(result.content[0].text).toContain('DSDS_PATHS');
   });
 });
+
+describe('getAgentContextHandler — real 0.20.0 (.dsds.yaml)', () => {
+  it('renders traits/combos as the hard constraints, and only agent/all sections by default', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const result = await getAgentContextHandler({ identifier: 'button' }, () => systems);
+    const text = result.content[0].text;
+    expect(result.isError).toBeFalsy();
+    expect(text).toContain('Traits (variants & states)');
+    expect(text).toContain('Combos (pairing rules)');
+    // The fixture's first `guidelines` section is for:"human" — omitted by default.
+    expect(text).toContain('human-only section(s) omitted');
+    expect(text).not.toContain('Limit each surface to one primary button');
+  });
+
+  it('verbose renders every section regardless of audience', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const result = await getAgentContextHandler({ identifier: 'button', verbose: true }, () => systems);
+    expect(result.content[0].text).toContain('Limit each surface to one primary button');
+  });
+});

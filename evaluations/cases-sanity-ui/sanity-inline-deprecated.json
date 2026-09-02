@@ -1,0 +1,17 @@
+{
+  "id": "sanity-inline-deprecated",
+  "stratum": "supported",
+  "task": "Inline is deprecated. What component should be used in new code instead?",
+  "evidence": [
+    ["get", "inline", "--block", "guidelines"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["HStack"]
+      }
+    }
+  }
+}

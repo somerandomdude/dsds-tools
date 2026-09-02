@@ -1,0 +1,18 @@
+{
+  "id": "sanity-checkbox-error-contract",
+  "stratum": "supported",
+  "task": "State what Checkbox's error prop does, and what it must always be paired with.",
+  "evidence": [
+    ["get", "checkbox", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["styling", "error message"],
+        "forbiddenLiterals": ["accessible description", "announces"]
+      }
+    }
+  }
+}

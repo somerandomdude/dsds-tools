@@ -45,6 +45,7 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
     getGraph: createGraphGetter(getSystems),
     getLintConfig: () => ({ plugins: config.lintPlugins, resolveDir: config.lintResolveDir, sourceDir: config.lintSourceDir }),
     getExportPaths: () => config.packageExportPaths,
+    getPropsConfig: () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot }),
     feedbackDir: config.feedbackDir,
     logsDir: config.logsDir,
     enableFeedback: config.enableFeedback,

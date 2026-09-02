@@ -12,11 +12,15 @@ export async function specOverviewHandler() {
   const lines = [
     `# Design System Documentation Spec (DSDS) — v${BUNDLED_VERSION}`,
     '',
+    '**Authoring against real DSDS 0.20.0 (`.dsds.yaml`)?** Everything below is the legacy 0.15.2 ' +
+      'JSON model. Call `dsds_get_skill({ id: "dsds-specs" })` instead for the real entries/sections/' +
+      'traits/sourceFiles/refs model — it comes verbatim from the spec repo\'s own 0.20.0 branch.',
+    '',
     `DSDS is a machine-readable JSON standard for documenting design systems. It captures the *how and why* of a system — usage rules, anatomy, API, accessibility — not the token values themselves (use the W3C Design Tokens Format for values).`,
     '',
     `Full spec: ${SPEC_URL}`,
     '',
-    '## Entity Types',
+    '## Entity Types (legacy 0.15.2)',
     '',
   ];
 

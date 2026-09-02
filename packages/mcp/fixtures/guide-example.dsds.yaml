@@ -1,0 +1,25 @@
+id: example-guide
+kind: sanity.guide
+name: Example Guide
+description: A representative sanity.guide fixture for conformance testing.
+metadata:
+  tags: [accessibility]
+related:
+  - to: example-pattern
+    rel: relates-to
+sections:
+  - kind: steps
+    for: all
+    ordered: true
+    title: Checklist
+    items:
+      - title: First step
+        instruction: Do the first thing.
+      - title: Second step
+        instruction: Do the second thing.
+  - kind: guidelines
+    for: agent
+    framing: how-to-use
+    items:
+      - statement: Follow the checklist in order.
+        level: should

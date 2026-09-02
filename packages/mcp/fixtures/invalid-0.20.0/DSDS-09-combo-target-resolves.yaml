@@ -1,0 +1,22 @@
+# expect: DSDS-09
+schemaVersion: "0.20.0"
+name: Bad Combo Target
+entries:
+  - id: button
+    kind: component
+    name: Button
+    description: Has a combo pointing at a trait value that doesn't exist.
+    traits:
+      - id: size
+        kind: enum
+        description: Controls scale.
+        values:
+          - id: small
+            description: Compact.
+          - id: large
+            description: Roomy.
+    combos:
+      - subject: size.medium
+        level: must-not
+        items: [disabled]
+        note: size.medium isn't one of size's declared values (small, large).

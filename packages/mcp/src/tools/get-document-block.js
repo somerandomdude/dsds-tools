@@ -1,4 +1,5 @@
 import { getUpdateNotice } from '../spec/version.js';
+import { renderApi20 } from '../spec/render-0.20.0.js';
 
 export const getDocumentBlockDef = {
   name: 'dsds_get_document_block',
@@ -20,7 +21,7 @@ export const getDocumentBlockDef = {
   },
 };
 
-export async function getDocumentBlockHandler({ identifier, blockType }, getSystems) {
+export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
     return {
@@ -46,13 +47,49 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
     };
   }
 
-  const block = found.documentBlocks?.find(b => b.kind === blockType);
+  if (found.__dsds20 && blockType === 'api') {
+    // Real 0.20.0 has no `api`-kind section — the API comes from `sourceFiles`
+    // resolved through the extractor cache (DEC-2). This is the call site the
+    // server's HARD RULE points agents at ("at minimum
+    // dsds_get_document_block(identifier, 'api')"), so it must render real
+    // prop data, not the raw `sourceFiles` pointer a generic passthrough would.
+    const lines = [`# ${found.name ?? found.identifier} — \`api\` block`, ''];
+    renderApi20(found, lines, propsConfig);
+    if (lines.length === 2) lines.push('*No API data available for this entry.*', '');
+    const notice = getUpdateNotice();
+    if (notice) lines.push(notice);
+    return { content: [{ type: 'text', text: lines.join('\n') }] };
+  }
+
+  let block;
+  let available;
+  if (found.__dsds20) {
+    // Real 0.20.0: look up a section by kind (definitions/guidelines/steps/
+    // section) or by its own title (0.20.0's generic sections are often
+    // addressed by title rather than kind). traits/sourceFiles/combos/
+    // imports are top-level entry fields, not sections — allow those names
+    // too, since an agent has no other way to ask for just one of them.
+    const TOP_LEVEL_FIELDS = ['traits', 'sourceFiles', 'combos', 'imports'];
+    if (TOP_LEVEL_FIELDS.includes(blockType)) {
+      block = found[blockType] ? { kind: blockType, items: found[blockType] } : null;
+    } else {
+      const blockNeedle = blockType.toLowerCase();
+      block = found.sections?.find(b => b.kind === blockType) ??
+        found.sections?.find(b => b.title?.toLowerCase() === blockNeedle);
+    }
+    available = [
+      ...(found.sections ?? []).map(b => `\`${b.kind}${b.title ? `:${b.title}` : ''}\``),
+      ...TOP_LEVEL_FIELDS.filter(f => found[f]?.length).map(f => `\`${f}\``),
+    ].join(', ');
+  } else {
+    block = found.documentBlocks?.find(b => b.kind === blockType);
+    available = (found.documentBlocks ?? []).map(b => `\`${b.kind}\``).join(', ');
+  }
 
   if (!block) {
-    const available = (found.documentBlocks ?? []).map(b => `\`${b.kind}\``).join(', ');
     const msg = available
-      ? `Entity "${found.identifier}" has no "${blockType}" block. Available blocks: ${available}`
-      : `Entity "${found.identifier}" has no document blocks defined.`;
+      ? `Entity "${found.identifier}" has no "${blockType}" section/block. Available: ${available}`
+      : `Entity "${found.identifier}" has no sections or document blocks defined.`;
     return { isError: true, content: [{ type: 'text', text: msg }] };
   }
 

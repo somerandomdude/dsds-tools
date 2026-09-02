@@ -1,0 +1,16 @@
+id: example-pattern
+kind: sanity.pattern
+name: Example Pattern
+description: A representative sanity.pattern fixture for conformance testing.
+sections:
+  - kind: guidelines
+    for: all
+    framing: when-to-use
+    items:
+      - statement: Use this pattern when testing conformance.
+        level: should
+  - kind: section
+    for: agent
+    freeform:
+      - title: Implementation note
+        body: Nested prose content under an agent-only section.

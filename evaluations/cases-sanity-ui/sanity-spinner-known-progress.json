@@ -1,0 +1,17 @@
+{
+  "id": "sanity-spinner-known-progress",
+  "stratum": "supported",
+  "task": "State what should be used instead of Spinner when progress is known.",
+  "evidence": [
+    ["get", "spinner", "--block", "use-cases"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["progress bar"]
+      }
+    }
+  }
+}

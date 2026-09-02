@@ -20,6 +20,9 @@ import { lintByPathDef, lintByPathHandler, lintInlineDef, lintInlineHandler } fr
 import { getChunkDef, getChunkHandler } from './tools/get-chunk.js';
 import { feedbackDef, feedbackHandler } from './tools/feedback.js';
 import { checkExportsDef, checkExportsHandler } from './tools/check-exports.js';
+import { explainErrorDef, explainErrorHandler } from './tools/explain-error.js';
+import { listSkillsDef, listSkillsHandler } from './tools/list-skills.js';
+import { getSkillDef, getSkillHandler } from './tools/get-skill.js';
 import { toMarkdownDef, toMarkdownHandler } from './tools/to-markdown.js';
 import { buildComponentDef, buildComponentHandler } from './tools/build-component.js';
 import { authorComponentDocDef, authorComponentDocHandler } from './tools/author-component-doc.js';
@@ -75,6 +78,7 @@ function errorResponse(message) {
  * @param {() => object} deps.getGraph - relationship graph (see createGraphGetter in graph.js)
  * @param {(() => {plugins: string[], resolveDir: string, sourceDir?: string})|null} [deps.getLintConfig]
  * @param {(() => Map<string, string>)|null} [deps.getExportPaths]
+ * @param {(() => {propsExtractorDir: string|null, uiSourceRoot: string|null})|null} [deps.getPropsConfig]
  * @param {string|null} [deps.feedbackDir]
  * @param {string|null} [deps.logsDir]
  * @param {boolean} [deps.enableFeedback]
@@ -87,10 +91,12 @@ export function createToolRuntime({
   getGraph,
   getLintConfig = null,
   getExportPaths = null,
+  getPropsConfig = null,
   feedbackDir = null,
   logsDir = null,
   enableFeedback = true,
 }) {
+  const propsConfig = getPropsConfig ?? (() => ({ propsExtractorDir: null, uiSourceRoot: null }));
   const toolDefs = [
     contextBriefDef,
     specOverviewDef,
@@ -113,6 +119,9 @@ export function createToolRuntime({
     lintByPathDef,
     lintInlineDef,
     checkExportsDef,
+    explainErrorDef,
+    listSkillsDef,
+    getSkillDef,
     toMarkdownDef,
     ...(enableFeedback ? [feedbackDef] : []),
   ];
@@ -138,10 +147,10 @@ export function createToolRuntime({
         case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);
         case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
-        case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph);
+        case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig());
         case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries);
-        case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems);
-        case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph);
+        case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
+        case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
         case 'dsds_get_dependents':       return getDependentsHandler(args, getGraph);
         case 'dsds_get_dependencies':     return getDependenciesHandler(args, getGraph);
@@ -150,7 +159,10 @@ export function createToolRuntime({
         case 'dsds_lint_by_path':         return lintByPathHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
         case 'dsds_lint_inline':          return lintInlineHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
         case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()));
-        case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems);
+        case 'dsds_explain_error':        return explainErrorHandler(args);
+        case 'dsds_list_skills':          return listSkillsHandler(args);
+        case 'dsds_get_skill':            return getSkillHandler(args);
+        case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems, propsConfig());
         case 'dsds_feedback':             return feedbackHandler(args, feedbackDir);
         default:                          return errorResponse(`Unknown tool: "${name}"`);
       }

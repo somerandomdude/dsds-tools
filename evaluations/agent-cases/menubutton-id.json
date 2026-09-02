@@ -1,0 +1,9 @@
+{
+  "id": "menubutton-id",
+  "stratum": "supported",
+  "task": "What must always be passed to MenuButton, and which ARIA attribute does it wire up?",
+  "expect": {
+    "requiredLiterals": ["id", "aria-labelledby"],
+    "forbiddenLiterals": []
+  }
+}

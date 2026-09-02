@@ -1,4 +1,10 @@
-export const BUNDLED_VERSION = '0.15.2';
+// 0.20.0 has no published git tag upstream — the tag-based update check
+// below can't see revisions to an already-released branch. schema-0.20.0/
+// is mirrored by hand from somerandomdude/design-system-documentation-schema
+// at branch `0.20.0-fixes` (7 commits ahead of `0.20.0`'s own tip), currently
+// synced through commit c6ecdb3 (2026-09-02).
+// Re-diff that branch against this commit to check for further updates.
+export const BUNDLED_VERSION = '0.20.0';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

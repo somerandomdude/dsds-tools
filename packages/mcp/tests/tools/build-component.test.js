@@ -159,3 +159,50 @@ describe('dsds_build_component (implementation wizard)', () => {
     expect(res.content[0].text).toMatch(/`button`/);
   });
 });
+
+// A minimal real 0.20.0 component: traits (not documentBlocks) declare the
+// variants/states this wizard should turn into questions.
+const BUTTON_20 = {
+  __dsds20: true,
+  id: 'button',
+  identifier: 'button',
+  kind: 'component',
+  name: 'Button',
+  description: 'A clickable button.',
+  traits: [
+    { kind: 'enum', id: 'level', description: 'Visual weight.', values: [{ id: 'tertiary', description: 'Low weight.' }, { id: 'primary', description: 'Full weight.' }] },
+    { kind: 'boolean', id: 'disabled', description: 'Non-interactive.' },
+  ],
+  combos: [{ subject: 'level.primary', level: 'must-not', items: ['disabled'], note: 'A primary action cannot be disabled.' }],
+  sections: [
+    { kind: 'guidelines', for: 'agent', framing: 'when-to-use', items: [{ statement: 'Use for in-page actions only.', level: 'must' }] },
+  ],
+};
+const getSystems20 = () => [{ filePath: 'mem://test', entities: [BUTTON_20] }];
+const getSummaries20 = () => [{ identifier: 'button', kind: 'component' }];
+
+describe('dsds_build_component — real 0.20.0 (traits, not documentBlocks)', () => {
+  it('derives questions from traits, plus the synthetic children question', async () => {
+    const out = read(await buildComponentHandler({ step: 'start', identifier: 'button' }, getSystems20, getSummaries20));
+    expect(out.questions.map(q => q.questionId)).toEqual(['level', 'disabled', 'children']);
+    expect(out.questions[0].propKind).toBe('enum');
+    expect(out.questions[0].options.map(o => o.value)).toEqual(['tertiary', 'primary']);
+    expect(out.questions[1].propKind).toBe('flag');
+  });
+
+  it('overview surfaces when-to-use guidelines and combos, not a useCases block', async () => {
+    const out = read(await buildComponentHandler({ step: 'start', identifier: 'button' }, getSystems20, getSummaries20));
+    expect(out.overview).toContain('Use for in-page actions only.');
+    expect(out.overview).toContain('must-not');
+    expect(out.overview).toContain('level.primary');
+  });
+
+  it('finalize composes JSX from trait-derived answers', async () => {
+    const s = read(await buildComponentHandler({ step: 'start', identifier: 'button' }, getSystems20, getSummaries20));
+    const out = read(await buildComponentHandler(
+      { step: 'finalize', data: s.data, answers: { level: 'primary' } },
+      getSystems20, getSummaries20,
+    ));
+    expect(out.result.code).toContain('level="primary"');
+  });
+});

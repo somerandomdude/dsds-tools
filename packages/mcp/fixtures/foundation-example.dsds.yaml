@@ -1,0 +1,10 @@
+id: example-foundation
+kind: sanity.foundation
+name: Example Foundation
+description: A representative sanity.foundation fixture for conformance testing.
+sections:
+  - kind: section
+    for: all
+    freeform:
+      - title: Overview
+        body: Prose content describing the foundation, with no items array at all.

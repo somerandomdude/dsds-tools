@@ -1,0 +1,17 @@
+{
+  "id": "sanity-visuallyhidden-decorative",
+  "stratum": "supported",
+  "task": "According to the documented guidance, what should be used instead of VisuallyHidden to hide purely decorative imagery from screen readers?",
+  "evidence": [
+    ["get", "visually-hidden", "--block", "use-cases"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, answer.",
+  "expect": {
+    "requiredFields": ["answer"],
+    "fields": {
+      "answer": {
+        "requiredLiterals": ["aria-hidden"]
+      }
+    }
+  }
+}

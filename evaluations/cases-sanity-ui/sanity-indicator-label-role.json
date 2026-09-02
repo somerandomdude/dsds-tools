@@ -1,0 +1,17 @@
+{
+  "id": "sanity-indicator-label-role",
+  "stratum": "supported",
+  "task": "What ARIA role does Indicator's label prop set on the rendered element?",
+  "evidence": [
+    ["get", "indicator", "--block", "api"]
+  ],
+  "prompt": "Answer using only the evidence above. Return JSON only with a single field, role.",
+  "expect": {
+    "requiredFields": ["role"],
+    "fields": {
+      "role": {
+        "requiredLiterals": ["img"]
+      }
+    }
+  }
+}

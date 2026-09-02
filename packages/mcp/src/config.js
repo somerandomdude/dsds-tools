@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { BUNDLED_VERSION } from './spec/version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -83,6 +84,20 @@ export function loadConfig() {
   const rawIconPackage = process.env['ICON_PACKAGE'];
   const iconPackage = rawIconPackage ? rawIconPackage.trim() : null;
 
+  // DSDS_UI_SOURCE_ROOT: repo root containing `packages/ui` for the design
+  // system's source (e.g. an `@sanity/ui` checkout). Used only to verify a
+  // 0.20.0 `sourceFiles` prop-table cache hasn't gone stale — unset disables
+  // freshness verification, not prop serving itself (see prop-extractor-0.20.0.js).
+  const rawUiSourceRoot = process.env['DSDS_UI_SOURCE_ROOT'];
+  const uiSourceRoot = rawUiSourceRoot ? expandHome(rawUiSourceRoot.trim()) : null;
+
+  // DSDS_PROPS_EXTRACTOR_DIR: path to a sanity-ui-props-extractor-shaped tool
+  // (an `npm run all` script producing `out/dsds-extensions.json`). Unset
+  // disables 0.20.0 API-table serving entirely — components render without
+  // one, same as today.
+  const rawPropsExtractorDir = process.env['DSDS_PROPS_EXTRACTOR_DIR'];
+  const propsExtractorDir = rawPropsExtractorDir ? expandHome(rawPropsExtractorDir.trim()) : null;
+
   return {
     paths,
     lintPaths,
@@ -92,11 +107,13 @@ export function loadConfig() {
     introPaths,
     packageExportPaths,
     iconPackage,
+    uiSourceRoot,
+    propsExtractorDir,
     enableFeedback,
     introInline,
     feedbackDir: rawFeedbackDir ? expandHome(rawFeedbackDir.trim()) : resolve(__dirname, '../feedback'),
     logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
-    schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? '0.15.2',
+    schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? BUNDLED_VERSION,
   };
 }
 
@@ -158,6 +175,8 @@ function normalizeFileConfig(raw, fileDir) {
     out.packageExportPaths = map;
   }
   if (raw.iconPackage != null) out.iconPackage = String(raw.iconPackage).trim();
+  if (raw.uiSourceRoot != null) out.uiSourceRoot = resolveFrom(raw.uiSourceRoot);
+  if (raw.propsExtractorDir != null) out.propsExtractorDir = resolveFrom(raw.propsExtractorDir);
   if (raw.feedbackDir != null) out.feedbackDir = resolveFrom(raw.feedbackDir);
   if (raw.logsDir != null) out.logsDir = resolveFrom(raw.logsDir);
   if (raw.enableFeedback != null) out.enableFeedback = !!raw.enableFeedback;
@@ -178,6 +197,8 @@ function envProvidedKeys() {
     introPaths: has('DSDS_INTRO_PATHS') || has('DSDS_INTRO_PATH'),
     packageExportPaths: has('PACKAGE_EXPORT_PATHS'),
     iconPackage: has('ICON_PACKAGE'),
+    uiSourceRoot: has('DSDS_UI_SOURCE_ROOT'),
+    propsExtractorDir: has('DSDS_PROPS_EXTRACTOR_DIR'),
     enableFeedback: has('DSDS_ENABLE_FEEDBACK'),
     introInline: has('DSDS_INTRO_INLINE'),
     feedbackDir: has('DSDS_FEEDBACK_DIR'),

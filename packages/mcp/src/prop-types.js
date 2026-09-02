@@ -7,7 +7,7 @@
 // the logic in one place ensures the wizard and the context never disagree
 // about what a prop's closed value set is.
 //
-// Resolution order follows the spec (0.15.2): `schema` (JSON Schema) is the
+// Resolution order follows the spec (0.20.0): `schema` (JSON Schema) is the
 // authoritative machine-readable definition when present; `values` is the
 // portable enum list; the `type` string is a display summary parsed as a
 // last-resort heuristic. Systems that document via `values`/`schema` — with a

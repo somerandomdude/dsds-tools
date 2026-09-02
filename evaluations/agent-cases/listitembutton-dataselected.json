@@ -1,0 +1,9 @@
+{
+  "id": "listitembutton-dataselected",
+  "stratum": "supported",
+  "task": "What data attribute does List.ButtonItem's selected prop set on the row?",
+  "expect": {
+    "requiredLiterals": ["data-selected"],
+    "forbiddenLiterals": []
+  }
+}

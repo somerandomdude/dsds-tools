@@ -12,6 +12,7 @@
 // problems" contract (FR-7): 0 success · 1 error · 2 findings.
 
 import { readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 
 export class UsageError extends Error {}
 
@@ -176,9 +177,18 @@ export const PORCELAIN = {
 
   markdown: {
     summary: 'Export an entity as markdown',
-    usage: 'dsds markdown <identifier>',
+    usage: 'dsds markdown <identifier> [--include-agent-content]',
+    options: {
+      'include-agent-content': {
+        type: 'boolean',
+        description: 'Also render `for: agent` sections (default: human-facing sections only)',
+      },
+    },
     positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier]) => ({ tool: 'dsds_to_markdown', args: { identifier } }),
+    build: ([identifier], values) => ({
+      tool: 'dsds_to_markdown',
+      args: { identifier, includeAgentContent: !!values['include-agent-content'] },
+    }),
   },
 
   brief: {
@@ -237,7 +247,7 @@ export const PORCELAIN = {
       } catch (err) {
         throw new UsageError(`cannot read ${file}: ${err.message}`);
       }
-      return { tool: 'dsds_validate', args: { document } };
+      return { tool: 'dsds_validate', args: { document, filePath: resolvePath(file) } };
     },
     // Findings (schema errors, parse errors) are exit 2; only usage problems are 1.
     exitCode: (result, text) => (text.includes('Validation Failed') ? 2 : result.isError ? 1 : 0),

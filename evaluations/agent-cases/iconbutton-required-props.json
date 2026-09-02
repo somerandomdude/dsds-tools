@@ -1,0 +1,9 @@
+{
+  "id": "iconbutton-required-props",
+  "stratum": "supported",
+  "task": "What are IconButton's required props?",
+  "expect": {
+    "requiredLiterals": ["icon", "aria-label"],
+    "forbiddenLiterals": []
+  }
+}

@@ -1,0 +1,8 @@
+id: example-extensions-only
+kind: component
+name: Example Extensions Only
+description: A component with no sourceFiles/traits/sections — only $extensions.
+$extensions:
+  com.figma:
+    displayName: "Example/Default"
+    nodeId: "1:1"

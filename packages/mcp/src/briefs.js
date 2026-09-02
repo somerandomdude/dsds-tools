@@ -48,13 +48,21 @@ If you are unsure what exists, search broadly first, then narrow.
 
 ### Step 3 — Check for applicable patterns
 
-Call \`dsds_search_entities\` with \`kind=pattern\` to find patterns that may already document the layout or interaction flow you are about to build.
+Call \`dsds_list_entities\` to see what's loaded, then \`dsds_search_entities\` for this system's pattern category (a legacy system names it plain "pattern"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.pattern") to find patterns that may already document the layout or interaction flow you are about to build.
 
 If a pattern matches your task, read it with \`dsds_get_entity\` before composing anything from primitives. A documented pattern tells you the correct component combinations, required props, and rules the design system team has already worked out.
 
 ---
 
-### Step 4 — Read the documentation for every entity you plan to use
+### Step 4 — Read the documentation for every entity you plan to use (required, no exceptions)
+
+MUST: before writing a single JSX usage of any component, call at least one of the lookups
+below for it — including a component you are confident about, have used earlier in this same
+session, or already saw inside a chunk. There is no "I already know this one" exception.
+Skipping this for even one component is the single most common cause of otherwise-avoidable
+build failures (missing required props, renamed/removed props, props typed \`never\`). Do not
+rely on general training knowledge of similar libraries — this design system's API frequently
+differs from the conventional pattern.
 
 Use the following lookup order — stop as soon as you have what you need:
 
@@ -77,9 +85,10 @@ add a component to code. This is the required way of adding components.
 
 ### Step 5 — Use tokens, not hardcoded values
 
-Call \`dsds_search_entities\` with \`kind=token-group\` to find the design token
-scales that apply to your work (spacing, radius, typography, and the rest). Open
-a group with \`dsds_get_entity\` to see its individual tokens.
+Call \`dsds_list_entities\` to find the design token scales that apply to your
+work (spacing, radius, typography, and the rest) — a legacy system groups them
+under the kind named "token-group"; a real 0.20.0 system lists tokens flat
+with a \`metadata.group\` instead. Open a group or token with \`dsds_get_entity\`.
 
 Never hardcode color values, spacing, or type sizes. Always reference the
 token identifier from the design system.
@@ -88,7 +97,7 @@ token identifier from the design system.
 
 ### Step 6 — Check for an applicable chunk
 
-Call \`dsds_search_entities\` with \`kind=chunk\` to find pre-assembled code that may cover your use case.
+Call \`dsds_list_entities\` to find pre-assembled code that may cover your use case — a legacy system names the kind plain "chunk"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.chunk".
 
 If a chunk matches, call \`dsds_get_chunk(identifier)\` to retrieve the full code and its guidelines. Chunks are production-ready compositions — copy the code directly rather than assembling the same pattern from scratch.
 
@@ -126,7 +135,7 @@ ordered, repeating check and fix what it finds — do not skip a stage and do no
 stop at the first green light:
 
 1. **Lint.** Call \`dsds_lint_by_path\` with every file you wrote (use the \`files\` array of \`{ path }\`). Apply the corrected code it returns, then resolve any remaining violations it reports. (If a file is not yet on disk, use \`dsds_lint_inline\` with its source — but neither tool saves files; a clean result never means a file was written.) Lint is not optional or advisory — design-system rules only fire on real JSX, so lint your final component code, not a stub.
-2. **Build / render.** Make sure the app actually mounts and renders without console or runtime errors. A file that type-checks but throws on render has not passed.
+2. **Build / render.** Make sure the app actually mounts and renders without console or runtime errors. A file that type-checks but throws on render has not passed. The moment a build or typecheck fails, call \`dsds_explain_error(error)\` with the raw error text before attempting a fix — it names the shape of the mistake so you fix the actual cause instead of re-guessing from raw compiler output.
 3. **Accessibility.** Resolve accessibility issues (labels, landmarks, alt text, ARIA, and color contrast) so the rendered UI is usable by assistive technology.
 
 If a later stage forces a change, re-run from lint — a fix can reintroduce an
@@ -144,6 +153,13 @@ separate QA pass someone else will do.
 
 export const AUTHOR_BRIEF = `
 ## Before you author: DSDS Documentation Briefing
+
+**Authoring against real DSDS 0.20.0 (\`.dsds.yaml\`)?** Skip everything below and call
+\`dsds_list_skills\` instead — this server bundles the actual authoring skills from the
+design-system-documentation-schema repo's own 0.20.0 branch (\`dsds-specs\`, \`dsds-add\`,
+\`dsds-update\`, \`dsds-validate\`), not a summary of them. They describe the real
+entries/sections/traits/sourceFiles/refs model directly; the steps below describe the
+legacy 0.15.2 JSON model (entityGroups/documentBlocks) this server also still serves.
 
 Do not start writing documentation until you have completed every step below.
 Each step uses a tool from this MCP server — call them in order.

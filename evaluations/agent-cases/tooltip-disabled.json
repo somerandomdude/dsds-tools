@@ -1,0 +1,9 @@
+{
+  "id": "tooltip-disabled",
+  "stratum": "supported",
+  "task": "Why should Tooltip not be placed on a disabled element, according to the documented guidance?",
+  "expect": {
+    "requiredLiterals": ["focus"],
+    "forbiddenLiterals": []
+  }
+}

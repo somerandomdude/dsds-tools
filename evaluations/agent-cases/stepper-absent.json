@@ -1,0 +1,9 @@
+{
+  "id": "stepper-absent",
+  "stratum": "unsupported",
+  "task": "Which Sanity UI component should I use to build a numeric input stepper?",
+  "expect": {
+    "requiredLiterals": [],
+    "forbiddenLiterals": ["Stepper"]
+  }
+}

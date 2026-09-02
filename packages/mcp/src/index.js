@@ -51,6 +51,7 @@ async function main() {
 
   const getLintConfig = () => ({ plugins: config.lintPlugins, resolveDir: config.lintResolveDir, sourceDir: config.lintSourceDir });
   const getExportPaths = () => config.packageExportPaths;
+  const getPropsConfig = () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot });
 
   if (config.packageExportPaths.size > 0) {
     process.stderr.write(`[dsds-mcp] Export paths: ${[...config.packageExportPaths.keys()].join(', ')}\n`);
@@ -70,6 +71,7 @@ async function main() {
     config.logsDir,
     config.enableFeedback,
     config.introInline,
+    getPropsConfig,
   );
 
   startWatching(config.paths, state);

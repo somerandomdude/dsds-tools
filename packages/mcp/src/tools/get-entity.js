@@ -1,4 +1,6 @@
 import { getUpdateNotice } from '../spec/version.js';
+import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 
 export const getEntityDef = {
   name: 'dsds_get_entity',
@@ -16,7 +18,7 @@ export const getEntityDef = {
   },
 };
 
-export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null) {
+export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
   if (systems.length === 0 && introEntities.length === 0) {
@@ -76,6 +78,7 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   }
 
   if (found.tokenType) lines.push(`**Token type:** ${found.tokenType}\n`);
+  if (found.source) lines.push(`**Source:** \`${typeof found.source === 'string' ? found.source : found.source.href}\`\n`);
 
   // Relationships: authored outgoing edges (resolved to name/kind) + derived
   // incoming edges (who points at this entity). Falls back to the raw authored
@@ -118,7 +121,20 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     lines.push('');
   }
 
-  if (found.documentBlocks?.length) {
+  if (found.__dsds20) {
+    // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields,
+    // not sections — render those first, then the sections array itself.
+    renderTraits20(found.traits, lines);
+    renderCombos20(found.combos, lines);
+    renderSourceAndImports20(found, lines);
+    renderApi20(found, lines, propsConfig);
+    if (found.sections?.length) {
+      renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
+    } else {
+      lines.push('*No sections defined for this entry.*');
+    }
+    renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
+  } else if (found.documentBlocks?.length) {
     lines.push(`## Documentation (${found.documentBlocks.length} block${found.documentBlocks.length !== 1 ? 's' : ''})`, '');
     for (const block of found.documentBlocks) {
       lines.push(`### ${block.kind}`, '', '```json', JSON.stringify(block, null, 2), '```', '');
@@ -150,5 +166,7 @@ function resolveText(value) {
 
 function resolveStatus(status) {
   if (!status) return '';
-  return typeof status === 'string' ? status : (status.overall ?? status.value ?? '');
+  // Real 0.20.0 metadata.status is a bare string, {status, platform?, ...},
+  // or a per-platform array of those.
+  return typeof status === 'string' ? status : (resolveStatusDisplay20(status) ?? status.overall ?? status.value ?? '');
 }
