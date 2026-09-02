@@ -82,4 +82,4 @@ When unsure about field shapes or required properties, consult:
 - `id` must match the filename (e.g. `checkbox` → `checkbox.dsds.yaml`).
 - A component's `sourceFiles`, `imports`, `traits`, and `combos` are top-level fields on the entry, never inside a section.
 - Use RFC 2119 levels in guidelines: `must`, `should`, `should-not`, `must-not`, `may`.
-- `metadata.status` is always an object (`{status: "draft"}`), never a bare string.
+- `metadata.status` is one object (`{status: "draft"}`), or an array of one per platform when maturity differs by platform — never a bare string.

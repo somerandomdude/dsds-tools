@@ -1,5 +1,6 @@
 import { writeLog } from '../logger.js';
 import { renderSections20, resolveFileRef20 } from '../spec/render-0.20.0.js';
+import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 
 const CHUNK_KINDS = ['chunk', 'blueprint', 'sanity.chunk'];
 
@@ -195,7 +196,7 @@ function resolveStatus(metadata) {
   }
   const s = metadata.status;
   if (!s) return undefined;
-  return typeof s === 'string' ? s : s.overall ?? s.value;
+  return typeof s === 'string' ? s : resolveStatusDisplay20(s) ?? s.overall ?? s.value;
 }
 
 // DSDS 0.12.0: relationships are typed edges on entity.relationships.

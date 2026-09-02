@@ -26,7 +26,9 @@ Modify an existing `.dsds.yaml` file in `packages/specs/`.
 | New state | Top-level `traits` item with `kind: boolean` |
 | Anatomy change | The `definitions` section titled "Anatomy" |
 | New accessibility requirement | A `guidelines` item (`framing: how-to-use`), or a `definitions` section titled "Keyboard interactions" |
-| Status change | `metadata.status` (always an object: `{status: "..."}`) |
+| Status change | `metadata.status` — one object `{status: "..."}`, or, when maturity differs by platform, an array of one `{status, platform, ...}` per platform. Don't add an `overall` field alongside a per-platform array — there is deliberately none; a consumer derives it from the array instead. |
+| New API contract source | `specs` (sibling of `sourceFiles`) — points at an already-generated machine-readable contract document (e.g. a Custom Elements Manifest), via `{href, rel: "contract"}`. Different from `sourceFiles`, which points at raw source to extract an API *from*. |
+| Consumer-set vs component-set trait | A trait item's `setBy: "consumer"` (a caller-passed prop, e.g. `size`) or `setBy: "component"` (a self-set condition, e.g. `hover`) |
 | New agent rule | A section with `for: agent` |
 
 ## Rules

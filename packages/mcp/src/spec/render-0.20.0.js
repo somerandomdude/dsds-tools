@@ -132,7 +132,12 @@ function renderFreeform(freeform, lines, ctx = {}, depth = 3) {
     for (const example of item.examples ?? []) renderExample20(example, lines, ctx.filePath);
     if (item.refs?.length) {
       lines.push('*See also:*');
-      for (const r of item.refs) lines.push(`- ${r.to ?? r.href}${r.rel ? ` (${r.rel})` : ''}`);
+      for (const r of item.refs) {
+        const rel = r.rel ? ` (${r.rel})` : '';
+        const role = r.role ? ` — ${r.role}` : '';
+        const note = r.note ? `: ${r.note}` : '';
+        lines.push(`- ${r.to ?? r.href}${rel}${role}${note}`);
+      }
       lines.push('');
     }
     renderExtensions20(item.$extensions, lines);
@@ -169,7 +174,7 @@ function isProseOnlyExample(example) {
  * `showCheckedBy` drops the "Checked by: manual/automated" line the same
  * callers turn off — internal verification-process metadata, not doc prose.
  */
-export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showChecklistExample = true, showCheckedBy = true } = {}) {
+export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showChecklistExample = true, showCheckedBy = true, showAlternatives = true } = {}) {
   const level = showLevel && item.level ? `**${item.level}** — ` : '';
   const sameAsTarget = item.statement == null ? findSameAsTarget(item, ctx.sharedEntries) : null;
   const text = item.statement ?? sameAsTarget?.statement ?? item.guidance;
@@ -182,8 +187,10 @@ export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showCh
     lines.push(`- ${level}${pointer ? `see ${pointer.to ?? pointer.href}` : '(see refs)'}`);
   }
   if (item.checkedBy && showCheckedBy) lines.push(`  - Checked by: ${item.checkedBy}`);
-  for (const alt of item.alternatives ?? []) {
-    lines.push(`  - Alternative: \`${alt.to ?? alt.href}\`${alt.rel ? ` (${alt.rel})` : ''}`);
+  if (showAlternatives) {
+    for (const alt of item.alternatives ?? []) {
+      lines.push(`  - Alternative: \`${alt.to ?? alt.href}\`${alt.rel ? ` (${alt.rel})` : ''}`);
+    }
   }
   const skipExample = isProseOnlyExample(item.example) && !showChecklistExample;
   if (item.example && !skipExample) renderExample20(item.example, lines, ctx.filePath);
@@ -204,14 +211,23 @@ function renderGuidelines(section, lines, ctx) {
 
 function renderSteps(section, lines, ctx) {
   const isOrdered = section.ordered !== false;
+  // Rendered as a bold literal marker ("**1.**"), not markdown list syntax ("1. "). A real
+  // ordered/unordered list only renders correctly in the Google Docs export when every item is
+  // one line with nothing between them — the Docs API only continues a list's numbering across
+  // adjacent bulleted paragraphs (there is no way to reuse an existing list's id for a
+  // non-adjacent paragraph). Steps almost always carry a multi-paragraph body or a code example
+  // between items, which breaks that adjacency, so every item silently restarted at "1." in the
+  // exported doc. A literal marker has no such constraint and is always correct.
   (section.items ?? []).forEach((item, i) => {
     const marker = isOrdered ? `${i + 1}.` : '-';
     const optional = item.optional ? ' *(optional)*' : '';
-    lines.push(`${marker} ${item.title}${optional}`);
-    if (item.instruction) lines.push(`   ${asText20(item.instruction)}`);
+    lines.push(`**${marker} ${item.title ?? item.label}**${optional}`, '');
+    // Spec field is `instruction`, but every corpus entry authored so far uses `description`
+    // instead — accept both rather than silently drop every step's body text.
+    const body = item.description ?? item.instruction;
+    if (body) lines.push(asText20(body), '');
     for (const example of item.examples ?? []) renderExample20(example, lines, ctx.filePath);
   });
-  lines.push('');
   renderFreeform(section.freeform, lines, ctx);
 }
 

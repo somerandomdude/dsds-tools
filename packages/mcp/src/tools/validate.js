@@ -14,6 +14,11 @@ export const validateDef = {
         type: 'string',
         description: 'The DSDS document as a JSON or YAML string.',
       },
+      filePath: {
+        type: 'string',
+        description:
+          'Optional: the absolute path this document was read from. Only needed to also check DSDS-11 (that a relative sourceFiles/source/rel:file href actually exists on disk, resolved relative to this path) — omit it for a document you are drafting inline with no real file yet.',
+      },
     },
     required: ['document'],
   },
@@ -34,8 +39,8 @@ function renderLegacy(document) {
   return { content: [{ type: 'text', text }] };
 }
 
-function render20(doc) {
-  const { errors, warnings } = validateDoc20(doc);
+function render20(doc, filePath) {
+  const { errors, warnings, advisories } = validateDoc20(doc, { filePath });
   const lines = [];
   if (errors.length === 0) {
     lines.push('## Valid DSDS 0.20.0 Document', '', 'The document passes schema and semantic validation.');
@@ -45,10 +50,15 @@ function render20(doc) {
   if (warnings.length) {
     lines.push('', `### ${warnings.length} warning${warnings.length !== 1 ? 's' : ''}`, '', ...warnings.map(w => `- ${w}`));
   }
+  if (advisories.length) {
+    // Editorial/documentation-quality findings (DSDS-12+) — never affect
+    // validity or isError, unlike errors/warnings above.
+    lines.push('', `### ${advisories.length} documentation suggestion${advisories.length !== 1 ? 's' : ''}`, '', ...advisories.map(a => `- ${a}`));
+  }
   return { isError: errors.length > 0, content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
-export async function validateHandler({ document }) {
+export async function validateHandler({ document, filePath }) {
   // A real 0.20.0 document is YAML; try that path first and use it whenever
   // the parsed result actually looks like the real 0.20.0 shape (entries+
   // schemaVersion, or a standalone entry with id+kind). Anything else falls
@@ -62,7 +72,7 @@ export async function validateHandler({ document }) {
     parsedAsYaml = undefined;
   }
   if (looksLike20(parsedAsYaml)) {
-    const result = render20(parsedAsYaml);
+    const result = render20(parsedAsYaml, filePath);
     const notice = getUpdateNotice();
     if (notice) result.content[0].text += notice;
     return result;

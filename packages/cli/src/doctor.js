@@ -33,10 +33,20 @@ import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
 // the wrong schema against a real 0.20.0 doc (it did, before this: every
 // 0.20.0 document failed with "(root): must have required property
 // 'entityGroups'", a legacy-only field).
-function validateAny(doc) {
+function validateAny(doc, filePath) {
   if (looksLike20(doc)) {
-    const { errors } = validateDoc20(doc);
-    return { valid: errors.length === 0, errors: errors.map(message => ({ path: '(root)', message })) };
+    const { errors, warnings } = validateDoc20(doc, { filePath });
+    // DSDS-11 (a sourceFiles/source/rel:file href that doesn't exist on
+    // disk) only runs when filePath is supplied — doctor always has one,
+    // unlike the dsds_validate MCP tool's pasted-document case — and is
+    // exactly the kind of "does this actually point at something real"
+    // build-health problem doctor already looks for elsewhere, so it's
+    // folded into `errors` here rather than silently dropped.
+    const fileRefWarnings = warnings.filter((w) => w.startsWith('[DSDS-11]'));
+    return {
+      valid: errors.length === 0 && fileRefWarnings.length === 0,
+      errors: [...errors, ...fileRefWarnings].map(message => ({ path: '(root)', message })),
+    };
   }
   return validateDocument(doc);
 }
@@ -141,7 +151,7 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
     let filesChecked = 0;
     for (const system of systems) {
       filesChecked += 1;
-      const rootResult = validateAny(loadFreshForValidation(system.filePath));
+      const rootResult = validateAny(loadFreshForValidation(system.filePath), system.filePath);
       if (!rootResult.valid) {
         const first = rootResult.errors[0];
         problems.push(`${basename(system.filePath)}: ${rootResult.errors.length} schema error(s) — first: ${first.path}: ${first.message}`);
@@ -150,7 +160,7 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
         filesChecked += 1;
         try {
           const doc = JSON.parse(readFileSync(refFile, 'utf-8'));
-          const result = validateAny(doc);
+          const result = validateAny(doc, refFile);
           if (!result.valid) {
             const first = result.errors[0];
             problems.push(`${basename(refFile)}: ${result.errors.length} schema error(s) — first: ${first.path}: ${first.message}`);

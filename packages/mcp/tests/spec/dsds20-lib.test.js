@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { entriesIn20, findRefs20, isBaseDoc20, loadYaml20 } from '../../src/spec/dsds20-lib.js';
+import { entriesIn20, findRefs20, isBaseDoc20, loadYaml20, resolveStatusDisplay20, statusEntriesOf20 } from '../../src/spec/dsds20-lib.js';
 
 describe('loadYaml20', () => {
   it('parses a bare date as a string, not a Date object', () => {
@@ -53,5 +53,46 @@ describe('findRefs20', () => {
     const found = [];
     findRefs20(entry, '', found);
     expect(found).toHaveLength(0);
+  });
+});
+
+describe('statusEntriesOf20', () => {
+  it('wraps a single status object in an array', () => {
+    expect(statusEntriesOf20({ status: 'stable' })).toEqual([{ status: 'stable' }]);
+  });
+
+  it('returns an array of statuses unchanged', () => {
+    const arr = [{ status: 'stable', platform: 'react' }, { status: 'draft', platform: 'vue' }];
+    expect(statusEntriesOf20(arr)).toBe(arr);
+  });
+
+  it('returns an empty array for null/undefined', () => {
+    expect(statusEntriesOf20(null)).toEqual([]);
+    expect(statusEntriesOf20(undefined)).toEqual([]);
+  });
+});
+
+describe('resolveStatusDisplay20', () => {
+  it('returns a bare string unchanged', () => {
+    expect(resolveStatusDisplay20('stable')).toBe('stable');
+  });
+
+  it('returns just the status for one object with no platform', () => {
+    expect(resolveStatusDisplay20({ status: 'stable' })).toBe('stable');
+  });
+
+  it('prefixes the platform for one object that has one', () => {
+    expect(resolveStatusDisplay20({ status: 'stable', platform: 'react' })).toBe('react: stable');
+  });
+
+  it('joins every platform for the per-platform array form, dropping none of them', () => {
+    const arr = [{ status: 'stable', platform: 'react' }, { status: 'draft', platform: 'vue' }];
+    expect(resolveStatusDisplay20(arr)).toBe('react: stable · vue: draft');
+  });
+
+  it('returns undefined for null/undefined/empty array', () => {
+    expect(resolveStatusDisplay20(null)).toBeUndefined();
+    expect(resolveStatusDisplay20(undefined)).toBeUndefined();
+    expect(resolveStatusDisplay20([])).toBeUndefined();
   });
 });

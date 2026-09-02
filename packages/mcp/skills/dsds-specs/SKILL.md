@@ -125,5 +125,5 @@ Fetch these pages when authoring specific pieces:
 - A standalone entry file has no `entity`/`entityGroups` wrapper — `id`/`kind`/`name`/`description` sit at the top level directly. A base document requires `schemaVersion`, `name`, and a non-empty `entries` array.
 - `id` must match the filename without `.dsds.yaml` (e.g. `checkbox` → `checkbox.dsds.yaml`).
 - Requirement levels: `must`, `should`, `should-not`, `must-not`, `may` (lowercase, hyphenated — RFC 2119).
-- `metadata.status` is always an object: `{status: "stable"}`, optionally scoped with `platform`, `since`, `deprecationNotice`, `note`. There's no bare-string shorthand.
+- `metadata.status` is one object (`{status: "stable"}`, optionally with `platform`, `since`, `deprecationNotice`, `note`), or, when maturity differs by platform, an array of one such object per platform. There's no bare-string shorthand, and no `overall` field — a consumer derives that from the array itself.
 - All pointers — dependencies, composition, citations, external links — use one shape: `common/ref` (`to` for this document's own graph, `href` for outside it, plus a `rel`). There's no separate "relationship" or "link" type.

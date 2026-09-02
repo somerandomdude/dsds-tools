@@ -59,6 +59,45 @@ describe('validateDoc20', () => {
     expect(warnings.every((w) => w.startsWith('[DSDS-08]'))).toBe(true);
   });
 
+  it('accepts a component `specs` entry pointing at a machine-readable API contract via `rel: contract`', () => {
+    const doc = {
+      id: 'button',
+      kind: 'component',
+      name: 'Button',
+      description: 'A clickable action trigger.',
+      specs: [{ href: './contracts/button.contract.json', rel: 'contract', role: 'DS Contracts' }],
+    };
+    const { errors } = validateDoc20(doc);
+    expect(errors).toEqual([]);
+  });
+
+  it('accepts a trait\'s `setBy` field (consumer vs component)', () => {
+    const doc = {
+      id: 'switch',
+      kind: 'component',
+      name: 'Switch',
+      description: 'A toggle control.',
+      traits: [
+        { id: 'checked', kind: 'boolean', description: 'Whether the switch is on.', setBy: 'consumer' },
+        { id: 'loading', kind: 'boolean', description: 'Whether a pending action is in flight.', setBy: 'component' },
+      ],
+    };
+    const { errors } = validateDoc20(doc);
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects an invalid `setBy` value', () => {
+    const doc = {
+      id: 'switch',
+      kind: 'component',
+      name: 'Switch',
+      description: 'A toggle control.',
+      traits: [{ id: 'checked', kind: 'boolean', description: 'Whether the switch is on.', setBy: 'somebody-else' }],
+    };
+    const { errors } = validateDoc20(doc);
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
   it('gives a standalone entry the same reference checking a base document gets — as a warning, not an error, since it can never prove it is self-contained', () => {
     const doc = { id: 'badge', kind: 'component', name: 'Badge', description: 'A small status label.', related: [{ to: 'does-not-exist-anywhere', rel: 'alternative-to' }] };
     const { errors, warnings } = validateDoc20(doc);
@@ -109,13 +148,111 @@ describe('validateDoc20', () => {
   });
 });
 
-describe('validateDoc20 — DSDS-01..08 semantic rules (real fixtures)', () => {
+describe('validateDoc20 — DSDS-01..11 semantic rules (real fixtures)', () => {
   const files = readdirSync(resolve(fixturesDir, 'invalid-0.20.0'));
 
   it.each(files)('flags exactly the rule the fixture %s is named for', (file) => {
     const ruleId = file.match(/^DSDS-(\d+)/)[0]; // e.g. "DSDS-04"
+    const filePath = resolve(fixturesDir, `invalid-0.20.0/${file}`);
     const doc = loadFixture(`invalid-0.20.0/${file}`);
+    // filePath is passed for every fixture, not just the DSDS-11 ones — it's
+    // a no-op for DSDS-01..10 (they don't look at opts.filePath at all) and
+    // DSDS-11 needs it (a warning, not an error — hence checking both below).
+    const { errors, warnings } = validateDoc20(doc, { filePath });
+    expect([...errors, ...warnings].some(e => e.startsWith(`[${ruleId}]`))).toBe(true);
+  });
+});
+
+describe('validateDoc20 — DSDS-02 platform vocabulary against the per-platform metadata.status array', () => {
+  it('flags an out-of-vocabulary platform inside the status array, at its own index', () => {
+    const doc = {
+      schemaVersion: '0.20.0',
+      name: 'X',
+      entries: [
+        { id: 'sys', kind: 'system', name: 'Sys', description: 'd', metadata: { platforms: ['react', 'vue'] } },
+        { id: 'btn', kind: 'component', name: 'Btn', description: 'd',
+          metadata: { status: [{ status: 'stable', platform: 'react' }, { status: 'draft', platform: 'svelte' }] } },
+      ],
+    };
     const { errors } = validateDoc20(doc);
-    expect(errors.some(e => e.startsWith(`[${ruleId}]`))).toBe(true);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('[DSDS-02]');
+    expect(errors[0]).toContain('metadata.status[1]');
+    expect(errors[0]).toContain('svelte');
+  });
+
+  it('does not flag a status array where every platform is declared', () => {
+    const doc = {
+      schemaVersion: '0.20.0',
+      name: 'X',
+      entries: [
+        { id: 'sys', kind: 'system', name: 'Sys', description: 'd', metadata: { platforms: ['react', 'vue'] } },
+        { id: 'btn', kind: 'component', name: 'Btn', description: 'd',
+          metadata: { status: [{ status: 'stable', platform: 'react' }, { status: 'draft', platform: 'vue' }] } },
+      ],
+    };
+    const { errors } = validateDoc20(doc);
+    expect(errors).toEqual([]);
+  });
+});
+
+describe('validateDoc20 — DSDS-12..15 advisory tier (never affects validity)', () => {
+  it('DSDS-12: flags a lowercase RFC keyword in a guideline statement', () => {
+    const doc = {
+      id: 'button', kind: 'component', name: 'Button', description: 'd',
+      sections: [{ kind: 'guidelines', for: 'all', items: [{ id: 'a', statement: 'You must set an aria-label.', level: 'must', checkedBy: 'manual' }] }],
+    };
+    const { errors, advisories } = validateDoc20(doc);
+    expect(errors).toEqual([]);
+    expect(advisories.some(a => a.startsWith('[DSDS-12]'))).toBe(true);
+  });
+
+  it('DSDS-13: flags a token description that only restates its id', () => {
+    const doc = { id: 'color-action-primary', kind: 'token', name: 'Primary', description: 'color-action-primary' };
+    const { advisories } = validateDoc20(doc);
+    expect(advisories.some(a => a.startsWith('[DSDS-13]'))).toBe(true);
+  });
+
+  it('DSDS-13: does not flag a token description that adds real information', () => {
+    const doc = { id: 'color-action-primary', kind: 'token', name: 'Primary', description: 'The default accent for primary actions.' };
+    const { advisories } = validateDoc20(doc);
+    expect(advisories.some(a => a.startsWith('[DSDS-13]'))).toBe(false);
+  });
+
+  it('DSDS-14: flags a must-level guideline with no checkedBy at all', () => {
+    const doc = {
+      id: 'button', kind: 'component', name: 'Button', description: 'd',
+      sections: [{ kind: 'guidelines', for: 'all', items: [{ id: 'a', statement: 'Set an accessible name.', level: 'must' }] }],
+    };
+    const { advisories } = validateDoc20(doc);
+    expect(advisories.some(a => a.startsWith('[DSDS-14]'))).toBe(true);
+  });
+
+  it('DSDS-15: flags a component with no when-to-use guidelines section', () => {
+    const doc = {
+      id: 'button', kind: 'component', name: 'Button', description: 'd',
+      sections: [{ kind: 'guidelines', for: 'all', framing: 'how-to-use', items: [{ id: 'a', statement: 'Provide a label.', level: 'must', checkedBy: 'manual' }] }],
+    };
+    const { advisories } = validateDoc20(doc);
+    expect(advisories.some(a => a.startsWith('[DSDS-15]'))).toBe(true);
+  });
+
+  it('produces zero advisories for a document with no editorial gaps', () => {
+    const doc = {
+      id: 'switch', kind: 'component', name: 'Switch', description: 'A toggle control.',
+      sections: [
+        { kind: 'guidelines', for: 'all', framing: 'when-to-use', items: [{ id: 'a', statement: 'Use for a setting that takes effect immediately.', level: 'should', checkedBy: 'manual' }] },
+        { kind: 'guidelines', for: 'all', framing: 'how-to-use', items: [{ id: 'b', statement: 'MUST set an aria-label when no visible label is present.', level: 'must', checkedBy: 'manual' }] },
+      ],
+    };
+    const { advisories } = validateDoc20(doc);
+    expect(advisories).toEqual([]);
+  });
+
+  it('advisories never affect isError-equivalent validity — errors stay empty regardless', () => {
+    const doc = { id: 'x', kind: 'component', name: 'X', description: 'd' };
+    const { errors, advisories } = validateDoc20(doc);
+    expect(errors).toEqual([]);
+    expect(advisories.length).toBeGreaterThan(0); // missing when-to-use, at minimum
   });
 });

@@ -3,11 +3,11 @@ $id: https://designsystemdocspec.org/v0.20.0/entries/component.schema.yaml
 title: ComponentEntry
 description: A reusable UI element, like a button or a dialog.
 $comment: >-
-  `traits`, `combos`, `imports`, and `sourceFiles` live directly here
-  rather than in a section, since they're facts about the component as
-  a build artifact, not documentation content.
+  `traits`, `combos`, `imports`, `sourceFiles`, and `specs` live
+  directly here rather than in a section, since they're facts about the
+  component as a build artifact, not documentation content.
 allOf:
-  - $ref: https://designsystemdocspec.org/v0.20.0/entry.schema.yaml
+  - $ref: https://designsystemdocspec.org/v0.20.0/entries/entry.schema.yaml
   - type: object
     properties:
       kind:
@@ -21,7 +21,15 @@ allOf:
         type: array
         minItems: 1
         description: One entry per platform's source file.
-        $comment: Defining the source file in the schema enables a tool to extract the component's full API (properties, events, slots, CSS hooks) straight from the code. This avoids drift between docs and code.
+        $comment: >-
+          Defining the source file in the schema enables a tool to
+          extract the component's full API (properties, events, slots,
+          CSS hooks) straight from the code. This avoids drift between
+          docs and code. Points at raw source (e.g. `Button.tsx`) - a
+          project whose tooling already generates a manifest *from* that
+          source (a Custom Elements Manifest, or similar) points `specs`
+          at the generated document itself instead of repeating the
+          extraction here.
         items:
           type: object
           required: [platform, file]
@@ -37,6 +45,25 @@ allOf:
               $comment: A bare string is a plain file path (shorthand for href). Use the full ref object when role or note matters.
               example: ./src/Button.tsx
           additionalProperties: false
+
+      specs:
+        $ref: https://designsystemdocspec.org/v0.20.0/common/ref.schema.yaml#/$defs/list
+        description: Machine-readable API contract(s) for this component - props, slots, events, etc. in a standard, tool-readable shape.
+        $comment: >-
+          Different from `sourceFiles`: that points at the source a tool
+          extracts an API *from*; this points at an already-extracted
+          contract document, in whatever standard format your tooling
+          produces and consumes - for example a DS Contracts document
+          (https://github.com/southleft/ds-contracts-poc) or a W3C
+          Custom Elements Manifest. DSDS doesn't parse or validate the
+          target's contents, only points at it, so any standard format
+          works here. One entry per platform or format, if more than
+          one exists; use `role` to name the format when it isn't
+          obvious from the file extension.
+        example:
+          - rel: contract
+            href: ./contracts/button.contract.json
+            role: DS Contracts
 
       imports:
         type: array
@@ -62,7 +89,17 @@ allOf:
               example: "@acme/ui"
       traits:
         type: array
-        description: The component's variants and states.
+        description: >-
+          The component's variants and states. Each item is tagged `kind:
+          boolean` or `kind: enum`, since the two carry genuinely
+          different fields - an enum's own `values` list vs. a boolean's
+          plain toggle.
+        $comment: >-
+          Tagged with `kind` (`anyOf`) because the two shapes genuinely
+          differ, not just which optional fields happen to be filled in -
+          compare `sections/steps.schema.yaml`'s and
+          `sections/guidelines.schema.yaml`'s own items, which stay one
+          flexible shape with no `kind` tag for exactly that reason.
         minItems: 1
         items:
           anyOf:
@@ -149,6 +186,7 @@ $defs:
   traitValue:
     type: object
     required: [id, description]
+    description: The shared properties of a boolean trait or one enum value - what it is, and what it's for.
     $comment: >-
       The shared properties of boolean and enum traits. Contains all the details to describe
       a trait's value, what it is, and what it's for.

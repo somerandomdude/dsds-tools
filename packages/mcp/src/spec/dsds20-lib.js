@@ -75,3 +75,29 @@ export const WELL_KNOWN_KINDS_0_20_0 = new Set(['system', 'component', 'token', 
 export const NAMESPACED_KIND_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)+$/;
 export const isValidKind20 = (kind) =>
   WELL_KNOWN_KINDS_0_20_0.has(kind) || NAMESPACED_KIND_PATTERN.test(kind);
+
+/** Every status entry in a `metadata.status` value, whether it's one object or a per-platform array. */
+export function statusEntriesOf20(status) {
+  if (status == null) return [];
+  return Array.isArray(status) ? status : [status];
+}
+
+/**
+ * A single display string for `metadata.status` (metadata/entry-metadata.schema.yaml).
+ * `status` can be a bare string (legacy tolerance), one status object
+ * (`{status, platform?, ...}`), or — since the per-platform status array
+ * was added — a list of them, one per platform. There is no defined
+ * ordering across arbitrary status values, so rather than guess an
+ * aggregate ("least mature wins" is the upstream schema's own suggested
+ * policy, but it requires a maturity ordering this spec doesn't define),
+ * this renders every platform's status rather than silently picking or
+ * dropping one.
+ */
+export function resolveStatusDisplay20(status) {
+  if (status == null) return undefined;
+  if (typeof status === 'string') return status;
+  const entries = statusEntriesOf20(status).filter((s) => s && typeof s === 'object' && s.status);
+  if (entries.length === 0) return undefined;
+  if (entries.length === 1 && !entries[0].platform) return entries[0].status;
+  return entries.map((s) => (s.platform ? `${s.platform}: ${s.status}` : s.status)).join(' · ');
+}

@@ -1,5 +1,6 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 
 export const getEntityDef = {
   name: 'dsds_get_entity',
@@ -165,6 +166,7 @@ function resolveText(value) {
 
 function resolveStatus(status) {
   if (!status) return '';
-  // Real 0.20.0 metadata.status is always {status, platform?, since?, ...}.
-  return typeof status === 'string' ? status : (status.status ?? status.overall ?? status.value ?? '');
+  // Real 0.20.0 metadata.status is a bare string, {status, platform?, ...},
+  // or a per-platform array of those.
+  return typeof status === 'string' ? status : (resolveStatusDisplay20(status) ?? status.overall ?? status.value ?? '');
 }

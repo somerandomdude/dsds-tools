@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
-import { entriesIn20, isBaseDoc20, loadYaml20 } from './spec/dsds20-lib.js';
+import { entriesIn20, isBaseDoc20, loadYaml20, resolveStatusDisplay20 } from './spec/dsds20-lib.js';
 
 // ── Real 0.20.0 support (YAML: entries/sections/traits/sourceFiles/refs) ──
 //
@@ -65,9 +65,22 @@ function normalizeEntity20(entity, filePath, sharedEntries) {
  * document, following `refs` with `rel: file` transitively to sibling
  * documents — mirrors the legacy $ref-following below, adapted to 0.20.0's
  * own composition mechanism. `visited` (absolute paths) prevents cycles.
+ *
+ * `rootSharedEntries` carries the base document's `shared[]` pool down
+ * through every sibling-file recursion. Only the *root* base document's
+ * `shared` is ever meaningful — a sibling file is a single bare entity, not
+ * its own base document, so `isBaseDoc20(siblingDoc)` is always false for
+ * it and it never has a `shared` of its own to (wrongly) fall back to.
+ * Before this, every entity loaded from a sibling file (which in this
+ * corpus's one-file-per-entity convention is *every* entity except the
+ * `kind: system` entry declared directly in the base doc) got `[]` instead
+ * of the real pool, so `same-as` could never resolve for any of them —
+ * caught by writing real `same-as` refs into the corpus and finding they
+ * rendered as an unresolved "see shared-foundations#..." pointer instead of
+ * the pooled statement.
  */
-async function extractEntities20(doc, absPath, visited) {
-  const sharedEntries = isBaseDoc20(doc) ? (doc.shared ?? []) : [];
+async function extractEntities20(doc, absPath, visited, rootSharedEntries = null) {
+  const sharedEntries = rootSharedEntries ?? (isBaseDoc20(doc) ? (doc.shared ?? []) : []);
   const here = isBaseDoc20(doc)
     ? entriesIn20(doc).map(e => normalizeEntity20(e, absPath, sharedEntries))
     : [normalizeEntity20(doc, absPath, sharedEntries)];
@@ -92,7 +105,7 @@ async function extractEntities20(doc, absPath, visited) {
     try {
       const raw = await readFile(siblingPath, 'utf-8');
       const siblingDoc = loadYaml20(raw);
-      rest.push(...await extractEntities20(siblingDoc, siblingPath, visited));
+      rest.push(...await extractEntities20(siblingDoc, siblingPath, visited, sharedEntries));
     } catch {
       // A missing/unreadable sibling is silently skipped, same as the
       // legacy loader's $ref resolution below — a bad file shouldn't take
@@ -316,9 +329,10 @@ function resolveMetaStatus(metadata) {
   }
   const s = metadata.status;
   if (!s) return undefined;
-  // Real 0.20.0 metadata.status is always an object shaped {status, platform?,
-  // since?, deprecationNotice?, note?} — never a bare string or {overall}/{value}.
-  return typeof s === 'string' ? s : s.status ?? s.overall ?? s.value ?? undefined;
+  // Real 0.20.0 metadata.status is a bare string, one object shaped {status,
+  // platform?, since?, deprecationNotice?, note?}, or — since the
+  // per-platform array form was added — a list of them, one per platform.
+  return typeof s === 'string' ? s : resolveStatusDisplay20(s) ?? s.overall ?? s.value ?? undefined;
 }
 
 function resolveMetaSummary(metadata) {

@@ -61,13 +61,24 @@ export function checkExportsHandler({ components }, getExportPaths) {
 
   for (const name of components) {
     const found = [];
+    const deprecated = []; // { pkgName, note }
     const notFound = [];
     for (const [pkgName, exports] of packageExports) {
-      (exports.has(name) ? found : notFound).push(pkgName);
+      if (!exports.names.has(name)) {
+        notFound.push(pkgName);
+      } else if (exports.deprecated.has(name)) {
+        deprecated.push({ pkgName, note: exports.deprecated.get(name) });
+      } else {
+        found.push(pkgName);
+      }
     }
 
     if (found.length > 0) {
       lines.push(`✓ **${name}** — exported from ${found.map(p => `\`${p}\``).join(', ')}`);
+    } else if (deprecated.length > 0) {
+      for (const { pkgName, note } of deprecated) {
+        lines.push(`⚠ **${name}** — present in \`${pkgName}\`'s types but deprecated to \`never\`; importing it will not compile. ${note}`);
+      }
     } else {
       lines.push(`✗ **${name}** — not found in ${notFound.map(p => `\`${p}\``).join(', ')}`);
     }
@@ -85,14 +96,44 @@ function readPackageExports(pkgPath) {
   // Try dist/index.d.ts first — the built declaration file has all exports flattened
   try {
     const dts = readFileSync(join(pkgPath, 'dist/index.d.ts'), 'utf8');
-    return parseDts(dts);
+    return { names: parseDts(dts), deprecated: findDeprecatedNeverExports(dts) };
   } catch {
     // fall through
   }
 
   // Fall back to src/index.ts — follow export * from lines
   const src = readFileSync(join(pkgPath, 'src/index.ts'), 'utf8');
-  return parseSrcIndex(src, pkgPath);
+  return { names: parseSrcIndex(src, pkgPath), deprecated: findDeprecatedNeverExports(src) };
+}
+
+/**
+ * Finds names that are still listed in an `export { ... }` block for
+ * discoverability, but are typed `never` behind an `@deprecated` JSDoc tag —
+ * a real pattern in @sanity/icons v5, which kept every pre-v5 icon name
+ * exported from the root entry (so search/autocomplete still finds it) while
+ * making it uncompilable, to point authors at the real per-icon subpath.
+ * A plain "is this name exported" check reports these as present, which is
+ * technically true and practically wrong: the name resolves to `never` and
+ * fails to compile the moment it's used as a value or JSX component.
+ *
+ * Returns Map<name, guidance> where guidance is the @deprecated tag's text
+ * (which for @sanity/icons already names the correct replacement import).
+ */
+function findDeprecatedNeverExports(content) {
+  const deprecated = new Map();
+  for (const m of content.matchAll(/\/\*\*([\s\S]*?)\*\/\s*\n\s*declare const (\w+)\s*:\s*never\s*;/g)) {
+    const [, comment, name] = m;
+    const deprecatedMatch = comment.match(/@deprecated\s+([\s\S]*)/);
+    if (!deprecatedMatch) continue;
+    const note = deprecatedMatch[1]
+      .split('\n')
+      .map((line) => line.replace(/^\s*\*\s?/, '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    deprecated.set(name, note);
+  }
+  return deprecated;
 }
 
 /**

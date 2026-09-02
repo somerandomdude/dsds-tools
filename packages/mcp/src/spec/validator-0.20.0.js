@@ -18,10 +18,10 @@
 // job to flag, so this rule only fires once resolution has succeeded.
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve as resolvePath } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { entriesIn20, findRefs20, isValidKind20, loadYaml20, walkSchemaYamlFiles } from './dsds20-lib.js';
+import { entriesIn20, findRefs20, isValidKind20, loadYaml20, statusEntriesOf20, walkSchemaYamlFiles } from './dsds20-lib.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.20.0');
@@ -126,7 +126,7 @@ function traitsBranches() {
 function validateSections(sections, label, errors) {
   for (const [i, section] of (sections ?? []).entries()) {
     const sectionSchemaId = specUrl(`sections/${section.kind}.schema.yaml`);
-    const validateSection = schemaFor(sectionSchemaId, specUrl('section.schema.yaml'));
+    const validateSection = schemaFor(sectionSchemaId, specUrl('sections/section.schema.yaml'));
     const sectionLabel = `${label} section[${i}] (${section.kind})`;
 
     if (!validateSection(section)) {
@@ -139,15 +139,86 @@ function validateSections(sections, label, errors) {
 
 const NESTED_SECTION_ERROR = /^\/sections\/\d/;
 
+// ── DSDS-11 (FILE_REF_EXISTS) — ported from the upstream spec repo's
+// scripts/validate.js (0.20.0 branch). Warning-only: this is the one rule
+// that opens files the validator otherwise has no reason to read, so it
+// only runs when the caller supplies a real filePath to resolve relative
+// paths against (a pasted-document tool has no path at all — same
+// "nothing wider to check against" tolerance DSDS-05/08/09 already give a
+// standalone entry).
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+function resolveHref20(href, fromAbsPath) {
+  return resolvePath(dirname(fromAbsPath), href);
+}
+
+function isWithinRoot20(absPath, root) {
+  const rel = relative(root, absPath);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+function checkFileExists20(href, filePath, warnings, label) {
+  if (!filePath || typeof href !== 'string' || URL_SCHEME_RE.test(href)) return;
+  const abs = resolveHref20(href, filePath);
+  const root = dirname(filePath);
+  if (!isWithinRoot20(abs, root)) return; // outside this check's boundary — not evaluated, not assumed broken
+  if (!existsSync(abs)) {
+    warnings.push(err(RULES.FILE_REF_EXISTS, `${label} points at "${href}", which doesn't exist on disk (checked ${abs})`));
+  }
+}
+
+// Every {href, rel: "file"} object anywhere in a value's own tree.
+function findFileHrefRefs20(value, out) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => findFileHrefRefs20(item, out));
+    return;
+  }
+  if (value && typeof value === 'object') {
+    if (value.rel === 'file' && typeof value.href === 'string') out.push(value.href);
+    for (const val of Object.values(value)) findFileHrefRefs20(val, out);
+  }
+}
+
+// sourceFiles[].file and a token's source (common/ref.schema.yaml values)
+// accept either a bare string (shorthand for href) or the full {href, ...}
+// object — both point at a real file regardless of any `rel` they carry.
+function refHref20(value) {
+  if (typeof value === 'string') return value;
+  if (value && typeof value.href === 'string') return value.href;
+  return undefined;
+}
+
+function validateFileRefs20(entity, warnings, opts) {
+  if (!opts?.filePath) return;
+  if (entity.kind === 'component') {
+    for (const [i, sf] of (entity.sourceFiles ?? []).entries()) {
+      checkFileExists20(refHref20(sf.file), opts.filePath, warnings, `"${entity.id}" sourceFiles[${i}].file`);
+    }
+  }
+  if (entity.kind === 'token' && entity.source !== undefined) {
+    checkFileExists20(refHref20(entity.source), opts.filePath, warnings, `"${entity.id}" source`);
+  }
+  // Exclude sourceFiles/source from this generic walk — already checked
+  // explicitly above regardless of bare-string vs {href, rel: file} form.
+  // Walking them again here would double up a finding when the object
+  // form happens to also carry rel: file.
+  const { sourceFiles, source, ...rest } = entity;
+  const fileHrefs = [];
+  findFileHrefRefs20(rest, fileHrefs);
+  for (const href of fileHrefs) {
+    checkFileExists20(href, opts.filePath, warnings, `"${entity.id}" ref (rel: file)`);
+  }
+}
+
 // Note: does NOT call validateItemRefs — when this runs per-entry inside
 // validateBase's loop, each entry would otherwise see only itself as
 // "local" and falsely flag every sibling-entry ref as unresolved. Base
 // documents get ref checking once, over the whole doc, at the end of
 // validateBase. A standalone entry gets it separately (see validateDoc20)
 // since entriesIn20() already treats `[entry]` as its own tiny document.
-function validateEntry(entry, errors) {
+function validateEntry(entry, errors, warnings, opts) {
   const entrySchemaId = specUrl(`entries/${entry.kind}.schema.yaml`);
-  const validate = schemaFor(entrySchemaId, specUrl('entry.schema.yaml'));
+  const validate = schemaFor(entrySchemaId, specUrl('entries/entry.schema.yaml'));
   const isComponent = entry.kind === 'component';
 
   if (!validate(entry)) {
@@ -162,9 +233,10 @@ function validateEntry(entry, errors) {
   }
   validateSections(entry.sections, `entry "${entry.id}"`, errors);
   validateSemanticRules(entry, errors);
+  validateFileRefs20(entry, warnings, opts);
 }
 
-function validateShared(entry, errors) {
+function validateShared(entry, errors, warnings, opts) {
   const validate = ajv.getSchema(specUrl('shared.schema.yaml'));
   if (!validate(entry)) {
     for (const e of validate.errors) {
@@ -174,6 +246,7 @@ function validateShared(entry, errors) {
   }
   validateSections(entry.sections, `shared "${entry.id}"`, errors);
   validateSemanticRules(entry, errors);
+  validateFileRefs20(entry, warnings, opts);
 }
 
 // Checks that need to see across an entry's sections/fields at once.
@@ -207,7 +280,7 @@ function validateSemanticRules(entry, errors) {
 
 const NESTED_ENTRY_OR_SHARED_ERROR = /^\/(entries|shared)\/\d/;
 
-function validateBase(doc, errors, warnings) {
+function validateBase(doc, errors, warnings, opts) {
   const validate = ajv.getSchema(specUrl('base.schema.yaml'));
   if (!validate(doc)) {
     for (const e of validate.errors) {
@@ -215,8 +288,21 @@ function validateBase(doc, errors, warnings) {
       errors.push(`base schema: ${e.instancePath || '/'} ${e.message}`);
     }
   }
-  for (const entry of doc.entries ?? []) validateEntry(entry, errors);
-  for (const entry of doc.shared ?? []) validateShared(entry, errors);
+  for (const entry of doc.entries ?? []) validateEntry(entry, errors, warnings, opts);
+  for (const entry of doc.shared ?? []) validateShared(entry, errors, warnings, opts);
+
+  // DSDS-11 for the base document's OWN top-level `refs` — entry-level
+  // refs are already covered by validateFileRefs20() inside
+  // validateEntry/validateShared above. Walk only doc.refs, not the whole
+  // document: findFileHrefRefs20 recurses, so passing doc would re-find
+  // every entry's refs and double-report them.
+  if (opts?.filePath) {
+    const docFileHrefs = [];
+    findFileHrefRefs20(doc.refs, docFileHrefs);
+    for (const href of docFileHrefs) {
+      checkFileExists20(href, opts.filePath, warnings, 'base document ref (rel: file)');
+    }
+  }
 
   const seenIds = new Set();
   for (const entity of entriesIn20(doc)) {
@@ -246,11 +332,15 @@ function validateBase(doc, errors, warnings) {
           );
         }
       }
-      const entryStatus = entry.metadata?.status;
-      if (entryStatus?.platform && !known.has(entryStatus.platform)) {
-        errors.push(
-          err(RULES.PLATFORM_VOCABULARY, `entry "${entry.id}" metadata.status declares platform "${entryStatus.platform}", which is not in the system entry's metadata.platforms [${[...known].join(', ')}]`),
-        );
+      // metadata.status is one object or — since the per-platform array
+      // form was added — a list of them, one per platform.
+      for (const [i, statusEntry] of statusEntriesOf20(entry.metadata?.status).entries()) {
+        if (statusEntry?.platform && !known.has(statusEntry.platform)) {
+          const where = Array.isArray(entry.metadata?.status) ? `metadata.status[${i}]` : 'metadata.status';
+          errors.push(
+            err(RULES.PLATFORM_VOCABULARY, `entry "${entry.id}" ${where} declares platform "${statusEntry.platform}", which is not in the system entry's metadata.platforms [${[...known].join(', ')}]`),
+          );
+        }
       }
     }
   }
@@ -522,19 +612,116 @@ function validateItemRefs(doc, errors, warnings, { alwaysWarn = false } = {}) {
   }
 }
 
+// ── Advisory tier (DSDS-12..15) — ported from the upstream spec repo's own
+// scripts/lint-docs.js (0.20.0 branch). Schema validation and DSDS-01..11
+// answer "is this document allowed/internally consistent?" These answer
+// "is this documentation good?" — they never block a document (they land
+// in `advisories`, not `errors` or `warnings`), and every rule here is
+// looked up by name against schema-0.20.0/conformance-rules.yaml's own
+// `enforcement: advisory` entries via RULES, so a rule removed from the
+// catalog silently stops firing here too, with no code change needed.
+function normalizeProse(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Every `guidelines` section item across an entry's sections, with a
+// pointer for each.
+function eachGuidelineItem20(entry, fn) {
+  (entry.sections ?? []).forEach((section, si) => {
+    if (!section || section.kind !== 'guidelines') return;
+    (section.items ?? []).forEach((item, ii) => {
+      if (item) fn(item, `/sections/${si}/items/${ii}`);
+    });
+  });
+}
+
+const LOWERCASE_RFC_REGEX = /(?<![A-Za-z])(must|should)(?: not)?(?![A-Za-z])/g;
+
+const ADVISORY_CHECKS = {
+  'rfc-keywords-lowercase-in-normative-prose': (entry, emit) => {
+    eachGuidelineItem20(entry, (item, p) => {
+      if (typeof item.statement !== 'string') return;
+      const hits = item.statement.match(LOWERCASE_RFC_REGEX);
+      if (hits) {
+        emit(`${p}/statement`, `guideline in "${entry.id}" uses lowercase '${hits[0]}' in its statement — capitalize RFC 2119 keywords in normative prose (${hits[0].toUpperCase()}) so the conformance weight is explicit.`);
+      }
+    });
+  },
+
+  'token-description-restates-identifier': (entry, emit) => {
+    if (entry.kind !== 'token') return;
+    const desc = entry.description;
+    if (typeof desc !== 'string' || !desc.trim()) return;
+    const raw = desc.trim();
+    const d = normalizeProse(desc);
+    if (!d) return;
+    const id = normalizeProse(entry.id ?? '');
+    const name = normalizeProse(entry.name ?? '');
+    const restatesName = (id && d === id) || (name && d === name);
+    const isBareValue =
+      /^#[0-9a-f]{3,8}$/i.test(raw) ||
+      /^(rgb|hsl)a?\([^)]*\)$/i.test(raw) ||
+      /^-?\d*\.?\d+(px|rem|em|%|pt|vh|vw)?$/i.test(raw);
+    if (restatesName || isBareValue) {
+      emit('/description', `token "${entry.id}" has a description that only ${restatesName ? 'restates its id or name' : 'gives a raw value'} — a token description should state the token's role or when to use it, not repeat what the id or the DTCG source value already says. Drop it (description is optional here) or state its purpose.`);
+    }
+  },
+
+  'guideline-missing-checkedby': (entry, emit) => {
+    eachGuidelineItem20(entry, (item, p) => {
+      if ((item.level === 'must' || item.level === 'must-not') && !item.checkedBy) {
+        emit(`${p}/checkedBy`, `guideline in "${entry.id}" is a hard requirement (level: ${item.level}) with no checkedBy — declare 'automated', 'assisted', or 'manual' so a tool can tell whether this rule is verifiable at all.`);
+      }
+    });
+  },
+
+  'component-missing-when-to-use': (entry, emit) => {
+    if (entry.kind !== 'component') return;
+    const hasWhenToUse = (entry.sections ?? []).some((s) => s && s.kind === 'guidelines' && s.framing === 'when-to-use');
+    if (!hasWhenToUse) {
+      emit('/sections', `component "${entry.id}" has no guidelines section with framing: when-to-use — "when do I use this?" is usually the first question documentation must answer. Add one, or note in metadata why it doesn't apply.`);
+    }
+  },
+};
+
+function validateAdvisories(doc, advisories) {
+  for (const entry of entriesIn20(doc)) {
+    for (const [name, check] of Object.entries(ADVISORY_CHECKS)) {
+      const ruleId = RULES[name];
+      if (!ruleId) continue; // catalog drift — rule removed upstream, not this tool's job to guess a replacement
+      check(entry, (path, message) => advisories.push(err(ruleId, `${path}: ${message}`)));
+    }
+  }
+}
+
 /**
  * Validates an already-parsed 0.20.0 document (base or standalone entry).
- * Returns { errors: string[], warnings: string[] } — mirrors the upstream
- * validator's return shape so a bug report can cite the same [DSDS-XX] ids.
+ * Returns { errors: string[], warnings: string[], advisories: string[] } —
+ * mirrors the upstream validator's error/warning shape so a bug report can
+ * cite the same [DSDS-XX] ids; `advisories` is additive (upstream keeps the
+ * advisory tier in a separate lint-docs.js run) and never affects validity.
+ *
+ * `filePath` (optional) is the absolute path of the file being validated —
+ * pass it to also run DSDS-11 (a `sourceFiles`/`source`/`rel: file` href
+ * actually exists on disk, resolved relative to this path). Omit it for a
+ * pasted-document tool with no real path to resolve against; DSDS-11
+ * simply doesn't run, the same way DSDS-05/08/09 tolerate having nothing
+ * wider to check a ref against.
  */
-export function validateDoc20(doc) {
+export function validateDoc20(doc, { filePath } = {}) {
   const errors = [];
   const warnings = [];
+  const advisories = [];
+  const opts = { filePath };
   const isBase = typeof doc.schemaVersion !== 'undefined';
   if (isBase) {
-    validateBase(doc, errors, warnings);
+    validateBase(doc, errors, warnings, opts);
   } else {
-    validateEntry(doc, errors);
+    validateEntry(doc, errors, warnings, opts);
     // Standalone entry files (142 of 143 in the real corpus) previously got
     // no reference checking at all — validateItemRefs was only reached via
     // validateBase. entriesIn20() already treats a non-base doc as its own
@@ -543,7 +730,8 @@ export function validateDoc20(doc) {
     validateCombos(doc, errors, warnings, { alwaysWarn: true });
     validateSameAsLevels(doc, errors);
   }
-  return { errors, warnings };
+  validateAdvisories(doc, advisories);
+  return { errors, warnings, advisories };
 }
 
 /** Whether a parsed object looks like a 0.20.0 document (vs. legacy 0.15.2 JSON). */

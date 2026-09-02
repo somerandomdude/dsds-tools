@@ -1,5 +1,6 @@
 import { getApiForEntry } from '../spec/prop-extractor-0.20.0.js';
 import { renderCombos20, renderExtensions20, renderGuidelineItem, renderSections20 } from '../spec/render-0.20.0.js';
+import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 
 const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
 
@@ -302,6 +303,22 @@ function renderSections(block, lines, depth = 2) {
 // human-facing doc renders `human` and `all`, never an `agent`-only section.
 const isHumanSection = (s) => s.for === 'human' || s.for === 'all' || !s.for;
 
+// Opt-in escape hatch for machine consumers (see `includeAgentContent` on
+// dsds_to_markdown / `dsds markdown --include-agent-content`).
+//
+// Why this exists: `for: agent` sections are a third of the corpus (201 of
+// 629 sections as of 2026-08-31) and carry the most precise, compiler-checked
+// API facts — the kind a human doc deliberately keeps out of the reading flow.
+// Dropping them is right for a doc site or a Google Doc, and wrong for an
+// eval harness or an agent context file, which measured the cost directly:
+// HStack's exported markdown was 58 lines containing none of its as/gap-only
+// rules, none of the TS2322 detail, and none of the spread caveat, because
+// all of it lives in `for: agent` sections.
+//
+// Default stays human-only so no existing consumer changes behaviour.
+const sectionFilter = (includeAgentContent) =>
+  includeAgentContent ? (() => true) : isHumanSection;
+
 function apiPropsBlock(entity, propsConfig) {
   const result = getApiForEntry(entity, propsConfig);
   if (result.status !== 'fresh' && result.status !== 'unverified') return null;
@@ -353,23 +370,31 @@ function hasA11yTag(item) {
 
 const isRecommended = (item) => item.level === 'should' || item.level === 'must';
 
-/** Splits items into two headed buckets by level, rendering each via renderGuidelineItem (preserves same-as/example/$extensions/alternatives) rather than a lossy plain-bullet adapter. */
+/**
+ * Splits items into two headed buckets by level, rendering each via renderGuidelineItem
+ * (preserves same-as/example/$extensions) rather than a lossy plain-bullet adapter.
+ * Only used for Usage guidelines and Best practices (see call sites) — both suppress the
+ * "Alternative: `x`" line renderGuidelineItem otherwise emits, since the alternative is
+ * already named in the statement's own prose (e.g. "Use HStack instead") and the terse
+ * `alternative-to` identifier repeats it with no added information.
+ */
 function renderSplitGuidelines20(items, lines, ctx, { yesHeading, noHeading, showChecklistExample = true }) {
   const yes = items.filter(isRecommended);
   const no = items.filter((i) => !isRecommended(i));
   if (yes.length) {
     lines.push(yesHeading, '');
-    for (const item of yes) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false });
+    for (const item of yes) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false, showAlternatives: false });
     lines.push('');
   }
   if (no.length) {
     lines.push(noHeading, '');
-    for (const item of no) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false });
+    for (const item of no) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false, showAlternatives: false });
     lines.push('');
   }
 }
 
-function entityToMarkdown20(entity, lines, propsConfig) {
+function entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent = false } = {}) {
+  const keep = sectionFilter(includeAgentContent);
   const sections = entity.sections ?? [];
   const ctx = { filePath: entity.__filePath, sharedEntries: entity.__sharedEntries };
   const consumed = new Set();
@@ -382,7 +407,7 @@ function entityToMarkdown20(entity, lines, propsConfig) {
   // — not to be confused with the base `context` field below, a same-named-
   // sounding but distinct concept the spec renamed this one away from to
   // make room for.
-  const collectByFraming = (framing) => collectMatches(sections.filter((s) => isHumanSection(s) && s.kind === 'guidelines' && s.framing === framing));
+  const collectByFraming = (framing) => collectMatches(sections.filter((s) => keep(s) && s.kind === 'guidelines' && s.framing === framing));
   // `context` (anatomy/terms/keyboard/events/namespaced) is the section
   // base schema's newer, machine-readable way to say what job a
   // `definitions` section is doing — matched here alongside the older
@@ -390,9 +415,9 @@ function entityToMarkdown20(entity, lines, propsConfig) {
   // uses everywhere, since nothing has been re-authored to the new field
   // yet. Either one earns the same treatment.
   const collectByTitleOrContext = (title, context) =>
-    collectMatches(sections.filter((s) => isHumanSection(s) && s.kind === 'definitions' && (s.title === title || (context && s.context === context))));
+    collectMatches(sections.filter((s) => keep(s) && s.kind === 'definitions' && (s.title === title || (context && s.context === context))));
   const collectByGuidelinesTitle = (title) =>
-    collectMatches(sections.filter((s) => isHumanSection(s) && s.kind === 'guidelines' && s.title === title));
+    collectMatches(sections.filter((s) => keep(s) && s.kind === 'guidelines' && s.title === title));
   const renderSectionExtensions = (matches) => {
     for (const s of matches) renderExtensions20(s.$extensions, lines);
   };
@@ -471,13 +496,13 @@ function entityToMarkdown20(entity, lines, propsConfig) {
   // like a migration guide, other titled definitions/guidelines/steps) still
   // renders — via the generic per-kind renderer — so nothing silently
   // disappears just because it doesn't match one of the named patterns above.
-  const leftover = sections.filter((s) => isHumanSection(s) && !consumed.has(s));
+  const leftover = sections.filter((s) => keep(s) && !consumed.has(s));
   renderSections20(leftover, lines, { depth: 2, filePath: entity.__filePath, sharedEntries: entity.__sharedEntries });
 
   renderExtensions20(entity.$extensions, lines, { heading: '## Tool data' });
 }
 
-function entityToMarkdown(entity, propsConfig) {
+function entityToMarkdown(entity, propsConfig, { includeAgentContent = false } = {}) {
   const lines = [];
 
   // Header
@@ -489,12 +514,15 @@ function entityToMarkdown(entity, propsConfig) {
   }
 
   const meta = entity.metadata ?? {};
-  const status20 = meta.status && typeof meta.status === 'object' ? meta.status.status : null;
+  // meta.status can be a bare string (legacy), one {status, platform?, ...}
+  // object, or — since the per-platform array form was added — a list of
+  // those. resolveStatusDisplay20 handles all three without misreading an
+  // array as a single object (typeof [] === 'object' too).
+  const status20 = resolveStatusDisplay20(meta.status);
   if (status20) lines.push(`**Status:** ${status20}  `, '');
-  else if (meta.status) lines.push(`**Status:** ${meta.status}  `, '');
 
   if (entity.__dsds20) {
-    entityToMarkdown20(entity, lines, propsConfig);
+    entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent });
     return lines.join('\n');
   }
 
@@ -561,12 +589,21 @@ export const toMarkdownDef = {
         type: 'string',
         description: 'Entity identifier (e.g. "tooltip") or name (e.g. "Tooltip"). Case-insensitive.',
       },
+      includeAgentContent: {
+        type: 'boolean',
+        description:
+          'Include `for: agent` sections in the output. Defaults to false, which renders only ' +
+          '`for: human` and `for: all` sections — the right shape for a human-facing doc page or a ' +
+          'Google Doc export. Set true for machine consumers (eval harnesses, agent context files) ' +
+          'that need the full corpus: agent-only sections are roughly a third of it and carry the ' +
+          'most precise API detail, so omitting them drops real facts rather than just restating them.',
+      },
     },
     required: ['identifier'],
   },
 };
 
-export async function toMarkdownHandler({ identifier }, getSystems, propsConfig = null) {
+export async function toMarkdownHandler({ identifier, includeAgentContent = false }, getSystems, propsConfig = null) {
   const systems = getSystems();
 
   if (!systems || systems.length === 0) {
@@ -599,6 +636,6 @@ export async function toMarkdownHandler({ identifier }, getSystems, propsConfig 
     };
   }
 
-  const markdown = entityToMarkdown(found, propsConfig);
+  const markdown = entityToMarkdown(found, propsConfig, { includeAgentContent });
   return { content: [{ type: 'text', text: markdown }] };
 }

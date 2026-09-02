@@ -306,8 +306,8 @@ export const ENTITY_DESCRIPTIONS_0_20_0 = {
   component: {
     summary: 'A reusable UI element. Points at real source instead of hand-typing its API.',
     required: ['id', 'kind', 'name', 'description'],
-    optionalTop: ['metadata', 'sourceFiles', 'imports', 'traits', 'combos', 'refs', 'sections', '$extensions'],
-    notes: '`sourceFiles` points a tool at the real file to extract props from — prefer this over hand-typing an API in a section. `traits` (not a section) declares every variant (`kind: enum`) and state (`kind: boolean`); `combos` declares pairing rules between them. Directory convention: `components/`.',
+    optionalTop: ['metadata', 'sourceFiles', 'specs', 'imports', 'traits', 'combos', 'refs', 'sections', '$extensions'],
+    notes: '`sourceFiles` points a tool at the real file to extract props from — prefer this over hand-typing an API in a section. `specs` is different: it points at an already-extracted, machine-readable API contract document (e.g. a Custom Elements Manifest), for when that already exists instead of hand-extracting from `sourceFiles`. `traits` (not a section) declares every variant (`kind: enum`) and state (`kind: boolean`); `combos` declares pairing rules between them. Directory convention: `components/`.',
   },
   token: {
     summary: 'A single design token, from the Design Tokens Community Group (DTCG) format.',
