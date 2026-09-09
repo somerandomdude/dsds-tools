@@ -1,6 +1,6 @@
 # Plan 006: Build a settings-page prototype from DSDS v0.20 documentation
 
-Status: IN PROGRESS — Stories 006.1–006.3 complete; paused before Story 006.4.
+Status: IN PROGRESS — Stories 006.1–006.4 complete; Story 006.5 verification started.
 Written: 2026-09-09. This is a fresh plan, independent of Plan 005.
 Owners: Davy and Codex; PJ reviews shared tooling and schema decisions asynchronously.
 
@@ -116,6 +116,9 @@ As a user, I want Save and Cancel to work through documented public APIs.
 
 ### Story 006.4 — Generate the prototype with Qwen
 
+Status: DONE — initial bounded harness. See
+`evaluations/reports/plan-006-story-006.4-harness.md` and `SETTINGS-PROTOTYPE.md`.
+
 As a designer, I want a repeatable local command that generates a preview.
 
 - First use deterministic evidence collection so documentation failures can
@@ -134,6 +137,10 @@ As a designer, I want a repeatable local command that generates a preview.
   original response, repair prompt, and result so improvements remain attributable.
 
 ### Story 006.5 — Verify and explain the result
+
+Status: STARTED. One live generated preview passes nine browser checks and a
+keyboard smoke test. Three frozen runs, the missing-capability case, and full
+human visual/accessibility review remain outstanding; this is not MVP acceptance.
 
 As Davy and PJ, we want evidence that the page works and that DSDS helped.
 
@@ -259,10 +266,12 @@ these by the first demonstration's findings, not by the old Plan 005.
 
 ### Planning handoff
 
-Stories 006.1–006.3 are complete. The v0.20 experiment corpus and component
-contract changes are committed in `dsdsds` on `codex/006-v020-settings-corpus`.
-No Qwen generation changes have begun. The next unit is Story 006.4: generate a
-disposable settings-page prototype from the verified context.
+Stories 006.1–006.4 are complete. The v0.20 experiment corpus and component
+contracts live in `dsdsds` on `codex/006-v020-settings-corpus`. The bounded
+harness lives in `dsds-tools`, with development commands in `dsdsds`. It
+materializes isolated files only after static checks, and serves a separate
+browser-check page. One live Qwen preview passed those checks. The next unit
+is Story 006.5: frozen repeated runs, a missing-capability case, and review.
 
 Working directory:
 `/Users/davyfung/Documents/Codex/2026-07-22/i-w-2/work/dsds-tools`
@@ -274,10 +283,11 @@ any changes; they are separate work). Schema reference:
 
 Suggested resume instruction:
 
-> Implement Story 006.4 in plans/006-qwen-settings-prototype.md. Read the Story
-> 006.2 corpus and Story 006.3 component reports, then retrieve the v0.20
-> Account Settings context and its dependencies. Build the bounded local Qwen
-> generation harness and disposable preview; do not change component APIs.
+> Continue Story 006.5 in plans/006-qwen-settings-prototype.md. Read the Story
+> 006.4 harness report and SETTINGS-PROTOTYPE.md. Preserve the first failed and
+> successful runs as development evidence, not the frozen comparison. Plan
+> three fixed-prompt runs and the missing-capability check; keep component
+> contracts unchanged unless a new, verified gap warrants a separate fix.
 
 Qwen participates in two distinct places: a small runtime smoke test in 006.1,
 then actual settings-page generation in 006.4 after the documented component
