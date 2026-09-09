@@ -58,12 +58,12 @@ dependency. This is an environment limitation, not a skill-content failure.
 
 ## Boundary recorded for Story 006.3
 
-The source audit found no host-level live `value` property on Text Input and no
-host-level live `checked` property on Checkbox. Neither component declares
-custom events or form-associated custom-element behavior. The v0.20 documents
-state those gaps instead of pretending Save and Cancel can already use a public
-contract.
+At the time of this corpus commit, the source audit found no host-level live
+`value` property on Text Input and no host-level live `checked` property on
+Checkbox. Neither component declared custom events or form-associated
+custom-element behavior. Story 006.3 subsequently added the smallest live-state
+and forwarded-event contract; the components remain non-form-associated.
 
-No component implementation changed, no complete settings page was supplied,
-and Qwen was not invoked. Story 006.3 must define and verify the smallest public
-live-state/event contract before Story 006.4 asks Qwen to generate the page.
+No component implementation changed in Story 006.2, no complete settings page
+was supplied, and Qwen was not invoked. Story 006.3 owns the component contract;
+Story 006.4 is the first story allowed to ask Qwen to generate the page.
