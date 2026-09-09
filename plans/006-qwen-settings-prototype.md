@@ -1,6 +1,6 @@
 # Plan 006: Build a settings-page prototype from DSDS v0.20 documentation
 
-Status: IN PROGRESS — Story 006.1 complete; paused before Story 006.2.
+Status: IN PROGRESS — Stories 006.1 and 006.2 complete; paused before Story 006.3.
 Written: 2026-09-09. This is a fresh plan, independent of Plan 005.
 Owners: Davy and Codex; PJ reviews shared tooling and schema decisions asynchronously.
 
@@ -73,6 +73,9 @@ from existing capabilities.
   Exercise `context`, `deps --relation composes`, `get`, and `validate`.
 
 ### Story 006.2 — Author the minimum useful DSDS corpus
+
+Status: DONE. See
+`evaluations/reports/plan-006-story-006.2-corpus.md`.
 
 As a designer, I want explicit contracts so Qwen can use the actual components.
 
@@ -253,9 +256,11 @@ these by the first demonstration's findings, not by the old Plan 005.
 
 ### Planning handoff
 
-Story 006.1 is complete. Davy requested a pause after this story before further
-implementation. No component edits or v0.20 consumer corpus authoring have
-begun. Next unit is Story 006.2 after Davy resumes work.
+Stories 006.1 and 006.2 are complete. The v0.20 experiment corpus is committed
+in `dsdsds` at `45e30c4` on `codex/006-v020-settings-corpus`. No component
+implementation or Qwen generation changes have begun. The next unit is Story
+006.3: close only the live-state public API gaps documented for Text Input and
+Checkbox.
 
 Working directory:
 `/Users/davyfung/Documents/Codex/2026-07-22/i-w-2/work/dsds-tools`
@@ -267,10 +272,10 @@ any changes; they are separate work). Schema reference:
 
 Suggested resume instruction:
 
-> Implement Story 006.2 in plans/006-qwen-settings-prototype.md. Read the
-> Story 006.1 baseline report first. Author and validate only the minimum
-> v0.20 settings-page corpus; do not begin component API changes or Qwen
-> prototype generation.
+> Implement Story 006.3 in plans/006-qwen-settings-prototype.md. Read the Story
+> 006.2 corpus report and retrieve the v0.20 Text Input, Checkbox, and Account
+> Settings context first. Add and test only the public live-state and event
+> behavior required by Save and Cancel; do not begin Qwen prototype generation.
 
 Qwen participates in two distinct places: a small runtime smoke test in 006.1,
 then actual settings-page generation in 006.4 after the documented component
