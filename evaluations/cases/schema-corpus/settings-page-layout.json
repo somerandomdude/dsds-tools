@@ -7,17 +7,12 @@
     ["get", "confirmation-dialog"],
     ["get", "button-group"]
   ],
-  "prompt": "Return JSON only with status and layout. status must be supported. In layout, state the documented page structure and constraints. Do not invent token values, responsive breakpoints, or component APIs.",
+  "prompt": "Return JSON only. Use exactly this shape: {\"status\":\"supported\",\"layout\":{\"kind\":\"settings-page\",\"regions\":[{\"kind\":string,\"title\":string}]},\"constraints\":[string],\"evidence\":[string]}. Include regions page-header, settings-section, and destructive-section. Include constraints single-primary-content-column, visible-section-heading, adjacent-save-action, and confirm-destructive-action. Include evidence identifiers settings-page, confirmation-dialog, and button-group. Do not invent token values, responsive breakpoints, or component APIs.",
   "expect": {
-    "requiredFields": ["status", "layout"],
-    "fields": {
-      "status": {
-        "equals": "supported"
-      },
-      "layout": {
-        "requiredLiterals": ["primary content column", "visible heading", "Confirmation Dialog"],
-        "forbiddenLiterals": ["breakpoint", "px"]
-      }
-    }
+    "contract": "layout-v1",
+    "layoutKind": "settings-page",
+    "requiredRegions": ["page-header", "settings-section", "destructive-section"],
+    "requiredConstraints": ["single-primary-content-column", "visible-section-heading", "adjacent-save-action", "confirm-destructive-action"],
+    "requiredEvidence": ["settings-page", "confirmation-dialog", "button-group"]
   }
 }

@@ -7,17 +7,12 @@
     ["get", "button"],
     ["get", "link"]
   ],
-  "prompt": "Return JSON only with status and layout. status must be supported. In layout, state the documented reading order and reference requirements. Do not invent component props, code samples, token values, or platform support.",
+  "prompt": "Return JSON only. Use exactly this shape: {\"status\":\"supported\",\"layout\":{\"kind\":\"documentation-page\",\"regions\":[{\"kind\":string,\"title\":string}]},\"constraints\":[string],\"evidence\":[string]}. Include regions page-header, in-page-navigation, content, example-region, and reference-region. Include constraints title-before-detail, single-readable-content-column, preserve-heading-order, and reference-backed-examples. Include evidence identifiers documentation-page, button, and link. Do not invent component props, code samples, token values, or platform support.",
   "expect": {
-    "requiredFields": ["status", "layout"],
-    "fields": {
-      "status": {
-        "equals": "supported"
-      },
-      "layout": {
-        "requiredLiterals": ["page title", "single readable content column", "source or Storybook reference"],
-        "forbiddenLiterals": ["breakpoint", "px"]
-      }
-    }
+    "contract": "layout-v1",
+    "layoutKind": "documentation-page",
+    "requiredRegions": ["page-header", "in-page-navigation", "content", "example-region", "reference-region"],
+    "requiredConstraints": ["title-before-detail", "single-readable-content-column", "preserve-heading-order", "reference-backed-examples"],
+    "requiredEvidence": ["documentation-page", "button", "link"]
   }
 }
