@@ -3,6 +3,7 @@
  * Fetches the latest DSDS bundled schema and updates:
  *   - src/spec/dsds.bundled.schema.json
  *   - BUNDLED_VERSION in src/spec/version.js
+ *   - version references in README.md
  *
  * Usage: npm run update-schema
  */
@@ -15,6 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const SCHEMA_PATH = resolve(ROOT, 'src/spec/dsds.bundled.schema.json');
 const VERSION_PATH = resolve(ROOT, 'src/spec/version.js');
+const README_PATH = resolve(ROOT, 'README.md');
 
 const GITHUB_TAGS_URL =
   'https://api.github.com/repos/somerandomdude/design-system-documentation-schema/tags';
@@ -68,6 +70,29 @@ async function updateVersionFile(oldVersion, newVersion) {
   await writeFile(VERSION_PATH, updated, 'utf-8');
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function updateReadmeVersionSource(source, oldVersion, newVersion) {
+  const old = escapeRegExp(oldVersion);
+  return source
+    .replace(new RegExp('(\\*\\*Bundled spec version:\\*\\*\\s*)' + old, 'g'), `$1${newVersion}`)
+    .replace(new RegExp('(Defaults to `)' + old + '(`)', 'g'), `$1${newVersion}$2`)
+    .replace(new RegExp('(designsystemdocspec\\.org/v)' + old + '(/)', 'g'), `$1${newVersion}$2`)
+    .replace(new RegExp('(\"dsdsVersion\"\\s*:\\s*\")' + old + '(\")', 'g'), `$1${newVersion}$2`);
+}
+
+async function updateReadmeVersions(oldVersion, newVersion) {
+  const source = await readFile(README_PATH, 'utf-8');
+  const updated = updateReadmeVersionSource(source, oldVersion, newVersion);
+
+  if (updated === source) {
+    throw new Error(`Could not find ${oldVersion} version references in README.md to update`);
+  }
+  await writeFile(README_PATH, updated, 'utf-8');
+}
+
 async function main() {
   const latestVersion = await getLatestVersion();
   const currentVersion = await getCurrentVersion();
@@ -88,11 +113,16 @@ async function main() {
   await updateVersionFile(currentVersion, latestVersion);
   console.log(`Updated BUNDLED_VERSION in ${VERSION_PATH}`);
 
+  await updateReadmeVersions(currentVersion, latestVersion);
+  console.log(`Updated ${README_PATH}`);
+
   console.log(`\nDone. Updated ${currentVersion} → ${latestVersion}`);
-  console.log('Commit src/spec/dsds.bundled.schema.json and src/spec/version.js to finish the update.');
+  console.log('Commit the schema, version file, and README to finish the update.');
 }
 
-main().catch(err => {
-  console.error(`Error: ${err.message}`);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(err => {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  });
+}

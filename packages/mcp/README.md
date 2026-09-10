@@ -9,7 +9,7 @@ Three use cases:
 
 The DSDS spec is bundled at the version listed below. The server checks for updates on startup and surfaces a notice in tool responses when a newer version is available.
 
-**Bundled spec version:** 0.15.2
+**Bundled spec version:** 0.20.0
 
 ---
 
@@ -189,7 +189,7 @@ Configuration is done via environment variables passed through your MCP client c
 | `DSDS_PATHS` | No | Comma-separated paths to your DSDS file(s). Required for design system access tools. |
 | `PACKAGE_EXPORT_PATHS` | No | Comma-separated `packageName=path` pairs pointing to each package root. Used by `dsds_check_exports` to verify components exist before importing. See below. |
 | `DSDS_INTRO_PATHS` | No | Comma-separated paths to DSDS files loaded as design system introductions. Content from each entity is prepended to the server instructions and exposed via the `dsds-intro` prompt. `DSDS_INTRO_PATH` (singular) still works as a single-path alias. |
-| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to `0.15.2`. |
+| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to `0.20.0`. |
 | `DSDS_FEEDBACK_DIR` | No | Directory where session feedback from `dsds_feedback` is written. Defaults to `feedback/` inside the dsds-mcp directory. |
 | `DSDS_LOGS_DIR` | No | Directory where the lint tools write per-session lint logs. Defaults to `logs/` inside the dsds-mcp directory. |
 | `LINT_PLUGINS` | No | Comma-separated ESLint plugin package names to use with the lint tools. Each name must be resolvable from `LINT_RESOLVE_DIR`. |
@@ -466,8 +466,8 @@ DSDS files are JSON documents. Every file needs `dsdsVersion` and either an `ent
 **Single entity:**
 ```json
 {
-  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
-  "dsdsVersion": "0.15.2",
+  "$schema": "https://designsystemdocspec.org/v0.20.0/dsds.bundled.schema.json",
+  "dsdsVersion": "0.20.0",
   "entity": {
     "kind": "component",
     "identifier": "button",
@@ -483,8 +483,8 @@ DSDS files are JSON documents. Every file needs `dsdsVersion` and either an `ent
 **Multi-entity:**
 ```json
 {
-  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
-  "dsdsVersion": "0.15.2",
+  "$schema": "https://designsystemdocspec.org/v0.20.0/dsds.bundled.schema.json",
+  "dsdsVersion": "0.20.0",
   "systemInfo": { "systemName": "My Design System" },
   "entityGroups": [
     { "$ref": "./components/button.dsds.json#/entity" },
