@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { ENTITIES, IMPORTS, CSP, validateResponse, validateCompletion } from './settings-prototype-core.mjs';
-import { materialize } from './generate-settings-prototype.mjs';
+import { loadManifest, materialize } from './generate-settings-prototype.mjs';
 import { startPreview } from './preview-settings-prototype.mjs';
 
 const evidence = Object.fromEntries(ENTITIES.map(id => [id, `The documented ${id} contract. Use \`--ds-space-4\` for spacing.`]));
@@ -18,6 +18,23 @@ function candidate() {
   ] };
 }
 const check = value => validateResponse(JSON.stringify(value), evidence);
+test('loads the settings source manifest and rejects unsafe or unsupported manifests', () => {
+  const manifest = loadManifest();
+  assert.equal(manifest.id, 'settings-page');
+  assert.deepEqual(manifest.entities, ENTITIES);
+  assert.equal(manifest.preview.sourceRoot, 'src');
+  const temp = mkdtempSync(join(tmpdir(), 'dsds-manifest-test-'));
+  for (const mutation of [
+    { ...manifest, entities: ['button', 'button'] },
+    { ...manifest, entities: ['button'] },
+    { ...manifest, requiredSourceFiles: ['../outside.js'] },
+    { ...manifest, promptKind: 'unknown' },
+  ]) {
+    const path = join(temp, `${Math.random()}.json`);
+    writeFileSync(path, JSON.stringify(mutation));
+    assert.throws(() => loadManifest(path));
+  }
+});
 test('accepts plain and fenced envelopes; static acceptance does not claim behavior', () => {
   assert.deepEqual(check(candidate()).errors, []);
   assert.deepEqual(validateResponse('```json\n' + JSON.stringify(candidate()) + '\n```', evidence).errors, []);
@@ -81,6 +98,15 @@ test('materialization and preview isolate files from the repo and run report', a
     assert.equal((await fetch(url + '/src/%2e%2e%2freport.json')).status, 404);
     assert.equal((await fetch(url, { method: 'POST' })).status, 405);
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
+test('manifest can omit a source snapshot for schema-only evidence runs', () => {
+  const temp = mkdtempSync(join(tmpdir(), 'dsds-schema-manifest-test-'));
+  const consumer = join(temp, 'consumer'); const run = join(temp, 'run');
+  mkdirSync(consumer); mkdirSync(run);
+  const manifest = { id: 'schema-example', promptKind: 'settings-page', config: 'dsds.config.mjs', entities: ENTITIES, dependencies: [], requiredSourceFiles: [], preview: { sourceRoot: null, mount: 'src' } };
+  materialize(run, candidate(), consumer, manifest);
+  assert.equal(existsSync(join(run, 'web', 'src')), false);
+  assert.equal(existsSync(join(run, 'web', 'index.html')), true);
 });
 test('source symlinks fail instead of copying files outside consumer source', () => {
   const temp = mkdtempSync(join(tmpdir(), 'dsds-prototype-link-test-'));

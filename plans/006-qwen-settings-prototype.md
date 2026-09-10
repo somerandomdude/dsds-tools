@@ -1,6 +1,6 @@
 # Plan 006: Build a settings-page prototype from DSDS v0.20 documentation
 
-Status: IN PROGRESS — Stories 006.1–006.4 complete; Story 006.5 verification started.
+Status: IN PROGRESS — Stories 006.1–006.4 and 006.4.1 complete; Story 006.5 verification started.
 Written: 2026-09-09. This is a fresh plan, independent of Plan 005.
 Owners: Davy and Codex; PJ reviews shared tooling and schema decisions asynchronously.
 
@@ -266,12 +266,15 @@ these by the first demonstration's findings, not by the old Plan 005.
 
 ### Planning handoff
 
-Stories 006.1–006.4 are complete. The v0.20 experiment corpus and component
+Stories 006.1–006.4.1 are complete. The v0.20 experiment corpus and component
 contracts live in `dsdsds` on `codex/006-v020-settings-corpus`. The bounded
 harness lives in `dsds-tools`, with development commands in `dsdsds`. It
 materializes isolated files only after static checks, and serves a separate
 browser-check page. One live Qwen preview passed those checks. The next unit
 is Story 006.5: frozen repeated runs, a missing-capability case, and review.
+The harness now selects its evidence and optional source snapshot through a
+validated manifest; the current prompt/validator still explicitly names the
+settings case until a schema-repo composition contract is authored.
 
 Working directory:
 `/Users/davyfung/Documents/Codex/2026-07-22/i-w-2/work/dsds-tools`

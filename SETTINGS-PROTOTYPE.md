@@ -7,7 +7,9 @@ From the sibling `dsdsds` checkout, with Ollama running and
 npm run generate:local
 ```
 
-This runs the harness in `dsds-tools` against the consumer's
+This runs the harness in `dsds-tools` against the source manifest's consumer
+and config. The default manifest is
+`evaluations/manifests/settings-page.json`, which targets the consumer's
 `dsds.v020.config.mjs`. Install `dsds-tools` dependencies with `npm ci` once
 before offline use. This is a development workflow requiring the two sibling
 checkouts and Node 20+, not a published `dsds` command.
@@ -75,8 +77,13 @@ npm run generate:local -- --no-repair
 ```
 
 From `dsds-tools`, the same command takes `--consumer ../dsdsds` (the default).
-Use `--config <file>` for another config in that consumer. This first harness
-is intentionally specific to the six settings entities and three components.
+Use `--config <file>` for another config in that consumer, or
+`--manifest /absolute/path/to/manifest.json` to select a different evidence
+source. A manifest currently selects the entities, dependencies, required
+source files, and optional preview asset root; this first prompt and validator
+remain intentionally specific to the settings-page output contract. The next
+schema-repo case should add a new prompt/validator pair rather than silently
+pretend it is a settings page.
 
 ## What validation establishes
 
