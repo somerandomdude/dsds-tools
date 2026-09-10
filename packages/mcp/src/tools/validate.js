@@ -1,7 +1,7 @@
 import { validateJsonString } from '../validator.js';
 import { validateDoc20, looksLike20 } from '../spec/validator-0.20.0.js';
 import { loadYaml20 } from '../spec/dsds20-lib.js';
-import { getUpdateNotice } from '../spec/version.js';
+import { BUNDLED_VERSION, getUpdateNotice } from '../spec/version.js';
 
 export const validateDef = {
   name: 'dsds_validate',
@@ -43,7 +43,7 @@ function render20(doc, filePath) {
   const { errors, warnings, advisories } = validateDoc20(doc, { filePath });
   const lines = [];
   if (errors.length === 0) {
-    lines.push('## Valid DSDS 0.20.0 Document', '', 'The document passes schema and semantic validation.');
+    lines.push(`## Valid DSDS ${BUNDLED_VERSION} Document`, '', 'The document passes schema and semantic validation.');
   } else {
     lines.push(`## Validation Failed — ${errors.length} error${errors.length !== 1 ? 's' : ''}`, '', ...errors.map(e => `- ${e}`));
   }

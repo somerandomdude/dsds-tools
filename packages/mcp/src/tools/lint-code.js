@@ -1,9 +1,9 @@
-import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { writeLog } from '../logger.js';
+import { requireFromProject } from './require-from-project.js';
+import { applyUiCodemods } from './ui-codemods.js';
 
 // Session-level lint result cache. An agent can pass { cacheKey, filename } instead of
 // { code, filename } on subsequent calls to avoid re-sending unchanged file content.
@@ -29,20 +29,7 @@ function pluginPrefix(packageName) {
   return packageName;
 }
 
-async function requirePlugin(packageName, resolveDir) {
-  const req = createRequire(resolve(resolveDir, 'package.json'));
-  try {
-    const mod = req(packageName);
-    return mod.default ?? mod;
-  } catch (err) {
-    if (err.code === 'ERR_REQUIRE_ESM') {
-      const resolved = req.resolve(packageName);
-      const mod = await import(pathToFileURL(resolved).href);
-      return mod.default ?? mod;
-    }
-    throw err;
-  }
-}
+const requirePlugin = requireFromProject;
 
 function rulesFromPlugin(prefix, plugin) {
   const recommended = plugin.configs?.recommended;
@@ -184,6 +171,7 @@ async function writeLintLog(logsDir, fileResults) {
     files: relevant.map(f => ({
       filename: f.filename,
       fixed: f.fixed ?? false,
+      ...(f.codemodsApplied ? { codemodsApplied: f.codemodsApplied } : {}),
       violations: (f.messages ?? []).map(m => ({
         ruleId: m.ruleId ?? null,
         severity: m.severity,
@@ -239,12 +227,12 @@ export async function lintInlineHandler(args, getLintConfig, logsDir = null) {
 // have `code`/`cacheKey`); it only affects framing (the inline "no file touched"
 // note and the missing-file coaching message).
 async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = false, mode = 'inline' } = {}) {
-  const { plugins: pluginNames, resolveDir, sourceDir } = getLintConfig();
+  const { plugins: pluginNames, resolveDir, sourceDir, uiCodemods } = getLintConfig();
   // Files (and ESLint's cwd) live in the project being linted, when configured;
   // plugins are still resolved from resolveDir (where they're installed).
   const lintDir = sourceDir || resolveDir;
 
-  if (pluginNames.length === 0) {
+  if (pluginNames.length === 0 && !uiCodemods?.enabled) {
     return {
       isError: true,
       content: [{
@@ -292,7 +280,7 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     }
   }));
 
-  if (Object.keys(loadedPlugins).length === 0) {
+  if (pluginNames.length > 0 && Object.keys(loadedPlugins).length === 0) {
     return {
       isError: true,
       content: [{
@@ -320,13 +308,22 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     }
   }
 
+  // No plugins loaded means codemods-only mode (the two gates above already
+  // require at least one of plugins/codemods to reach here). ESLint's flat
+  // config treats a file with no matching config as "ignored" and reports a
+  // pseudo-violation for it — skip constructing/calling it entirely rather
+  // than surface that confusing message when there's nothing for it to check.
+  const hasEslintRules = Object.keys(loadedPlugins).length > 0;
+
   // fix: true — auto-apply all fixable violations; result.output holds the corrected code.
-  const eslint = new ESLint({
-    overrideConfigFile: true,
-    overrideConfig,
-    cwd: lintDir,
-    fix: true,
-  });
+  const eslint = hasEslintRules
+    ? new ESLint({
+        overrideConfigFile: true,
+        overrideConfig,
+        cwd: lintDir,
+        fix: true,
+      })
+    : null;
 
   // Warn the agent if it submitted stub files (no JSX → design-system rules won't fire)
   const stubFiles = detectStubFiles(filesToLint);
@@ -378,11 +375,41 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     }
 
     const filePath = resolve(lintDir, filename);
+    // Cache key reflects the code the caller actually submitted, so a later
+    // call with the same cacheKey and no code gets the same complete result
+    // (codemods + ESLint fixes) without re-running either.
+    const originalCode = file.code;
+    const cacheKey = computeCacheKey(originalCode);
+
+    // Verified-safe jscodeshift transforms run before ESLint, not instead of
+    // it — a component a codemod correctly moves to the v5 package still
+    // needs the rest of the design-system rules applied on top.
+    let codemodsApplied = [];
+    let codemodError;
+    if (uiCodemods?.enabled) {
+      const cm = await applyUiCodemods(file.code, filename, {
+        codemodPackage: uiCodemods.codemodPackage,
+        transformNames: uiCodemods.transformNames,
+        transformPath: uiCodemods.transformPath,
+        todoMarker: uiCodemods.todoMarker,
+        fromPackage: uiCodemods.fromPackage,
+        toPackage: uiCodemods.toPackage,
+        resolveDir,
+      });
+      if (cm.changed) {
+        file.code = cm.code;
+        codemodsApplied = cm.appliedTransforms;
+      }
+      codemodError = cm.error;
+    }
+
     try {
-      const results = await eslint.lintText(file.code, { filePath });
+      const results = hasEslintRules ? await eslint.lintText(file.code, { filePath }) : [];
       const r = results[0];
-      // output is only set when at least one fix was applied
-      const fixedCode = r?.output ?? null;
+      // output is only set when ESLint itself applied a fix — but the code
+      // may have already changed above via codemods, so "fixed" covers both.
+      const eslintFixedCode = r?.output ?? null;
+      const fixedCode = eslintFixedCode ?? (codemodsApplied.length ? file.code : null);
       const fixed = fixedCode !== null;
       // Harness mode: write the auto-fixed code back to the file on disk so the
       // lint gate's fixes are applied without the caller re-emitting source.
@@ -397,8 +424,11 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
         column: m.column,
         fix: !!m.fix,
       }));
-      const cacheKey = computeCacheKey(file.code);
-      const result = { filename, messages, fixedCode, fixed, cacheKey };
+      const result = {
+        filename, messages, fixedCode, fixed, cacheKey,
+        ...(codemodsApplied.length ? { codemodsApplied } : {}),
+        ...(codemodError ? { codemodError } : {}),
+      };
       storeCacheEntry(cacheKey, result);
       fileResults.push(result);
     } catch (err) {
@@ -452,6 +482,13 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
 
       const lang = inferLanguage(f.filename);
 
+      if (f.codemodsApplied) {
+        lines.push(`> ↳ UI codemod${f.codemodsApplied.length === 1 ? '' : 's'} applied: ${f.codemodsApplied.join(', ')}`, '');
+      }
+      if (f.codemodError) {
+        lines.push(`> ⚠️ UI codemod config problem: ${f.codemodError}`, '');
+      }
+
       if (f.fixed && f.messages.length === 0) {
         lines.push(`### \`${f.filename}\` — all violations auto-fixed`, '');
         lines.push('**Corrected code:**', '');
@@ -486,8 +523,15 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     }
   } else {
     // Single-file output
-    const { filename, messages, fixedCode, fixed, error } = fileResults[0];
+    const { filename, messages, fixedCode, fixed, error, codemodsApplied, codemodError } = fileResults[0];
     const lang = inferLanguage(filename);
+
+    if (codemodsApplied) {
+      lines.push(`> ↳ UI codemod${codemodsApplied.length === 1 ? '' : 's'} applied: ${codemodsApplied.join(', ')}`, '');
+    }
+    if (codemodError) {
+      lines.push(`> ⚠️ UI codemod config problem: ${codemodError}`, '');
+    }
 
     if (error) {
       lines.push(`ESLint error: ${error}`);
@@ -579,6 +623,7 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
         fixed: !!f.fixed,
         messages: f.messages ?? [],
         error: f.error ?? null,
+        codemodsApplied: f.codemodsApplied ?? [],
       })),
     },
   };

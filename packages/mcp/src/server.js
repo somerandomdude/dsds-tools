@@ -10,6 +10,7 @@ import {
 
 import { createRequire } from 'node:module';
 import { BUNDLED_VERSION } from './spec/version.js';
+import { renderSections20 } from './spec/render-0.20.0.js';
 
 const pkg = createRequire(import.meta.url)('../package.json');
 import { BUILD_BRIEF, AUTHOR_BRIEF, ASK_BRIEF, PROMPT_META } from './briefs.js';
@@ -36,6 +37,7 @@ START HERE: Call dsds_context_brief first to get a full briefing before any work
 
 SPEC TOOLS — for authoring DSDS-compliant documentation (always available, no configuration needed):
 - dsds_spec_overview → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate
+- dsds_style_check — after a document validates, check it against the authoring style guide (STYLE_GUIDE.md, spec 0.20.1): the DSDS-17..23 rules covering the ORDER of an entry's fields, its sections, its guideline items by level, and its combos. Advisory only — ordering never affects validity, so this never changes what dsds_validate says. Reach for it when authoring or editing a document, not when reading one.
 - AUTHORING (writing new DSDS docs) is distinct from IMPLEMENTING (building UI from a component that already exists). These spec tools produce DSDS documentation JSON, never UI/React code. To implement an existing component, use dsds_build_component (DESIGN SYSTEM TOOLS below) instead.
 - Authoring a COMPONENT document? Two paths: dsds_author_component_doc is a guided, step-by-step wizard (start with step:"start", no data) that produces a DSDS component-documentation *document* (a JSON entity) from scratch — it supplies valid field values at each step and needs no schema knowledge. dsds_spec_scaffold(kind:"component") gives a blank template to fill in yourself when you already know the schema. For any other entity kind (token, theme, foundation, pattern, guide, chunk) or a multi-entity system, use dsds_spec_scaffold.
 
@@ -66,9 +68,9 @@ EXPORT CHECK — before importing a component, confirm it exists in the package 
 ERROR EXPLAINER — always available, no configuration needed:
 - dsds_explain_error(error) — paste a raw TypeScript/build error and get an actionable fix hint instead of re-guessing from the raw compiler output. Call this reactively the moment a build or typecheck fails. Matches generic patterns (invalid prop, missing required prop, boolean given a string, number given where a CSS string is expected, implicit any, editing scaffold config files) — it does not know this project's specific components, so still cross-check dsds_get_agent_context for the actual fix.
 
-SKILLS — real DSDS 0.20.0 authoring skills, bundled verbatim from the spec repo's own 0.20.0 branch (not generated from this server's own knowledge):
+SKILLS — real DSDS authoring skills, bundled verbatim from the spec repo at tag v${BUNDLED_VERSION} (not generated from this server's own knowledge):
 - dsds_list_skills() — see what's available (dsds-specs, dsds-add, dsds-update, dsds-validate) before authoring or editing a .dsds.yaml document.
-- dsds_get_skill(id) — read one in full. Start here before authoring against real 0.20.0, instead of dsds_context_brief(useCase="author")'s legacy 0.15.2 guidance.
+- dsds_get_skill(id) — read one in full. Start here before authoring against the real 0.20.x model, instead of dsds_context_brief(useCase="author")'s legacy 0.15.2 guidance.
 `.trim();
 
 // Appended to the instructions only when the feedback tool is enabled.
@@ -79,7 +81,19 @@ const FEEDBACK_INSTRUCTION =
 
 /**
  * Renders a DSDS entity to a markdown string suitable for agent instructions.
- * Handles section, steps, guideline, and purpose document blocks.
+ *
+ * Handles both document shapes:
+ *   - 0.20.0 entities, whose body is a top-level `sections` array and whose
+ *     description is a top-level string. These are rendered with the shared
+ *     `renderSections20`, the same renderer `dsds_get_entity` and
+ *     `dsds_get_agent_context` use, so inline intros match what the tools
+ *     return.
+ *   - Pre-0.20 entities, whose body is `documentBlocks` and whose description
+ *     lives in a `metadata` array.
+ *
+ * Before this handled `sections`, a 0.20.0 intro rendered as its heading and
+ * nothing else — `introInline: true` silently produced LESS than the compact
+ * index it replaced, and agents had to re-fetch the whole guide by hand.
  */
 function renderIntroEntity(entity) {
   if (!entity) return null;
@@ -89,13 +103,25 @@ function renderIntroEntity(entity) {
   const name = entity.name ?? entity.identifier;
   lines.push(`---`, '', `## ${name}`, '');
 
-  if (Array.isArray(entity.metadata)) {
+  // 0.20.0 puts the description at the top level as a plain string; older
+  // documents carry it as an entry in a `metadata` array.
+  if (typeof entity.description === 'string' && entity.description.trim()) {
+    lines.push(entity.description.trim(), '');
+  } else if (Array.isArray(entity.metadata)) {
     const desc = entity.metadata.find(m => m.kind === 'description');
     if (desc?.value) lines.push(desc.value, '');
   }
 
   if (entity.agents?.intent) {
     lines.push(entity.agents.intent, '');
+  }
+
+  if (Array.isArray(entity.sections) && entity.sections.length) {
+    renderSections20(entity.sections, lines, {
+      depth: 3,
+      filePath: entity.__filePath,
+      sharedEntries: entity.__sharedEntries,
+    });
   }
 
   for (const block of (entity.documentBlocks ?? [])) {
@@ -213,7 +239,7 @@ function promptMessage(text) {
   return { role: 'user', content: { type: 'text', text } };
 }
 
-export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null) {
+export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null, researchMode = 'thorough') {
   const baseWithFeedback = enableFeedback
     ? `${BASE_INSTRUCTIONS}\n\n${FEEDBACK_INSTRUCTION}`
     : BASE_INSTRUCTIONS;
@@ -225,8 +251,61 @@ export function createServer(getSystems, getSummaries, introEntities = [], getLi
       ? introEntities.map(renderIntroEntity).filter(Boolean).join('\n\n') || null
       : renderIntroIndex(introEntities);
   }
+  // When the intro is inlined, its rules are already in this prompt — re-fetching
+  // them costs a conversation turn and buys nothing. The HARD RULE above is
+  // written for the compact-index case, where nothing has been supplied yet, so
+  // amend it rather than leaving the two in contradiction. Measured on the
+  // agent-tester: an arm carrying the full essentials inline still made 12.8
+  // get_agent_context calls per iteration against 4.0 for an arm given the same
+  // content as system-prompt instructions, and looked up Grid, IconButton and
+  // Tooltip despite having all three in front of it.
+  // An inlined guide goes BEFORE the tool catalog, not after it.
+  //
+  // Hosts append server instructions to their own system prompt, so this block
+  // already starts partway down. Putting a ~6k-character tool catalog ahead of
+  // the guide pushed it further still, and buried it under a HARD RULE telling
+  // the agent to look every component up. Measured on the agent-tester: an arm
+  // with the full guide in that position made 12.8 dsds_get_agent_context calls
+  // per iteration, against 3.8 for an arm carrying the same content at the top
+  // of its system prompt — and the same 12.8 as an arm with NO guide at all.
+  // Content after the catalog did not change lookup behaviour; content at the
+  // top did.
+  //
+  // The server cannot choose where the host puts this whole string. It can
+  // choose what comes first inside it.
+  // A RESEARCH BUDGET, not more API facts.
+  //
+  // Six attempts to close a token gap by relocating or expanding knowledge all
+  // failed: lookups held at ~13 per iteration whether the inlined guide was
+  // absent, partial, complete, repositioned to the top, or accompanied by an
+  // explicit exemption. Meanwhile a prompt carrying the same knowledge ran at
+  // ~4.4 lookups. The difference was not what the agent knew or where it read
+  // it. That prompt capped tool spending — "at most a handful of times", "past
+  // ~5, stop and start emitting files", "prefer get_document_block, pull only
+  // the block you need" — and nothing in the MCP's own instructions did.
+  //
+  // Knowledge tells an agent what is true. A budget tells it when to stop
+  // asking. Those are different instructions and only one of them bounds cost.
+  const researchBudget = researchMode === 'frugal' && introInline && introBlock
+    ? '\n\nRESEARCH BUDGET — the guides above are already part of this prompt, so treat what they ' +
+      'state about a component\'s API, prop value types, or import shape as verified and USE IT ' +
+      'DIRECTLY. Then spend the rest of your lookups deliberately:\n' +
+      '- Look up ONLY components the guides above do not cover. Do not re-confirm what they state.\n' +
+      '- Prefer dsds_get_document_block(identifier, "api") when you only need props. Reach for ' +
+      'dsds_get_agent_context when you need the constraints and edge cases too — it returns far more.\n' +
+      '- Around five lookups in total is enough for a whole application. Past that, stop researching ' +
+      'and start emitting files. An unwritten file is worth less than a perfectly researched one.\n' +
+      '- Batch your thinking, not your calls: decide everything you need to know, then fetch it.'
+    : '';
+
   const INSTRUCTIONS = introBlock
-    ? `${baseWithFeedback}\n\n${introBlock}`
+    ? (introInline
+        // Inline mode: guide first, then the exemption that refers back to it,
+        // then the tool catalog.
+        ? `${introBlock}${researchBudget}\n\n${baseWithFeedback}`
+        // Compact mode: the index is a pointer, not content — it belongs after
+        // the catalog that explains how to follow it.
+        : `${baseWithFeedback}\n\n${introBlock}`)
     : baseWithFeedback;
 
   // Lets get_entity reach intro entities (they live outside the queried systems),

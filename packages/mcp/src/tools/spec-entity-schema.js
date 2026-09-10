@@ -2,6 +2,11 @@ import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, ENTITY_DESCRIPTIONS_0_20_0, ENTITY_K
 import { isValidKind20 } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
 
+// 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
+// ORDER and added advisory rules, not the shape an author writes. Accept
+// either so a caller naming the currently bundled release still routes here.
+const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1';
+
 export const specEntitySchemaDef = {
   name: 'dsds_spec_entity_schema',
   description:
@@ -17,7 +22,7 @@ export const specEntitySchemaDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0'],
+        enum: ['0.15.2', '0.20.0', '0.20.1'],
         description: 'Which DSDS model to describe this kind under. Defaults to 0.15.2 (legacy) for a kind that exists in both; system/entry are 0.20.0-only regardless of this flag.',
       },
     },
@@ -29,7 +34,7 @@ export async function specEntitySchemaHandler({ kind, spec }) {
   // A namespaced custom kind (e.g. "sanity.guide") can't exist under legacy
   // 0.15.2 at all, so it always routes to the 0.20.0 path regardless of spec.
   const is20Only = kind === 'system' || kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
-  if (spec === '0.20.0' || is20Only) return render20(kind);
+  if (is20x(spec) || is20Only) return render20(kind);
 
   const def = ENTITY_DESCRIPTIONS[kind];
   if (!def) {

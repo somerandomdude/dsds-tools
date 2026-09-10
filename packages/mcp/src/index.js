@@ -49,7 +49,23 @@ async function main() {
     summaries: summarizeEntities(systems),
   };
 
-  const getLintConfig = () => ({ plugins: config.lintPlugins, resolveDir: config.lintResolveDir, sourceDir: config.lintSourceDir });
+  const getLintConfig = () => ({
+    plugins: config.lintPlugins,
+    resolveDir: config.lintResolveDir,
+    sourceDir: config.lintSourceDir,
+    uiCodemods: {
+      enabled: config.lintUiCodemods,
+      codemodPackage: config.lintUiCodemodPackage,
+      // Whatever is configured is what runs — the runner no longer filters
+      // this against a built-in list. An empty list means nothing is
+      // configured, and the codemod pass is a no-op.
+      transformNames: config.lintUiCodemodTransforms,
+      transformPath: config.lintUiCodemodTransformPath,
+      todoMarker: config.lintUiCodemodTodoMarker,
+      fromPackage: config.lintUiCodemodFromPackage,
+      toPackage: config.lintUiCodemodToPackage,
+    },
+  });
   const getExportPaths = () => config.packageExportPaths;
   const getPropsConfig = () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot });
 
@@ -72,6 +88,7 @@ async function main() {
     config.enableFeedback,
     config.introInline,
     getPropsConfig,
+    config.researchMode,
   );
 
   startWatching(config.paths, state);

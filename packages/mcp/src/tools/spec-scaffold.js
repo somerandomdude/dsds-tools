@@ -2,6 +2,11 @@ import { ENTITY_KINDS, ENTITY_KINDS_0_20_0, SCAFFOLDS, SCAFFOLDS_0_20_0 } from '
 import { isValidKind20 } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
 
+// 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
+// ORDER and added advisory rules, not the shape an author writes. Accept
+// either so a caller naming the currently bundled release still routes here.
+const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1';
+
 export const specScaffoldDef = {
   name: 'dsds_spec_scaffold',
   description:
@@ -16,7 +21,7 @@ export const specScaffoldDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0'],
+        enum: ['0.15.2', '0.20.0', '0.20.1'],
         description: 'Which DSDS model to scaffold. Defaults to 0.15.2 (legacy) for a kind that exists in both.',
       },
     },
@@ -26,7 +31,7 @@ export const specScaffoldDef = {
 
 export async function specScaffoldHandler({ kind, spec }) {
   const is20Only = kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
-  if (spec === '0.20.0' || is20Only) {
+  if (is20x(spec) || is20Only) {
     const isNamespacedCustomKind = !SCAFFOLDS_0_20_0[kind] && isValidKind20(kind);
     const scaffold20 = isNamespacedCustomKind
       ? { ...SCAFFOLDS_0_20_0.entry, kind }

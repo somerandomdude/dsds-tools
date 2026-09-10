@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { runCli } from './helpers.js';
+import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
 
 const COMPONENT_20 = fileURLToPath(new URL('./fixtures/component-0.20.0.dsds.yaml', import.meta.url));
 const env = { DSDS_PATHS: COMPONENT_20 };
@@ -43,10 +44,14 @@ describe('dsds doctor — real 0.20.0 (.dsds.yaml)', () => {
     expect(brief.status).toBe('pass');
   });
 
-  it('reports the bundled version as 0.20.0, and the fixture as aligned with it', async () => {
+  // Reads BUNDLED_VERSION rather than repeating the literal: this assertion
+  // is that doctor reports whatever version is actually bundled, not that the
+  // bundle sits at one particular release. The literal went stale on the
+  // 0.20.0 -> 0.20.1 sync and failed here for no real defect.
+  it('reports the bundled version, and the fixture as aligned with it', async () => {
     const { stdout } = await runCli(['doctor', '--json'], { env });
     const report = JSON.parse(stdout);
-    expect(report.bundledSpecVersion).toBe('0.20.0');
+    expect(report.bundledSpecVersion).toBe(BUNDLED_VERSION);
     const versionCheck = report.checks.find((c) => c.name === 'spec version alignment');
     expect(versionCheck.status).toBe('pass');
   });

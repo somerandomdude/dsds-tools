@@ -1,10 +1,17 @@
-// 0.20.0 has no published git tag upstream — the tag-based update check
-// below can't see revisions to an already-released branch. schema-0.20.0/
-// is mirrored by hand from somerandomdude/design-system-documentation-schema
-// at branch `0.20.0-fixes` (7 commits ahead of `0.20.0`'s own tip), currently
-// synced through commit c6ecdb3 (2026-09-02).
-// Re-diff that branch against this commit to check for further updates.
-export const BUNDLED_VERSION = '0.20.0';
+// schema-0.20.1/ is vendored verbatim from the upstream tag `v0.20.1` of
+// somerandomdude/design-system-documentation-schema (2026-09-09), replacing
+// the earlier hand-mirror of the untagged `0.20.0-fixes` branch. Because
+// v0.20.1 is a real tag, the tag-based update check below can see it and
+// future releases, which it could not do for the branch mirror.
+//
+// 0.20.1 is a patch on the same 0.20.x model: no field was added or removed
+// from the document shape an author writes. What changed is (a) property
+// order across every schema file, now normative and read by the style-guide
+// rules, (b) reworded descriptions, and (c) eight new advisory rules,
+// DSDS-16 through DSDS-23. Sibling modules keep their -0.20.0 filenames
+// because they implement the 0.20.x *model*, which this release did not
+// change; only the vendored schema is version-pinned.
+export const BUNDLED_VERSION = '0.20.1';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

@@ -9,7 +9,7 @@ Three use cases:
 
 The DSDS spec is bundled at the version listed below. The server checks for updates on startup and surfaces a notice in tool responses when a newer version is available.
 
-**Bundled spec version:** 0.15.2
+**Bundled spec version:** 0.20.1
 
 ---
 
@@ -189,12 +189,21 @@ Configuration is done via environment variables passed through your MCP client c
 | `DSDS_PATHS` | No | Comma-separated paths to your DSDS file(s). Required for design system access tools. |
 | `PACKAGE_EXPORT_PATHS` | No | Comma-separated `packageName=path` pairs pointing to each package root. Used by `dsds_check_exports` to verify components exist before importing. See below. |
 | `DSDS_INTRO_PATHS` | No | Comma-separated paths to DSDS files loaded as design system introductions. Content from each entity is prepended to the server instructions and exposed via the `dsds-intro` prompt. `DSDS_INTRO_PATH` (singular) still works as a single-path alias. |
-| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to `0.15.2`. |
+| `RESEARCH_MODE` | No | `thorough` (default) or `frugal`. How hard the server pushes an agent to economise on lookups when an intro is inlined. See [Research mode](#research-mode--thorough-or-frugal). |
+| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to the bundled version, `0.20.1`. |
 | `DSDS_FEEDBACK_DIR` | No | Directory where session feedback from `dsds_feedback` is written. Defaults to `feedback/` inside the dsds-mcp directory. |
 | `DSDS_LOGS_DIR` | No | Directory where the lint tools write per-session lint logs. Defaults to `logs/` inside the dsds-mcp directory. |
 | `LINT_PLUGINS` | No | Comma-separated ESLint plugin package names to use with the lint tools. Each name must be resolvable from `LINT_RESOLVE_DIR`. |
 | `LINT_RESOLVE_DIR` | No | Absolute path the plugin names are resolved from (Node module resolution is anchored here). Point it at a project that has the plugins in `node_modules/`, or at a standalone plugin's own directory (see [Linting code](#linting-code-with-eslint-plugins)). `~` is expanded. Defaults to the current working directory. |
 | `LINT_SOURCE_DIR` | No | Absolute path to the project whose code is being linted, used to resolve `dsds_lint_by_path({ path })` and as ESLint's working dir. Plugins are still resolved from `LINT_RESOLVE_DIR`. `~` is expanded. Defaults to unset. |
+| `LINT_UI_CODEMODS` | No | Opt in to the lint-time codemod pass. Off unless set to a truthy value. |
+| `LINT_UI_CODEMOD_PRESET` | No | Name of a preset under `src/codemod-presets/` supplying every field below — currently `sanity-ui`. Unknown names fail loudly at startup. |
+| `LINT_UI_CODEMOD_PACKAGE` | No | Package holding the jscodeshift transforms, resolved from `LINT_RESOLVE_DIR`. |
+| `LINT_UI_CODEMOD_TRANSFORMS` | No | Comma-separated transform names. Every name given is attempted. |
+| `LINT_UI_CODEMOD_TRANSFORM_PATH` | No | How the package exposes one transform as a module, with `<pkg>`/`<name>` placeholders, e.g. `<pkg>/transforms/latest/<name>`. Nothing resolves without it. |
+| `LINT_UI_CODEMOD_FROM_PACKAGE` | No | Import source the transforms migrate away from. |
+| `LINT_UI_CODEMOD_TO_PACKAGE` | No | Import source they migrate to. |
+| `LINT_UI_CODEMOD_TODO_MARKER` | No | Marker in the package's "double check this" comments, rewritten into a JSX-safe form. Omit to skip that pass. |
 
 ### Pointing at your design system
 
@@ -244,6 +253,73 @@ Each path can point to any file already in `DSDS_PATHS`, or to a separate docume
 The server renders content from both `documentBlocks` and `agentDocumentBlocks` when building the instructions text. Entities with `agentDocumentBlocks` will have their agent-optimized guidelines and sections included directly.
 
 `DSDS_INTRO_PATH` (singular) still works as a backward-compatible alias for a single path.
+
+An inlined intro is rendered before the tool catalog, so the guide is the first
+thing an agent reads.
+
+### Research mode — `thorough` or `frugal`
+
+`RESEARCH_MODE` sets how hard the server pushes an agent to economise on
+lookups once an intro is inlined. It has no effect with a compact index, since
+there is nothing inlined to economise against.
+
+| Mode | Behaviour |
+|---|---|
+| `thorough` (default) | No spending guidance. The agent verifies each component against the docs before using it. |
+| `frugal` | Adds a research budget to the instructions: use what the inlined guides state, prefer `dsds_get_document_block(identifier, "api")` over full agent context, and stop researching after roughly five lookups. |
+
+```json
+{
+  "mcpServers": {
+    "dsds": {
+      "command": "npx",
+      "args": ["dsds-mcp"],
+      "env": {
+        "DSDS_PATHS": "/path/to/my-design-system.dsds.json",
+        "DSDS_INTRO_PATHS": "/path/to/api-essentials.dsds.yaml",
+        "RESEARCH_MODE": "frugal"
+      }
+    }
+  }
+}
+```
+
+Or in `dsds.config.mjs`:
+
+```js
+export default {
+  paths: ['./my-design-system.dsds.yaml'],
+  introPaths: ['./overview/api-essentials.dsds.yaml'],
+  researchMode: 'frugal',
+}
+```
+
+#### Which to pick
+
+This is a trade, not an optimisation. Measured on a 5-iteration-per-arm agent
+build task with Opus, identical documentation in both modes:
+
+| Mode | Lookups / iteration | Tokens / iteration | Type errors (5 iterations) |
+|---|---:|---:|---:|
+| `thorough` | ~13 | ~199,000 | 2–5 |
+| `frugal` | ~4.6 | ~145,000 | ~23 |
+
+Roughly 54,000 tokens per iteration buys about a 5x reduction in type errors.
+Both modes completed every build; the difference is how much repair work the
+agent needed on the way.
+
+`thorough` is the default. An agent working unattended costs more in a failed
+build and a debugging session than it does in tokens. Choose `frugal` when a
+human is reviewing the output anyway, when the task is small enough that the
+API surface is already familiar, or when a token budget is the binding
+constraint.
+
+One caveat worth stating: inlining a guide does **not** by itself reduce
+lookups. Six attempts at that — expanding the guide, moving it above the tool
+catalog, adding an explicit exemption from the lookup rule — left lookups
+unchanged at ~13. Only the budget in `frugal` moved them, and it moved the
+error count with them. Knowledge tells an agent what is true; a budget tells it
+when to stop asking.
 
 ### Linting code with ESLint plugins
 
@@ -406,10 +482,11 @@ These help a team author DSDS-compliant documentation.
 | `dsds_spec_document_blocks` | Document block types valid for an entity kind, with descriptions |
 | `dsds_spec_scaffold` | Minimal valid DSDS JSON template for an entity kind. Use `kind="system"` for a multi-entity document |
 | `dsds_validate` | Validate a DSDS JSON string against the bundled schema |
+| `dsds_style_check` | Check a 0.20.x document against the authoring style guide (`DSDS-17`–`DSDS-23`): field, section, item and combo ORDER. Advisory only — never changes what `dsds_validate` says |
 
 **Authoring workflow:**
 ```
-dsds_context_brief(useCase="author") → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate
+dsds_context_brief(useCase="author") → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate → dsds_style_check
 ```
 
 ### Design system tools — require `DSDS_PATHS`
@@ -458,6 +535,23 @@ dsds_context_brief(useCase="ask") → dsds_search_entities → dsds_get_agent_co
 | `dsds_feedback` | Submit a session rating (1–5) and notes on what worked or was confusing. Call this at the end of any session where you used DSDS tools. Written to `DSDS_FEEDBACK_DIR`. |
 
 ---
+
+## Codemod presets
+
+The lint tools can run jscodeshift codemods before ESLint, moving components from an old package to a new one. The runner is generic: which transforms to run, how the package lays out its transform modules, and what its TODO comments look like are all configuration.
+
+Design-system-specific knowledge lives in `src/codemod-presets/` as data, selected by name:
+
+```
+LINT_UI_CODEMODS=1
+LINT_UI_CODEMOD_PRESET=sanity-ui
+```
+
+A preset supplies the package, the from/to import sources, the transform-module template, the vetted transform list, and the TODO marker. Every field is a default — an explicit `LINT_UI_CODEMOD_*` variable always wins, so a preset is a starting point rather than a lock-in. Configure the fields individually and no preset is needed at all.
+
+Adding a design system means adding one file beside `sanity-ui.js` and registering it in that directory's `index.js`. Nothing in the runner, the config loader, or the tools changes.
+
+A preset is also where a transform gets *excluded*, with the reason recorded beside it. `sanity-ui` leaves out `card` and `label` because both were verified to produce wrong output, and that finding is worth keeping where the next reader will see it. The runner itself no longer vets anything: before 0.20.1 it filtered the caller's transform list against a hardcoded nine-name `@sanity/ui` allowlist, so any other design system could configure the pass completely and still silently get zero transforms.
 
 ## DSDS file format
 

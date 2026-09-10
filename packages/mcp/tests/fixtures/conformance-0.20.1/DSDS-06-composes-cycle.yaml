@@ -1,0 +1,19 @@
+# expect: DSDS-06
+# rejectedBy: semantic
+schemaVersion: "0.20.1"
+name: Bad Composes Cycle
+entries:
+  - kind: component
+    id: card
+    name: Card
+    description: A container component.
+    refs:
+      - to: avatar
+        rel: composes
+  - kind: component
+    id: avatar
+    name: Avatar
+    description: A user image component.
+    refs:
+      - to: card
+        rel: composes

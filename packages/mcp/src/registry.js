@@ -10,6 +10,7 @@ import { specEntitySchemaDef, specEntitySchemaHandler } from './tools/spec-entit
 import { specDocumentBlocksDef, specDocumentBlocksHandler } from './tools/spec-document-blocks.js';
 import { specScaffoldDef, specScaffoldHandler } from './tools/spec-scaffold.js';
 import { validateDef, validateHandler } from './tools/validate.js';
+import { styleCheckDef, styleCheckHandler } from './tools/style-check.js';
 import { contextBriefDef, contextBriefHandler } from './tools/context-brief.js';
 import { listEntitiesDef, listEntitiesHandler } from './tools/list-entities.js';
 import { getEntityDef, getEntityHandler } from './tools/get-entity.js';
@@ -106,6 +107,7 @@ export function createToolRuntime({
     authorComponentDocDef,
     buildComponentDef,
     validateDef,
+    styleCheckDef,
     listEntitiesDef,
     getEntityDef,
     searchEntitiesDef,
@@ -146,6 +148,7 @@ export function createToolRuntime({
         case 'dsds_build_component':      return buildComponentHandler(args, getSystems, getSummaries);
         case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);
+        case 'dsds_style_check':          return styleCheckHandler(args);
         case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
         case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig());
         case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries);

@@ -1,0 +1,21 @@
+# expect: DSDS-07
+# rejectedBy: semantic
+schemaVersion: "0.20.1"
+name: Bad Depends-On Cycle
+entries:
+  - kind: token
+    id: color.action.primary
+    name: Action Primary
+    description: The fill color for high-emphasis interactive surfaces.
+    tokenType: color
+    refs:
+      - to: color.surface.raised
+        rel: depends-on
+  - kind: token
+    id: color.surface.raised
+    name: Surface Raised
+    description: The background color for raised surfaces.
+    tokenType: color
+    refs:
+      - to: color.action.primary
+        rel: depends-on

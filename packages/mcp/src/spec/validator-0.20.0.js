@@ -1,5 +1,5 @@
 // Validates a real DSDS 0.20.0 document (YAML or its parsed object form)
-// against the split schema files under ./schema-0.20.0/, using the same
+// against the split schema files under ./schema-0.20.1/, using the same
 // dispatch and semantic-rule logic as the real spec repo's own
 // scripts/validate.js (0.20.0 branch) — ported here so this server's
 // dsds_validate tool checks 0.20.0 documents against real ground truth
@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { entriesIn20, findRefs20, isValidKind20, loadYaml20, statusEntriesOf20, walkSchemaYamlFiles } from './dsds20-lib.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.20.0');
+const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.20.1');
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -612,12 +612,12 @@ function validateItemRefs(doc, errors, warnings, { alwaysWarn = false } = {}) {
   }
 }
 
-// ── Advisory tier (DSDS-12..15) — ported from the upstream spec repo's own
-// scripts/lint-docs.js (0.20.0 branch). Schema validation and DSDS-01..11
+// ── Advisory tier (DSDS-12..16) — ported from the upstream spec repo's own
+// scripts/validate/lint-docs.js (tag v0.20.1). Schema validation and DSDS-01..11
 // answer "is this document allowed/internally consistent?" These answer
 // "is this documentation good?" — they never block a document (they land
 // in `advisories`, not `errors` or `warnings`), and every rule here is
-// looked up by name against schema-0.20.0/conformance-rules.yaml's own
+// looked up by name against schema-0.20.1/conformance-rules.yaml's own
 // `enforcement: advisory` entries via RULES, so a rule removed from the
 // catalog silently stops firing here too, with no code change needed.
 function normalizeProse(s) {
@@ -684,6 +684,33 @@ const ADVISORY_CHECKS = {
     const hasWhenToUse = (entry.sections ?? []).some((s) => s && s.kind === 'guidelines' && s.framing === 'when-to-use');
     if (!hasWhenToUse) {
       emit('/sections', `component "${entry.id}" has no guidelines section with framing: when-to-use — "when do I use this?" is usually the first question documentation must answer. Add one, or note in metadata why it doesn't apply.`);
+    }
+  },
+
+  // DSDS-16 (new in 0.20.1) — the scale-position companion to DSDS-13's
+  // token-description-restates-identifier: a description that reduces to a
+  // single leading scale word plus a number carries only the ordinal the id
+  // and the token's place in its scale already say.
+  //
+  // Kept deliberately narrow: the scale word must lead and be singular, so
+  // number-first forms ("900 shade"), plurals, and anything with a role or
+  // usage word are left alone. A description that restates the id or name is
+  // DSDS-13's case and returns early here, so a description that is both is
+  // reported once rather than twice.
+  'token-description-restates-scale-position': (entry, emit) => {
+    if (entry.kind !== 'token') return;
+    const desc = entry.description;
+    if (typeof desc !== 'string' || !desc.trim()) return;
+    const d = normalizeProse(desc);
+    if (!d) return;
+    const id = normalizeProse(entry.id ?? '');
+    const name = normalizeProse(entry.name ?? '');
+    if ((id && d === id) || (name && d === name)) return;
+    const SW = '(?:level|step|shade|tint|grade|weight|size|swatch)';
+    const N = '(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)';
+    const scaleOnly = [new RegExp(`^${SW} ${N}$`), new RegExp(`^${SW} ${N} of the [a-z]+ (?:scale|ramp)$`)];
+    if (scaleOnly.some((re) => re.test(d))) {
+      emit('/description', `token "${entry.id}" has a description that only restates its scale position — a token description should state the token's role or when to use it, not repeat the ordinal the id and its place in the scale already carry. Drop it (description is optional here) or state its purpose.`);
     }
   },
 };

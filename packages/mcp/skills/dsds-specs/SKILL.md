@@ -2,7 +2,7 @@
 name: dsds-specs
 description: Everything about Design System Doc Spec (DSDS) — entry kinds, sections, schema structure, and how it fits into the ecosystem. Use when authoring, reviewing, or reasoning about DSDS specs and `*.dsds.yaml` files.
 metadata:
-  version: 0.20.0
+  version: 0.20.1
 ---
 
 # Design System Doc Spec (DSDS)
@@ -15,9 +15,14 @@ DSDS documents a graph of **entries** (a system, a component, a token, a theme, 
 
 When you need precise field-level details beyond this skill, consult these in order:
 
-1. **Bundled schema** (in-repo): `packages/specs/schema/dsds.bundled.schema.json`
-2. **Conformance / schema architecture reference**: https://designsystemdocspec.org/conformance.html#how-the-schema-is-organized
-3. **Quick start with examples**: https://designsystemdocspec.org/quickstart.html
+1. **Bundled schema**: `https://designsystemdocspec.org/v0.20.1/dsds.bundled.schema.json` (or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if installed as a dependency)
+2. **Schema architecture reference**: https://designsystemdocspec.org/schema#how-the-schema-is-organized (and [Conformance](https://designsystemdocspec.org/conformance) for conformance classes and the full rule catalog)
+3. **Quick start with examples**: https://designsystemdocspec.org/quickstart
+   — and [STYLE_GUIDE.md](https://github.com/somerandomdude/design-system-documentation-schema/blob/main/STYLE_GUIDE.md)
+   for the field order every example follows. The schema permits any order;
+   the style guide picks one. It is a convention, not a constraint — the
+   `DSDS-17`–`DSDS-23` rules that report deviations run only in the spec
+   repo itself.
 4. **GitHub source** (split schema + examples): https://github.com/somerandomdude/design-system-documentation-schema/tree/main/schema
 
 Key pages for field-level detail:
@@ -43,8 +48,8 @@ There is no `token-group` kind: a group of related tokens is a `metadata.group` 
 A **standalone entry** file (most components, tokens, themes) has no wrapper — the entry's own fields sit at the file's top level:
 
 ```yaml
-id: checkbox
 kind: component
+id: checkbox
 name: Checkbox
 description: A styled checkbox input for boolean or indeterminate selection.
 ```
@@ -52,12 +57,12 @@ description: A styled checkbox input for boolean or indeterminate selection.
 A **base document** (the root `index.dsds.yaml`, or any file meant to hold more than one entry) requires `schemaVersion`, `name`, and a non-empty `entries` array. System-wide facts live on that list's own `kind: system` entry:
 
 ```yaml
-schemaVersion: "0.20.0"
+schemaVersion: "0.20.1"
 name: Acme Design System
 
 entries:
-  - id: acme-design-system
-    kind: system
+  - kind: system
+    id: acme-design-system
     name: Acme Design System
     description: Acme's cross-platform design system.
     metadata:
@@ -70,14 +75,14 @@ refs:
     role: Checkbox component
 ```
 
-Splitting a system across many files uses `refs` (`rel: file`) pointing at sibling documents — not a `$ref`/JSON-Pointer include. There's also `scripts/compose.js` upstream, for concatenating many hand-authored fragment files into one document before validation.
+Splitting a system across many files uses `refs` (`rel: file`) pointing at sibling documents — not a `$ref`/JSON-Pointer include. There's also `scripts/tools/compose.js` upstream, for concatenating many hand-authored fragment files into one document before validation.
 
 ## Sections
 
 Every entry's structured docs live in one `sections` array. Each section has a `kind` and a `for` (`human`, `agent`, or `all`, naming its audience):
 
 - **`definitions`** — term/definition pairs. Use for anatomy, naming conventions, or a prop/event list when there's no real source file to extract from.
-- **`guidelines`** — a `statement` paired with a `level` (`must`/`should`/`should-not`/`must-not`/`may`). Carries `framing: when-to-use` (a fit judgment) or `how-to-use` (the default, an implementation rule).
+- **`guidelines`** — a `statement` paired with a `level` (`must`/`should`/`should-not`/`must-not`/`may`). Carries `context: when-to-use` (a fit judgment) or `how-to-use` (the default, an implementation rule).
 - **`steps`** — an ordered procedure or unordered checklist.
 - **`section`** (generic) — for anything else, or purely `freeform` narrative prose.
 
@@ -98,11 +103,13 @@ Mark a section `for: agent` for firm, ready-to-act notes a person wouldn't need 
 
 ## Schema Validation
 
-The bundled schema is at `packages/specs/schema/dsds.bundled.schema.json`. Uses JSON Schema draft 2020-12. Validate with:
+The bundled schema is published at `https://designsystemdocspec.org/v0.20.1/dsds.bundled.schema.json`, using JSON Schema draft 2020-12. Validate with:
 
 ```bash
-npm run validate -w packages/specs
+npx dsds-validate <files-or-globs>
 ```
+
+See the `dsds-validate` skill for the full rule catalog (`DSDS-01`–`DSDS-23`) and how to interpret failures.
 
 ## Deep-Dive References
 
@@ -125,5 +132,5 @@ Fetch these pages when authoring specific pieces:
 - A standalone entry file has no `entity`/`entityGroups` wrapper — `id`/`kind`/`name`/`description` sit at the top level directly. A base document requires `schemaVersion`, `name`, and a non-empty `entries` array.
 - `id` must match the filename without `.dsds.yaml` (e.g. `checkbox` → `checkbox.dsds.yaml`).
 - Requirement levels: `must`, `should`, `should-not`, `must-not`, `may` (lowercase, hyphenated — RFC 2119).
-- `metadata.status` is one object (`{status: "stable"}`, optionally with `platform`, `since`, `deprecationNotice`, `note`), or, when maturity differs by platform, an array of one such object per platform. There's no bare-string shorthand, and no `overall` field — a consumer derives that from the array itself.
+- `metadata.status` is always an object: `{status: "stable"}`, optionally scoped with `platform`, `since`, `deprecationNotice`, `note`. There's no bare-string shorthand.
 - All pointers — dependencies, composition, citations, external links — use one shape: `common/ref` (`to` for this document's own graph, `href` for outside it, plus a `rel`). There's no separate "relationship" or "link" type.

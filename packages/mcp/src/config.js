@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { BUNDLED_VERSION } from './spec/version.js';
+import { getCodemodPreset } from './codemod-presets/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +40,68 @@ export function loadConfig() {
   const rawLintSourceDir = process.env['LINT_SOURCE_DIR'];
   const lintSourceDir = rawLintSourceDir ? expandHome(rawLintSourceDir.trim()) : null;
 
+  // LINT_UI_CODEMODS: opt-in. When truthy, dsds_lint_by_path/dsds_lint_inline
+  // run the configured jscodeshift transforms before ESLint, moving
+  // components from LINT_UI_CODEMOD_FROM_PACKAGE to LINT_UI_CODEMOD_TO_PACKAGE.
+  // Off by default — this is a real code transform, not just a lint rule, so
+  // a consumer opts in deliberately. Which transforms run is configuration:
+  // see LINT_UI_CODEMOD_PRESET below.
+  const rawLintUiCodemods = process.env['LINT_UI_CODEMODS'];
+  const lintUiCodemods = rawLintUiCodemods != null && !/^(false|0|no|off)$/i.test(rawLintUiCodemods.trim());
+
+  // LINT_UI_CODEMOD_PRESET: selects a per-design-system preset from
+  // src/codemod-presets/ (e.g. 'sanity-ui'), which supplies the codemod
+  // package, the from/to import sources, the transform-module template, the
+  // vetted transform list and the package's TODO-comment marker.
+  //
+  // Every field below can also be set directly, and an explicit environment
+  // variable always beats the preset — so a preset is a starting point, not a
+  // lock-in. Unset means no preset: configure the fields individually.
+  //
+  // Before 0.20.1 these five defaulted to @sanity/ui values inline here, and
+  // ui-codemods.js additionally filtered the transform list against a
+  // hardcoded @sanity/ui allowlist — so another design system could configure
+  // the pass fully and still get nothing. Both are now preset data.
+  const rawLintUiCodemodPreset = process.env['LINT_UI_CODEMOD_PRESET'];
+  const lintUiCodemodPresetId = rawLintUiCodemodPreset ? rawLintUiCodemodPreset.trim() : null;
+  // Throws on an unknown id — see getCodemodPreset's own comment for why a
+  // silent fallback would be worse than a startup failure.
+  const preset = lintUiCodemodPresetId ? getCodemodPreset(lintUiCodemodPresetId) : null;
+
+  const rawLintUiCodemodPackage = process.env['LINT_UI_CODEMOD_PACKAGE'];
+  const lintUiCodemodPackage = rawLintUiCodemodPackage ? rawLintUiCodemodPackage.trim() : (preset?.codemodPackage ?? null);
+
+  // LINT_UI_CODEMOD_TRANSFORMS: comma-separated transform names to attempt.
+  // Every name given is attempted — the runner no longer second-guesses the
+  // list. Unset falls back to the preset's vetted set.
+  const rawLintUiCodemodTransforms = process.env['LINT_UI_CODEMOD_TRANSFORMS'];
+  const lintUiCodemodTransforms = rawLintUiCodemodTransforms
+    ? rawLintUiCodemodTransforms.split(',').map(s => s.trim()).filter(Boolean)
+    : (preset?.transforms ?? []);
+
+  // LINT_UI_CODEMOD_TRANSFORM_PATH: how the codemod package exposes one
+  // transform as a module, with `<pkg>` and `<name>` placeholders — e.g.
+  // '<pkg>/transforms/latest/<name>'. No universal default exists; without
+  // one (from here or a preset) nothing can be resolved.
+  const rawLintUiCodemodTransformPath = process.env['LINT_UI_CODEMOD_TRANSFORM_PATH'];
+  const lintUiCodemodTransformPath = rawLintUiCodemodTransformPath
+    ? rawLintUiCodemodTransformPath.trim()
+    : (preset?.transformPath ?? null);
+
+  // LINT_UI_CODEMOD_TODO_MARKER: the marker the package writes into its
+  // "double check this" comments, which the runner rewrites into a JSX-safe
+  // form. Unset and unprovided by a preset means that pass is skipped.
+  const rawLintUiCodemodTodoMarker = process.env['LINT_UI_CODEMOD_TODO_MARKER'];
+  const lintUiCodemodTodoMarker = rawLintUiCodemodTodoMarker
+    ? rawLintUiCodemodTodoMarker.trim()
+    : (preset?.todoMarker ?? null);
+
+  const rawLintUiCodemodFromPackage = process.env['LINT_UI_CODEMOD_FROM_PACKAGE'];
+  const lintUiCodemodFromPackage = rawLintUiCodemodFromPackage ? rawLintUiCodemodFromPackage.trim() : (preset?.fromPackage ?? null);
+
+  const rawLintUiCodemodToPackage = process.env['LINT_UI_CODEMOD_TO_PACKAGE'];
+  const lintUiCodemodToPackage = rawLintUiCodemodToPackage ? rawLintUiCodemodToPackage.trim() : (preset?.toPackage ?? null);
+
   // DSDS_INTRO_PATHS accepts comma-separated paths; DSDS_INTRO_PATH is the legacy single-path alias.
   const rawIntros = process.env['DSDS_INTRO_PATHS'] ?? process.env['DSDS_INTRO_PATH'];
   const introPaths = rawIntros
@@ -62,6 +125,23 @@ export function loadConfig() {
   const introInline = rawIntroInline == null
     ? true
     : !/^(false|0|no|off)$/i.test(rawIntroInline.trim());
+
+  // RESEARCH_MODE: how hard the server pushes an agent to economise on lookups
+  // when an intro is inlined. Measured on the agent-tester at 5 iterations per
+  // arm, Opus, same knowledge in both modes:
+  //
+  //   thorough  ~13 lookups/iter  ~199k tokens/iter   2-5 type errors
+  //   frugal    ~4.6              ~145k               ~23
+  //
+  // The two are a genuine trade, not an optimisation: ~54k tokens per iteration
+  // buys roughly a 5x reduction in type errors. `thorough` is the default
+  // because an agent shipping unattended costs more in a failed build than in
+  // tokens. Only meaningful with an inlined intro — with a compact index there
+  // is nothing to economise against.
+  const rawResearchMode = process.env['RESEARCH_MODE'];
+  const researchMode = rawResearchMode && /^frugal$/i.test(rawResearchMode.trim())
+    ? 'frugal'
+    : 'thorough';
 
   // PACKAGE_EXPORT_PATHS: comma-separated "packageName=packagePath" pairs.
   // Example: @your-org/ui=/path/to/your-ui/packages/ui,@your-org/icons=/path/to/your-icons
@@ -104,6 +184,14 @@ export function loadConfig() {
     lintPlugins,
     lintResolveDir,
     lintSourceDir,
+    lintUiCodemods,
+    lintUiCodemodPresetId,
+    lintUiCodemodPackage,
+    lintUiCodemodTransforms,
+    lintUiCodemodTransformPath,
+    lintUiCodemodTodoMarker,
+    lintUiCodemodFromPackage,
+    lintUiCodemodToPackage,
     introPaths,
     packageExportPaths,
     iconPackage,
@@ -111,6 +199,7 @@ export function loadConfig() {
     propsExtractorDir,
     enableFeedback,
     introInline,
+    researchMode,
     feedbackDir: rawFeedbackDir ? expandHome(rawFeedbackDir.trim()) : resolve(__dirname, '../feedback'),
     logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
     schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? BUNDLED_VERSION,
@@ -125,8 +214,12 @@ export function loadConfig() {
 // the file's own directory, so the config travels with the repo.
 //
 // File keys mirror the config object: paths, introPaths, lintPaths,
-// lintPlugins, lintResolveDir, lintSourceDir, packageExportPaths (object map),
-// iconPackage, feedbackDir, logsDir, enableFeedback, introInline, schemaVersion.
+// lintPlugins, lintResolveDir, lintSourceDir, lintUiCodemods,
+// lintUiCodemodPresetId, lintUiCodemodPackage, lintUiCodemodTransforms,
+// lintUiCodemodTransformPath, lintUiCodemodTodoMarker,
+// lintUiCodemodFromPackage, lintUiCodemodToPackage,
+// packageExportPaths (object map), iconPackage,
+// feedbackDir, logsDir, enableFeedback, introInline, researchMode, schemaVersion.
 
 export const CONFIG_FILENAMES = ['dsds.config.mjs', 'dsds.config.js', 'dsds.config.json'];
 
@@ -167,6 +260,11 @@ function normalizeFileConfig(raw, fileDir) {
   if (raw.lintPlugins != null) out.lintPlugins = asList(raw.lintPlugins);
   if (raw.lintResolveDir != null) out.lintResolveDir = resolveFrom(raw.lintResolveDir);
   if (raw.lintSourceDir != null) out.lintSourceDir = resolveFrom(raw.lintSourceDir);
+  if (raw.lintUiCodemods != null) out.lintUiCodemods = !!raw.lintUiCodemods;
+  if (raw.lintUiCodemodPackage != null) out.lintUiCodemodPackage = String(raw.lintUiCodemodPackage).trim();
+  if (raw.lintUiCodemodTransforms != null) out.lintUiCodemodTransforms = asList(raw.lintUiCodemodTransforms);
+  if (raw.lintUiCodemodFromPackage != null) out.lintUiCodemodFromPackage = String(raw.lintUiCodemodFromPackage).trim();
+  if (raw.lintUiCodemodToPackage != null) out.lintUiCodemodToPackage = String(raw.lintUiCodemodToPackage).trim();
   if (raw.packageExportPaths != null) {
     const map = new Map();
     for (const [pkg, pkgPath] of Object.entries(raw.packageExportPaths)) {
@@ -181,6 +279,7 @@ function normalizeFileConfig(raw, fileDir) {
   if (raw.logsDir != null) out.logsDir = resolveFrom(raw.logsDir);
   if (raw.enableFeedback != null) out.enableFeedback = !!raw.enableFeedback;
   if (raw.introInline != null) out.introInline = !!raw.introInline;
+  if (raw.researchMode != null) out.researchMode = /^frugal$/i.test(String(raw.researchMode)) ? 'frugal' : 'thorough';
   if (raw.schemaVersion != null) out.schemaVersion = String(raw.schemaVersion);
   return out;
 }
@@ -194,6 +293,11 @@ function envProvidedKeys() {
     lintPlugins: has('LINT_PLUGINS'),
     lintResolveDir: has('LINT_RESOLVE_DIR'),
     lintSourceDir: has('LINT_SOURCE_DIR'),
+    lintUiCodemods: has('LINT_UI_CODEMODS'),
+    lintUiCodemodPackage: has('LINT_UI_CODEMOD_PACKAGE'),
+    lintUiCodemodTransforms: has('LINT_UI_CODEMOD_TRANSFORMS'),
+    lintUiCodemodFromPackage: has('LINT_UI_CODEMOD_FROM_PACKAGE'),
+    lintUiCodemodToPackage: has('LINT_UI_CODEMOD_TO_PACKAGE'),
     introPaths: has('DSDS_INTRO_PATHS') || has('DSDS_INTRO_PATH'),
     packageExportPaths: has('PACKAGE_EXPORT_PATHS'),
     iconPackage: has('ICON_PACKAGE'),
@@ -201,6 +305,7 @@ function envProvidedKeys() {
     propsExtractorDir: has('DSDS_PROPS_EXTRACTOR_DIR'),
     enableFeedback: has('DSDS_ENABLE_FEEDBACK'),
     introInline: has('DSDS_INTRO_INLINE'),
+    researchMode: has('RESEARCH_MODE'),
     feedbackDir: has('DSDS_FEEDBACK_DIR'),
     logsDir: has('DSDS_LOGS_DIR'),
     schemaVersion: has('DSDS_SCHEMA_VERSION'),

@@ -1,6 +1,11 @@
 import { ENTITY_KINDS, DOCUMENT_BLOCK_DESCRIPTIONS, VALID_BLOCKS_BY_KIND, SECTION_KIND_DESCRIPTIONS_0_20_0, SECTION_FREEFORM_NOTE } from '../spec/knowledge.js';
 import { getUpdateNotice } from '../spec/version.js';
 
+// 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
+// ORDER and added advisory rules, not the shape an author writes. Accept
+// either so a caller naming the currently bundled release still routes here.
+const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1';
+
 // Chunks don't use documentBlocks — their guidelines/useCases are top-level.
 const DOCUMENT_BLOCK_KINDS = ENTITY_KINDS.filter(k => k !== 'chunk');
 
@@ -18,7 +23,7 @@ export const specDocumentBlocksDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0'],
+        enum: ['0.15.2', '0.20.0', '0.20.1'],
         description: 'Which DSDS model to describe. Defaults to 0.15.2 (legacy), which requires "kind"; 0.20.0 ignores "kind" entirely.',
       },
     },
@@ -27,7 +32,7 @@ export const specDocumentBlocksDef = {
 };
 
 export async function specDocumentBlocksHandler({ kind, spec }) {
-  if (spec === '0.20.0') {
+  if (is20x(spec)) {
     const lines = [
       '# Section kinds (real 0.20.0)',
       '',

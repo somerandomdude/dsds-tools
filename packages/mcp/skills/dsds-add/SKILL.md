@@ -2,12 +2,12 @@
 name: dsds-add
 description: Author a new Design System Doc Spec (DSDS) spec from component implementation, Figma design, or written requirements. Triggers on "add spec", "create spec", "new spec", "author spec", "spec from component", "spec from Figma".
 metadata:
-  version: 0.20.0
+  version: 0.20.1
 ---
 
 # Add a DSDS Spec
 
-Create a new standalone `.dsds.yaml` entry file in `packages/specs/`.
+Create a new standalone `.dsds.yaml` entry file in your project's spec directory (see File Placement below for where a given kind lives).
 
 ## Procedure
 
@@ -15,8 +15,9 @@ Create a new standalone `.dsds.yaml` entry file in `packages/specs/`.
 2. Gather inputs — read the source (component source code, Figma frame, requirements doc).
 3. Create `{directory}/{id}.dsds.yaml` using the template below.
 4. Add a `refs` entry (`rel: file`) in `index.dsds.yaml` pointing at the new file.
-5. Run `npm run validate -w packages/specs` — fix errors until it passes.
-6. Run `npm run build -w packages/specs` to regenerate the index, if applicable.
+5. Run `npx dsds-validate {directory}/{id}.dsds.yaml` — fix errors until it passes.
+6. Order the entry's fields per [STYLE_GUIDE.md](https://github.com/somerandomdude/design-system-documentation-schema/blob/main/STYLE_GUIDE.md): identity (`id`, `kind`, `name`, `description`, `purpose`, plus a token's `tokenType`/`source`), then `metadata`, then a component's `sourceFiles`, then `sections`, then structured facts (`specs`, `imports`, `traits`, `combos`), then `related`/`extends`/`refs`, with `$extensions` always last. Order never affects validity, and nothing in your project checks it: `npx dsds-validate` won't mention it, and the `DSDS-17`–`DSDS-23` advisory rules that report it live in the spec repo's own tooling, which the published package doesn't ship. The template below already follows the order — keep it and you're done.
+7. If your project generates its own index or catalog from spec files, regenerate it now.
 
 ## File Placement
 
@@ -32,15 +33,15 @@ Create a new standalone `.dsds.yaml` entry file in `packages/specs/`.
 ## Template (Component)
 
 ```yaml
-id: <filename-without-extension>
 kind: component
+id: <filename-without-extension>
 name: <PascalCase>
 description: <one-sentence summary>
 
 metadata:
-  status: {status: draft}
-  since: <version>
   tags: [<action|feedback|form|disclosure|overlay|navigation|layout>]
+  since: <version>
+  status: {status: draft}
 
 sourceFiles:
   - platform: <react|web-component|...>
@@ -54,13 +55,13 @@ imports:
 sections:
   - kind: guidelines
     for: all
-    framing: how-to-use
+    context: how-to-use
     items: []
 ```
 
 ## Sections to Include (Components)
 
-Include at minimum: a `guidelines` section (`framing: how-to-use`) covering usage rules and accessibility requirements. Add `traits` (top-level, not a section) for variants/states, a `guidelines` section with `framing: when-to-use` for fit judgments, and a `definitions` section for props/anatomy only when there's no real source file to point `sourceFiles` at instead. Add a `for: agent` section for firm rules an agent needs but a person wouldn't.
+Include at minimum: a `guidelines` section (`context: how-to-use`) covering usage rules and accessibility requirements. Add `traits` (top-level, not a section) for variants/states, a `guidelines` section with `context: when-to-use` for fit judgments, and a `definitions` section for props/anatomy only when there's no real source file to point `sourceFiles` at instead. Add a `for: agent` section for firm rules an agent needs but a person wouldn't.
 
 ## Extraction Guidelines
 
@@ -72,14 +73,14 @@ Include at minimum: a `guidelines` section (`framing: how-to-use`) covering usag
 
 When unsure about field shapes or required properties, consult:
 
-- **Bundled schema** (in-repo): `packages/specs/schema/dsds.bundled.schema.json`
+- **Bundled schema**: `https://designsystemdocspec.org/v0.20.1/dsds.bundled.schema.json` (or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if DSDS is installed as a dependency)
 - **Entry docs**: `https://designsystemdocspec.org/entries-{kind}` (e.g. `/entries-component`)
 - **Section docs**: `https://designsystemdocspec.org/sections-{kind}` (e.g. `/sections-guidelines`)
-- **Quick start examples**: https://designsystemdocspec.org/quickstart.html
+- **Quick start examples**: https://designsystemdocspec.org/quickstart
 
 ## Gotchas
 
 - `id` must match the filename (e.g. `checkbox` → `checkbox.dsds.yaml`).
 - A component's `sourceFiles`, `imports`, `traits`, and `combos` are top-level fields on the entry, never inside a section.
 - Use RFC 2119 levels in guidelines: `must`, `should`, `should-not`, `must-not`, `may`.
-- `metadata.status` is one object (`{status: "draft"}`), or an array of one per platform when maturity differs by platform — never a bare string.
+- `metadata.status` is always an object (`{status: "draft"}`), never a bare string.
