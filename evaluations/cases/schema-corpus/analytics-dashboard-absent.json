@@ -1,0 +1,21 @@
+{
+  "id": "analytics-dashboard-absent",
+  "stratum": "unsupported",
+  "task": "Generate a data-rich analytics dashboard with KPI cards, time-series charts, filters, and an export action.",
+  "evidence": [
+    ["search", "dashboard"],
+    ["search", "chart"],
+    ["search", "KPI"],
+    ["search", "filter"],
+    ["search", "export"]
+  ],
+  "prompt": "The evidence is insufficient for this request. Return exactly {\"status\":\"insufficient evidence\"}. Do not propose a layout, component, token, API, implementation markup, or any additional response field.",
+  "expect": {
+    "requiredFields": ["status"],
+    "fields": {
+      "status": {
+        "equals": "insufficient evidence"
+      }
+    }
+  }
+}
