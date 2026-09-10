@@ -29,6 +29,35 @@ describe('parseIconExports', () => {
     expect(s.has('SearchIcon')).toBe(true);
     expect(s.has('helper')).toBe(false);
   });
+
+  // Regression (2026-09-03): @sanity/icons v5 removed every named icon from
+  // its root entry but left a `@deprecated ... : never` tombstone per icon.
+  // Counting those as exports gave checkIconImports a false all-clear on
+  // root-barrel icon imports — which type-check but are `undefined` at
+  // runtime — letting 9 broken chunk code files through undetected.
+  it('skips `never`-typed deprecation tombstones, keeping real exports', () => {
+    const dts = [
+      '/** @deprecated `ArrowUpIcon` is no longer exported from the root entry (removed in v5) */',
+      'declare const ArrowUpIcon: never;',
+      'declare const RealIcon: ForwardRefExoticComponent<Props>;',
+    ].join('\n');
+    const s = parseIconExports(dts);
+    expect(s.has('ArrowUpIcon')).toBe(false);
+    expect(s.has('RealIcon')).toBe(true);
+  });
+
+  it('flags a root-barrel import once the tombstones are excluded', () => {
+    const v5Dts = 'declare const ArrowUpIcon: never;\ndeclare const ArrowDownIcon: never;';
+    const exports = parseIconExports(v5Dts);
+    expect(exports.size).toBe(0);
+    const errors = checkIconImports(
+      [{ identifier: 'stat-card', code: "import { ArrowUpIcon } from '@acme/icons'" }],
+      exports,
+      ICON_PKG,
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('ArrowUpIcon');
+  });
 });
 
 describe('checkIconImports', () => {

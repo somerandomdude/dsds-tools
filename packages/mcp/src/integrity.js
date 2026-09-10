@@ -31,12 +31,33 @@ export function extractIconImports(code, iconPackage) {
   return [...names];
 }
 
-/** Parse exported icon names from the icon package's `dist/index.d.ts` string. */
+/**
+ * Parse exported icon names from the icon package's `dist/index.d.ts` string.
+ *
+ * Skips `never`-typed declarations. @sanity/icons v5 removed every named icon
+ * from its root entry but kept a `@deprecated` tombstone per icon so a moved
+ * icon isn't mistaken for a deleted one:
+ *
+ *   declare const ArrowUpIcon: never;   // v5 tombstone — NOT a usable export
+ *   declare const ArrowUpIcon: ForwardRefExoticComponent<…>;  // v3 — real
+ *
+ * Counting the tombstones as exports made checkIconImports blind to exactly
+ * the failure it exists to catch: a root-barrel `import {ArrowUpIcon} from
+ * '@sanity/icons'` type-checks (the tombstone satisfies it) but resolves to
+ * `undefined` at runtime, so `<Icon icon={ArrowUpIcon} />` renders nothing.
+ * Nine chunk code files carried that import undetected until 2026-09-03.
+ * Excluding `: never` is version-safe: v5 root yields no named icons (so any
+ * root-barrel icon import is correctly flagged), v3 is unaffected.
+ */
 export function parseIconExports(dts) {
   const set = new Set();
-  const re = /(?:export\s+)?declare const\s+([A-Z][A-Za-z0-9]*Icon)\b/g;
+  const re = /(?:export\s+)?declare const\s+([A-Z][A-Za-z0-9]*Icon)\s*(?::\s*([^;\n]+))?/g;
   let m;
-  while ((m = re.exec(dts ?? '')) !== null) set.add(m[1]);
+  while ((m = re.exec(dts ?? '')) !== null) {
+    const type = m[2]?.trim();
+    if (type === 'never') continue;
+    set.add(m[1]);
+  }
   return set;
 }
 
