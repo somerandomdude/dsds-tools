@@ -10,11 +10,12 @@
   "scripts": {
     "generate:local": "node scripts/generate-settings-prototype.mjs",
     "preview:local": "node scripts/preview-settings-prototype.mjs",
+    "preview:layout": "node scripts/preview-layout-result.mjs",
     "test:prototype": "node --test scripts/settings-prototype.test.mjs",
     "evaluate:local": "node scripts/evaluate-local-model.mjs",
     "evaluate:local:suite": "node scripts/evaluate-local-model-suite.mjs",
     "test": "npm run test:evaluation && npm run test:prototype && npm test --workspaces",
-    "test:evaluation": "node --test scripts/local-model-evaluation-core.test.mjs",
+    "test:evaluation": "node --test scripts/local-model-evaluation-core.test.mjs scripts/layout-preview-core.test.mjs",
     "check:integrity": "npm run check:integrity --workspace dsds-mcp"
   },
   "license": "Apache-2.0",
