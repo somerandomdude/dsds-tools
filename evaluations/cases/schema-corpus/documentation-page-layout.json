@@ -1,0 +1,23 @@
+{
+  "id": "documentation-page-layout",
+  "stratum": "supported",
+  "task": "Generate a grounded documentation-page layout for one design-system artifact.",
+  "evidence": [
+    ["get", "documentation-page"],
+    ["get", "button"],
+    ["get", "link"]
+  ],
+  "prompt": "Return JSON only with status and layout. status must be supported. In layout, state the documented reading order and reference requirements. Do not invent component props, code samples, token values, or platform support.",
+  "expect": {
+    "requiredFields": ["status", "layout"],
+    "fields": {
+      "status": {
+        "equals": "supported"
+      },
+      "layout": {
+        "requiredLiterals": ["page title", "single readable content column", "source or Storybook reference"],
+        "forbiddenLiterals": ["breakpoint", "px"]
+      }
+    }
+  }
+}

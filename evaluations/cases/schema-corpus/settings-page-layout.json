@@ -1,0 +1,23 @@
+{
+  "id": "settings-page-layout",
+  "stratum": "supported",
+  "task": "Generate a grounded account settings-page layout.",
+  "evidence": [
+    ["get", "settings-page"],
+    ["get", "confirmation-dialog"],
+    ["get", "button-group"]
+  ],
+  "prompt": "Return JSON only with status and layout. status must be supported. In layout, state the documented page structure and constraints. Do not invent token values, responsive breakpoints, or component APIs.",
+  "expect": {
+    "requiredFields": ["status", "layout"],
+    "fields": {
+      "status": {
+        "equals": "supported"
+      },
+      "layout": {
+        "requiredLiterals": ["primary content column", "visible heading", "Confirmation Dialog"],
+        "forbiddenLiterals": ["breakpoint", "px"]
+      }
+    }
+  }
+}
