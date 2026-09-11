@@ -1,0 +1,18 @@
+{
+  "id": "documentation-page-layout",
+  "stratum": "supported",
+  "task": "Generate a grounded documentation-page layout for one design-system artifact.",
+  "evidence": [
+    ["get", "documentation-page"],
+    ["get", "button"],
+    ["get", "link"]
+  ],
+  "prompt": "Return JSON only. Use exactly this shape: {\"status\":\"supported\",\"layout\":{\"kind\":\"documentation-page\",\"regions\":[{\"kind\":string,\"title\":string}]},\"constraints\":[string],\"evidence\":[string]}. Include regions page-header, in-page-navigation, content, example-region, and reference-region. Include constraints title-before-detail, single-readable-content-column, preserve-heading-order, and reference-backed-examples. Include evidence identifiers documentation-page, button, and link. Do not invent component props, code samples, token values, or platform support.",
+  "expect": {
+    "contract": "layout-v1",
+    "layoutKind": "documentation-page",
+    "requiredRegions": ["page-header", "in-page-navigation", "content", "example-region", "reference-region"],
+    "requiredConstraints": ["title-before-detail", "single-readable-content-column", "preserve-heading-order", "reference-backed-examples"],
+    "requiredEvidence": ["documentation-page", "button", "link"]
+  }
+}
