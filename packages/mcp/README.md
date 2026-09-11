@@ -597,6 +597,30 @@ Use it to add generation constraints, anti-patterns, and disambiguation notes wi
 
 ---
 
+## Architecture
+
+Everything this server advertises comes from `src/surface.js`. `createSurface()`
+returns all four MCP capability groups as one object, and `src/server.js` is a
+thin envelope of protocol handlers over it:
+
+```
+                    src/surface.js
+       ┌────────────┬───────┴───────┬──────────────────┐
+   registry.js   prompts.js     resources.js    instructions.js
+   tools +       prompt         dsds://entity/  the briefing sent
+   dispatch      catalog        resources       on connect
+       └────────────┴───────┬───────┴──────────────────┘
+                ┌───────────┴───────────┐
+          src/server.js            dsds-cli
+          MCP transport            shell transport
+          + watcher                one-shot, no watcher
+```
+
+The [dsds CLI](../cli) builds the same surface, which is why `dsds prompt`,
+`dsds resource`, and `dsds instructions` serve exactly what an MCP client
+receives. Put logic in the surface, not in a transport: anything defined in
+`server.js` is, by construction, unreachable from a shell.
+
 ## Development
 
 ```bash

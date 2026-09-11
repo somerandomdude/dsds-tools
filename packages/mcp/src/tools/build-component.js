@@ -1,4 +1,5 @@
 import { getUpdateNotice } from '../spec/version.js';
+import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
 
 /**
@@ -100,7 +101,7 @@ function respond({ overview, validated, nextStep, nextStepId, question, question
 function findComponent(identifier, getSystems) {
   const systems = getSystems();
   if (!systems || systems.length === 0) {
-    return { error: 'No DSDS files configured. Set the `DSDS_PATHS` environment variable to implement an existing component.' };
+    return { error: noDocumentsConfiguredBrief() + ' Needed to implement an existing component.' };
   }
   if (!identifier || typeof identifier !== 'string') {
     return { error: 'Provide an "identifier" — the existing component to implement, e.g. "button".' };

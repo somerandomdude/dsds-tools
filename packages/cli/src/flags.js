@@ -1,3 +1,5 @@
+import { didYouMean } from 'dsds-mcp/src/suggest.js';
+
 // Bridge between a tool's JSON Schema and command-line flags.
 //
 // Flat scalar properties (string, number, integer, boolean) become flags named
@@ -12,8 +14,37 @@ export const BASE_OPTIONS = {
   json: { type: 'boolean' },
   quiet: { type: 'boolean' },
   'no-log': { type: 'boolean' },
-  help: { type: 'boolean' },
+  help: { type: 'boolean', short: 'h' },
 };
+
+/**
+ * Turn a node:util parseArgs failure into something actionable.
+ *
+ * Its own text for an unrecognized flag explains how to pass a positional
+ * argument that starts with a dash — advice for a different problem, with no
+ * mention of what the valid flags are or which one you probably meant.
+ *
+ * @param {Error} err - the error parseArgs threw
+ * @param {object} options - the parseArgs options that were in effect
+ * @returns {string}
+ */
+export function explainParseError(err, options = {}) {
+  const unknown = /Unknown option '(-{1,2}[^']+)'/.exec(err.message)?.[1];
+  if (!unknown) return err.message;
+
+  const bare = unknown.replace(/^-+/, '').split('=')[0];
+  const known = Object.keys(options);
+  const suggestions = didYouMean(bare, known);
+
+  const lines = [`Unknown option \`${unknown}\`.`];
+  if (suggestions.length > 0) {
+    lines.push(`Did you mean ${suggestions.map(s => `\`--${s}\``).join(' or ')}?`);
+  }
+  if (known.length > 0) {
+    lines.push(`Available: ${known.map(k => `--${k}`).join(', ')}`);
+  }
+  return lines.join('\n');
+}
 
 // parseArgs options for one tool: the base flags plus one flag per flat scalar
 // schema property. Returns flagProps mapping flag name → schema type so values

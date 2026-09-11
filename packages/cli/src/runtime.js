@@ -1,13 +1,17 @@
-// One-shot runtime: load config + documents, wire the shared tool registry.
+// One-shot runtime: load config + documents, wire the shared surface.
 //
 // The CLI counterpart of dsds-mcp's server wiring (src/index.js there) — but
 // with no file watcher, no update check, and no transport. Load once,
 // dispatch, exit.
+//
+// createSurface is the same core the MCP server builds on, so the CLI gets
+// all four capability groups — tools, prompts, resources, instructions — from
+// one call, and neither surface can advertise something the other lacks.
 
 import { resolveConfig } from 'dsds-mcp/src/config.js';
 import { loadSystems, summarizeEntities, loadIntroEntities } from 'dsds-mcp/src/loader.js';
 import { createGraphGetter } from 'dsds-mcp/src/graph.js';
-import { createToolRuntime } from 'dsds-mcp/src/registry.js';
+import { createSurface } from 'dsds-mcp/src/surface.js';
 
 export async function createRuntime({ quiet = false, configPath = null } = {}) {
   // Env vars > dsds.config.{mjs,js,json} (discovered from cwd upward, or via
@@ -26,10 +30,12 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
     loadIntroEntities(config.introPaths),
   ]);
 
+  // Only real problems are reported here. "No paths configured" used to warn
+  // on stderr as well, which meant a spec command that needs no configuration
+  // nagged about it, and a command that does need it printed the complaint
+  // twice — once here and once as the handler's setup guidance, which is the
+  // one that actually tells you what to do.
   if (!quiet) {
-    if (config.paths.length === 0) {
-      process.stderr.write('dsds: DSDS_PATHS not set — design system tools unavailable (spec tools still work)\n');
-    }
     for (const { path, error } of errors) {
       process.stderr.write(`dsds: failed to load ${path}: ${error}\n`);
     }
@@ -38,7 +44,7 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
   const state = { systems, summaries: summarizeEntities(systems) };
   const getSystems = () => state.systems;
 
-  const { toolDefs, dispatch } = createToolRuntime({
+  const surface = createSurface({
     getSystems,
     getSummaries: () => state.summaries,
     getIntro: () => introEntities,
@@ -58,16 +64,21 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
     // to the production usage log, 9% of its chunk telemetry for the day.
     logsDir: config.logsDirExplicit ? config.logsDir : null,
     enableFeedback: config.enableFeedback,
+    introInline: config.introInline,
   });
 
-  return { config, toolDefs, dispatch };
+  return { config, surface, toolDefs: surface.toolDefs, dispatch: surface.dispatch };
 }
 
-// The catalog without any document loading — enough for `dsds tool` (listing),
-// per-tool help, and the manifest, which only read tool definitions.
+// The catalogs without any document loading — enough for `dsds tool`
+// (listing), per-tool help, and the manifest, none of which read entity data.
+// The prompt catalog it carries is the config-free set: dsds-intro depends on
+// loaded intro documents, so it is absent here by construction, exactly as it
+// is on a server started without intro paths. `dsds prompt` uses the loaded
+// runtime instead, so it reports what this project actually offers.
 export function createRegistryOnly() {
   const empty = [];
-  return createToolRuntime({
+  return createSurface({
     getSystems: () => empty,
     getSummaries: () => empty,
     getGraph: createGraphGetter(() => empty),

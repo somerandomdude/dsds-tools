@@ -12,11 +12,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { resolveConfig } from 'dsds-mcp/src/config.js';
-import { loadSystems } from 'dsds-mcp/src/loader.js';
+import { loadSystems, loadIntroEntities, summarizeEntities } from 'dsds-mcp/src/loader.js';
+import { createSurface } from 'dsds-mcp/src/surface.js';
 import { validateDocument } from 'dsds-mcp/src/validator.js';
 import { looksLike20, validateDoc20 } from 'dsds-mcp/src/spec/validator-0.20.0.js';
 import { loadYaml20 } from 'dsds-mcp/src/spec/dsds20-lib.js';
-import { buildGraph, integrity as graphIntegrity } from 'dsds-mcp/src/graph.js';
+import { buildGraph, createGraphGetter, integrity as graphIntegrity } from 'dsds-mcp/src/graph.js';
 import {
   checkExampleProps,
   checkIconImports,
@@ -276,6 +277,59 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
   if (cfg.introPaths?.length > 0) {
     const missing = cfg.introPaths.filter(path => !existsSync(path));
     add('intro entity paths', missing.length > 0 ? 'fail' : 'pass', missing.length > 0 ? missing.map(p => `${p} (missing)`) : cfg.introPaths);
+  }
+
+  // ── MCP surface ────────────────────────────────────────────────────────────
+  // The CLI and the MCP server serve one surface; this reports what it
+  // resolves to for this project and proves each part actually renders.
+  // Reading every resource is the point: a resource that throws on
+  // serialization is invisible until something asks for it.
+  {
+    const introEntities = await loadIntroEntities(cfg.introPaths);
+    const surface = createSurface({
+      getSystems: () => systems,
+      getSummaries: () => summarizeEntities(systems),
+      getIntro: () => introEntities,
+      getGraph: createGraphGetter(() => systems),
+      enableFeedback: cfg.enableFeedback,
+      introInline: cfg.introInline,
+    });
+
+    const failures = [];
+    const details = [];
+
+    details.push(`${surface.toolDefs.length} tools — dsds tool <name>`);
+
+    const prompts = surface.listPrompts();
+    for (const { name } of prompts) {
+      try {
+        surface.getPrompt(name);
+      } catch (err) {
+        failures.push(`prompt ${name} — ${err.message}`);
+      }
+    }
+    details.push(`${prompts.length} prompts (${prompts.map(p => p.name).join(', ')}) — dsds prompt <name>`);
+
+    const resources = surface.listResources();
+    const unreadable = [];
+    for (const { uri } of resources) {
+      try {
+        if (!surface.readResource(uri)) unreadable.push(`${uri} — not readable`);
+      } catch (err) {
+        unreadable.push(`${uri} — ${err.message}`);
+      }
+    }
+    failures.push(...unreadable);
+    details.push(`${resources.length} resources — dsds resource <uri>`);
+
+    try {
+      const instructions = surface.getInstructions();
+      details.push(`${instructions.length} chars of agent instructions — dsds instructions`);
+    } catch (err) {
+      failures.push(`instructions — ${err.message}`);
+    }
+
+    add('mcp surface', failures.length > 0 ? 'fail' : 'pass', failures.length > 0 ? failures : details);
   }
 
   // ── Report ─────────────────────────────────────────────────────────────────

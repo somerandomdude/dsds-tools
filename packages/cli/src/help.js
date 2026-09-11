@@ -4,6 +4,7 @@
 
 import { optionsForTool } from './flags.js';
 import { PORCELAIN } from './porcelain.js';
+import { SURFACE_COMMANDS } from './surface-commands.js';
 
 export function mainHelp(toolDefs, version) {
   return [
@@ -14,14 +15,20 @@ export function mainHelp(toolDefs, version) {
     '  dsds tool <tool-name> [flags]   Invoke any registry tool directly',
     '  dsds doctor [--json]            Diagnose configuration and document integrity',
     '  dsds init [--agents]            Scaffold dsds.config.mjs (+ agent docs stanza)',
-    '  dsds manifest                   Machine-readable capability manifest (JSON)',
-    '  dsds help | --version',
+    '  dsds manifest [--compact]       Machine-readable capability manifest (JSON)',
+    '  dsds completion <shell>         Shell completion (bash, zsh, fish)',
+    '  dsds help | -h | -v',
     '',
     'Commands',
     ...commandList(),
     '',
+    'MCP surface — the same capabilities an MCP client gets, from a shell',
+    ...commandList(SURFACE_COMMANDS),
+    '',
     'Global flags',
-    '  --json             JSON envelope {ok, tool, exitCode, data|error} on stdout',
+    '  --json             JSON envelope {ok, tool, exitCode, data|error} on stdout.',
+    '                     For list, search and lint, `data` is structured data and',
+    '                     the rendered text moves to `text`.',
     '  --config <file>    Use an explicit dsds.config file (default: discovered from cwd upward)',
     '  --quiet            Suppress stderr diagnostics',
     '  --no-log           Skip usage logging (logging only happens when DSDS_LOGS_DIR is set)',
@@ -46,8 +53,8 @@ export function mainHelp(toolDefs, version) {
   ].join('\n');
 }
 
-function commandList() {
-  const entries = Object.entries(PORCELAIN);
+function commandList(table = PORCELAIN) {
+  const entries = Object.entries(table);
   const width = Math.max(...entries.map(([name]) => name.length));
   return entries.map(([name, spec]) => `  ${name.padEnd(width)}  ${spec.summary}`);
 }

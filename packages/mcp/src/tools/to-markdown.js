@@ -1,4 +1,5 @@
 import { getApiForEntry } from '../spec/prop-extractor-0.20.0.js';
+import { notFoundMessage, entityIdentifiers } from '../suggest.js';
 import { renderCombos20, renderExtensions20, renderGuidelineItem, renderSections20 } from '../spec/render-0.20.0.js';
 import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 
@@ -631,7 +632,12 @@ export async function toMarkdownHandler({ identifier, includeAgentContent = fals
       isError: true,
       content: [{
         type: 'text',
-        text: `Entity "${identifier}" not found. Use dsds_list_entities to see available identifiers.`,
+        text: notFoundMessage({
+          label: 'Entity',
+          input: identifier,
+          candidates: entityIdentifiers(systems),
+          listHint: '`dsds_list_entities`',
+        }),
       }],
     };
   }

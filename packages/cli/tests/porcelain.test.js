@@ -183,7 +183,7 @@ describe('lint (exit code 2 contract)', () => {
     expect(code).toBe(2);
     const envelope = JSON.parse(stdout);
     expect(envelope.exitCode).toBe(2);
-    expect(envelope.structured.files[0].error).toBeTruthy();
+    expect(envelope.data.files[0].error).toBeTruthy();
   });
 
   it('--stdin lints piped code', async () => {
