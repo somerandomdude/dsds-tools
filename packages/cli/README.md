@@ -2,7 +2,18 @@
 
 Command-line interface for the [Design System Documentation Spec (DSDS)](https://designsystemdocspec.org). Query, search, validate, and lint against DSDS documents from any terminal — for humans, CI pipelines, and coding agents that have shell access but no MCP client.
 
-This package is a thin transport. All tool logic lives in [dsds-mcp](../mcp)'s shared registry (`src/registry.js`), which also powers the MCP server. One catalog, two surfaces — the CLI and the MCP server cannot drift apart.
+This package is a thin transport. All logic lives in [dsds-mcp](../mcp)'s shared surface (`src/surface.js`), which also powers the MCP server. One core, two surfaces — the CLI and the MCP server cannot drift apart.
+
+An MCP server advertises four capability groups. Each has a command here, so a shell-only agent works with the same material an MCP client is handed:
+
+| MCP capability | Command |
+| --- | --- |
+| Instructions (sent on connect) | `dsds instructions` |
+| Tools | `dsds tool <name>`, plus the porcelain commands below |
+| Prompts (slash commands) | `dsds prompt [<name>] [--task <text>]` |
+| Resources (`dsds://entity/…`) | `dsds resource [<uri\|identifier>]` |
+
+Parity is a tested guarantee, not an aspiration: a capability added to the shared surface with no CLI route fails the test suite.
 
 ## Status
 
@@ -58,9 +69,12 @@ dsds manifest
 | `dsds doctor [--json]` | Config + document integrity diagnosis — **exit 2 on failures** |
 | `dsds init [--agents] [--force]` | Scaffold `dsds.config.mjs` (seeded from current env vars); `--agents` writes an agent-docs stanza |
 | `dsds tool <tool-name> [flags]` | Invoke any registry tool directly (incl. wizards) |
+| `dsds prompt [<name>] [--task t]` | List the MCP prompts, or render one as a briefing |
+| `dsds resource [<uri\|id>]` | List the entity resources, or read one as JSON |
+| `dsds instructions` | The instruction block an MCP client receives on connect |
 | `dsds manifest` | Self-describing JSON manifest of the full surface |
 
-Doctor checks: paths configured, documents load, identifier uniqueness, schema validation of the root **and every `$ref`-referenced entity file**, spec version alignment, relationship graph (unresolved targets, cycles), example-code props, brief kind references, lint plugin resolution, package export paths.
+Doctor checks: paths configured, documents load, identifier uniqueness, schema validation of the root **and every `$ref`-referenced entity file**, spec version alignment, relationship graph (unresolved targets, cycles), example-code props, brief kind references, lint plugin resolution, package export paths, and the MCP surface (every tool, prompt, and resource this project resolves to — each resource is read, so one that fails to serialize is a failing check).
 
 The wizards (`dsds_build_component`, `dsds_author_component_doc`) and `dsds_feedback` deliberately have no porcelain command — they are conversational tools; reach them via `dsds tool … --args` when needed.
 
@@ -78,7 +92,7 @@ Flags win over `--args` keys when both are present.
 
 ## Output contract
 
-- **stdout** — the payload. Human-readable text by default; with `--json`, a stable envelope: `{ "ok", "tool", "exitCode", "data" | "error" }`. Tools with structured findings (lint) add a `structured` mirror so machines don't parse prose.
+- **stdout** — the payload. Human-readable text by default; with `--json`, a stable envelope: `{ "ok", "tool", "exitCode", "data" | "error" }`. Tools with structured findings (lint) add a `structured` mirror so machines don't parse prose. `prompt`, `resource`, and `instructions` run no tool, so their envelope carries `"command"` in place of `"tool"`.
 - **stderr** — diagnostics only. stdout stays pipe-safe (`dsds get button --json | jq -r .data`).
 - **Exit codes** — `0` success · `1` usage or runtime error · `2` the command ran and found problems (lint findings, validation errors, doctor failures). CI can gate on `2`.
 
@@ -117,7 +131,9 @@ Spec commands (`spec`, `scaffold`, `validate`) work with no configuration at all
 
 `dsds init --agents` writes a marker-delimited stanza into the project's AGENTS.md (`--agents-file` targets another file, e.g. CLAUDE.md): the command cheat-sheet, the briefing entry points, and the exit-code contract. Re-running replaces the stanza in place. That's how shell-only agents discover the CLI without an MCP client.
 
-`dsds manifest` returns every command, tool, and input schema as one JSON payload — read it once instead of scraping `--help`.
+`dsds manifest` returns every command, tool, prompt, and input schema as one JSON payload, plus a `capabilities` map naming the command behind each MCP capability group — read it once instead of scraping `--help`.
+
+Starting cold, with no MCP client: `dsds instructions` is the briefing an MCP client would have been handed on connect, and `dsds prompt build-with-design-system --task "…"` is the slash command it would have offered.
 
 For a network-free local-model session, see the repository's
 [offline local-model workflow](../../OFFLINE-LOCAL-MODEL-WORKFLOW.md).

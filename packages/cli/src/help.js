@@ -4,6 +4,7 @@
 
 import { optionsForTool } from './flags.js';
 import { PORCELAIN } from './porcelain.js';
+import { SURFACE_COMMANDS } from './surface-commands.js';
 
 export function mainHelp(toolDefs, version) {
   return [
@@ -19,6 +20,9 @@ export function mainHelp(toolDefs, version) {
     '',
     'Commands',
     ...commandList(),
+    '',
+    'MCP surface — the same capabilities an MCP client gets, from a shell',
+    ...commandList(SURFACE_COMMANDS),
     '',
     'Global flags',
     '  --json             JSON envelope {ok, tool, exitCode, data|error} on stdout',
@@ -46,8 +50,8 @@ export function mainHelp(toolDefs, version) {
   ].join('\n');
 }
 
-function commandList() {
-  const entries = Object.entries(PORCELAIN);
+function commandList(table = PORCELAIN) {
+  const entries = Object.entries(table);
   const width = Math.max(...entries.map(([name]) => name.length));
   return entries.map(([name, spec]) => `  ${name.padEnd(width)}  ${spec.summary}`);
 }

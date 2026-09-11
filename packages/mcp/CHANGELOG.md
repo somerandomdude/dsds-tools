@@ -6,7 +6,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`src/surface.js` — the whole surface in one object.** `createSurface()`
+  returns every capability group this server advertises: `toolDefs` /
+  `dispatch`, `listPrompts` / `getPrompt`, `listResources` / `readResource`,
+  and `getInstructions`. Both transports build from it, so a capability added
+  here reaches the MCP server and the `dsds` CLI at once. Supporting modules:
+  `src/prompts.js` (the prompt catalog and renderer), `src/instructions.js`
+  (the agent instruction block), `src/intro.js` (intro-entity rendering).
+
 ### Changed
+- **`src/server.js` is now a thin transport envelope** — protocol handlers
+  that delegate to `createSurface()`. Prompts, resources, instructions, and
+  intro rendering used to be defined inside it, which is why the CLI could
+  not reach them; nothing is defined there any more. No protocol-visible
+  behavior change: the same tools, prompts, resources, and instruction text
+  as before.
 - **Bundled DSDS spec updated 0.13.0 → 0.15.2.** Swapped `src/spec/dsds.bundled.schema.json`,
   bumped `BUNDLED_VERSION`, the `DSDS_SCHEMA_VERSION` default, spec knowledge,
   scaffolds, and all doc references. The validator is schema-driven, so the
@@ -20,6 +35,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   block-level extension bag the entity level already had) — no code change needed
   beyond the schema; the closed-schema (`additionalProperties: false`) protection
   is unchanged.
+
+### Fixed
+- **`resources/read` no longer throws on a 0.20.0 entity.** The loader
+  annotates each entity in place with `__sharedEntries` — the base document's
+  `shared[]` pool, whose own entries carry the same pool — so the entity is a
+  cyclic object graph and `JSON.stringify` failed with "Converting circular
+  structure to JSON". Every entity in a document with a shared pool was
+  therefore unreadable as a resource. The reader now drops the loader's
+  internal `__`-prefixed keys, which both terminates and leaves the resource
+  body as the document the author wrote. Caught by `dsds resource` against the
+  199-entity Sanity UI document.
 
 ### Removed
 - **Chunk top-level `guidelines`/`useCases` shorthand** — removed in DSDS 0.15.0.

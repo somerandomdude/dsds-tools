@@ -10,6 +10,7 @@
 import { existsSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { PORCELAIN } from './porcelain.js';
+import { SURFACE_COMMANDS } from './surface-commands.js';
 
 function safeRealpath(p) {
   try {
@@ -96,9 +97,9 @@ export function buildAgentsStanza({ binPath = process.argv[1] } = {}) {
   const invoke = installedAsBin
     ? '`dsds`'
     : `\`dsds\` (on this machine: \`node ${binPath}\`)`;
-  const commands = Object.entries(PORCELAIN).map(
-    ([, spec]) => `- \`${spec.usage}\` — ${spec.summary}`
-  );
+  const usageLine = ([, spec]) => `- \`${spec.usage}\` — ${spec.summary}`;
+  const commands = Object.entries(PORCELAIN).map(usageLine);
+  const surfaceCommands = Object.entries(SURFACE_COMMANDS).map(usageLine);
   return [
     MARK_BEGIN,
     '## Design system documentation (DSDS CLI)',
@@ -112,7 +113,12 @@ export function buildAgentsStanza({ binPath = process.argv[1] } = {}) {
     '### Commands',
     ...commands,
     '',
-    'Every command accepts `--json` (envelope `{ok, tool, exitCode, data|error}`). Exit codes: `0` success · `1` error · `2` ran but found problems (lint, validate, doctor). Full machine-readable surface: `dsds manifest`. Setup diagnosis: `dsds doctor`.',
+    '### MCP surface',
+    '',
+    'These reach the capabilities an MCP client would get on connect, so a shell-only agent is not working with less:',
+    ...surfaceCommands,
+    '',
+    'Every command accepts `--json` (envelope `{ok, tool, exitCode, data|error}`; the three commands above use a `command` key instead of `tool`). Exit codes: `0` success · `1` error · `2` ran but found problems (lint, validate, doctor). Full machine-readable surface: `dsds manifest`. Setup diagnosis: `dsds doctor`.',
     MARK_END,
   ].join('\n');
 }

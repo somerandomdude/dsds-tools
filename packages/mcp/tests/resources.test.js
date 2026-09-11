@@ -70,4 +70,27 @@ describe('readResource', () => {
     const content = readResource('dsds://entity/BUTTON', getSystems);
     expect(content).not.toBeNull();
   });
+
+  // A loaded 0.20.0 entity carries __sharedEntries — the base document's
+  // shared[] pool, whose own entries carry the same pool. Serializing the
+  // entity as-is threw "Converting circular structure to JSON", which broke
+  // resources/read for every entity in a document with a shared pool.
+  it('serializes a 0.20.0 entity whose shared pool refers back to it', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/golden-0.20.0/base.dsds.yaml`]);
+    const getSystems = () => systems;
+    const content = readResource('dsds://entity/full-featured', getSystems);
+    expect(content).not.toBeNull();
+    const entity = JSON.parse(content.text);
+    expect(entity.id).toBe('full-featured');
+  });
+
+  it('leaves the loader\'s internal annotations out of the resource body', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/golden-0.20.0/base.dsds.yaml`]);
+    const entity = JSON.parse(readResource('dsds://entity/full-featured', () => systems).text);
+    for (const key of ['__dsds20', '__filePath', '__sharedEntries']) {
+      expect(entity, `${key} is a loader detail, not document content`).not.toHaveProperty(key);
+    }
+    // The authored content survives the filter.
+    expect(entity.sections.length).toBeGreaterThan(0);
+  });
 });

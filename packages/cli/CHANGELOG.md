@@ -7,6 +7,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **MCP surface parity.** An MCP server advertises four capability groups —
+  instructions, tools, prompts, resources. The CLI served only tools; the
+  other three lived inside `server.js` and were unreachable from a shell.
+  They now come from one shared core (`dsds-mcp/src/surface.js`) and each has
+  a command:
+  - `dsds prompt [<name>] [--task <text>]` — list the prompts an MCP client
+    offers as slash commands, or render one. `dsds-intro` appears when intro
+    documents are configured, exactly as it does over MCP.
+  - `dsds resource [<uri|identifier>]` — list the `dsds://entity/{identifier}`
+    resources, or read one as entity JSON. A bare identifier is shorthand.
+  - `dsds instructions` — the instruction block an MCP client receives on
+    connect, intro documents included. An MCP client gets this for free; a
+    shell-only agent had no way to read it.
+- `dsds doctor` gains an **mcp surface** check: reports how many tools,
+  prompts, and resources this project resolves to, and proves each one
+  renders — it reads every resource, so a resource that fails to serialize
+  is a failing check rather than a surprise at call time.
+- `dsds manifest` now describes all four capability groups (`capabilities`),
+  lists `prompts` with their arguments, and documents the `resources` URI
+  template alongside the existing `tools` array.
 - `dsds build <component> [--answers '<json>']` — porcelain over the
   `dsds_build_component` wizard, giving shell agents the guided compose path
   MCP clients already had. Without `--answers` it lists the component's props

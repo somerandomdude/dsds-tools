@@ -9,6 +9,7 @@ import { mainHelp, toolList, toolHelp } from './help.js';
 import { PORCELAIN, UsageError, checkPositionals, porcelainHelp } from './porcelain.js';
 import { runDoctor } from './doctor.js';
 import { runInit } from './init.js';
+import { runPrompt, runResource, runInstructions } from './surface-commands.js';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
@@ -38,15 +39,19 @@ export async function run(argv) {
   switch (command) {
     case 'tool':
       return toolCommand(argv.slice(1));
+    case 'prompt':
+      return runPrompt(argv.slice(1));
+    case 'resource':
+      return runResource(argv.slice(1));
+    case 'instructions':
+      return runInstructions(argv.slice(1));
     case 'doctor':
       return doctorCommand(argv.slice(1));
     case 'init':
       return initCommand(argv.slice(1));
-    case 'manifest': {
-      const { toolDefs } = createRegistryOnly();
-      process.stdout.write(JSON.stringify(buildManifest(toolDefs, pkg), null, 2) + '\n');
+    case 'manifest':
+      process.stdout.write(JSON.stringify(buildManifest(createRegistryOnly(), pkg), null, 2) + '\n');
       return 0;
-    }
     case 'help':
       process.stdout.write(mainHelp(createRegistryOnly().toolDefs, pkg.version) + '\n');
       return 0;

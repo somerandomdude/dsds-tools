@@ -1,6 +1,6 @@
 {
   "name": "dsds-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Command-line interface for the Design System Documentation Spec (DSDS) — query, validate, and lint against DSDS documents from any terminal or agent.",
   "type": "module",
   "bin": {
@@ -30,7 +30,7 @@
     "directory": "packages/cli"
   },
   "dependencies": {
-    "dsds-mcp": "^0.3.0"
+    "dsds-mcp": "^0.4.0"
   },
   "devDependencies": {
     "vitest": "^2.0.0"
