@@ -47,7 +47,16 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
     getExportPaths: () => config.packageExportPaths,
     getPropsConfig: () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot }),
     feedbackDir: config.feedbackDir,
-    logsDir: config.logsDir,
+    // Handler-level telemetry (chunk fetches, lint passes) follows the same
+    // rule cli.js applies to its own tool-call log: only when logging was
+    // explicitly configured. `config.logsDir` always holds a path — it
+    // defaults to the dsds-mcp package's own logs/ — so passing it straight
+    // through made every CLI invocation write there, bypassing that gate.
+    // The existing "creates no logs directory" test missed it because it
+    // checks cwd, and the default writes somewhere else entirely. The visible
+    // symptom was the CLI test suite appending "Test Chunk" fixture records
+    // to the production usage log, 9% of its chunk telemetry for the day.
+    logsDir: config.logsDirExplicit ? config.logsDir : null,
     enableFeedback: config.enableFeedback,
   });
 

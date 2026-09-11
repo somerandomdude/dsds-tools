@@ -341,6 +341,38 @@ function renderPropRow(prop) {
  * the fingerprint-validated extractor cache (DEC-2). Never throws and never
  * fabricates a table from stale data — see prop-extractor-0.20.0.js.
  */
+/**
+ * Render the `alsoAccepts` line(s) for an API block.
+ *
+ * The extractor emits two shapes and they need different sentences:
+ *
+ *   "native <img> attributes"        a whole phrase, from a component that
+ *                                    forwards to a native element
+ *   "React.ComponentProps<'div'>"    a bare type name
+ *
+ * The old single template — `Also accepts native attributes from \`${...}\`` —
+ * was written for the type shape and read as "accepts native attributes from
+ * `native <dialog> attributes`" once the phrase shape appeared. Each shape
+ * now gets the sentence it fits, and the angle brackets stay inside code
+ * formatting either way so a markdown renderer cannot eat them as a tag.
+ */
+function renderAlsoAccepts(entries) {
+  const phrases = [];
+  const types = [];
+  for (const entry of entries) {
+    const text = String(entry);
+    if (/^native\s+<[^>]+>\s+attributes$/i.test(text)) {
+      phrases.push(text.replace(/<([^>]+)>/, '`<$1>`'));
+    } else {
+      types.push(`\`${text}\``);
+    }
+  }
+  const out = [];
+  if (phrases.length) out.push(`*Also accepts ${phrases.join(', ')}.*`, '');
+  if (types.length) out.push(`*Also accepts native attributes from ${types.join(', ')}.*`, '');
+  return out;
+}
+
 export function renderApi20(entity, lines, propsConfig) {
   const result = getApiForEntry(entity, propsConfig);
 
@@ -369,18 +401,29 @@ export function renderApi20(entity, lines, propsConfig) {
     case 'unverified':
     case 'fresh': {
       const props = result.props?.props ?? [];
-      if (!props.length) return;
+      const alsoAccepts = result.props?.alsoAccepts ?? [];
+      // Extraction succeeded. A component with no props of its own is a real
+      // answer, not a gap — List.ItemImage forwards everything to a native
+      // <img>. Returning silently here used to leave the caller with an empty
+      // block, which it labelled "No API data available for this entry", the
+      // same wording it uses when extraction genuinely failed. An agent then
+      // read a documented component as undocumented and went looking for
+      // props that do not exist.
+      if (!props.length && !alsoAccepts.length) return;
       lines.push('## API', '');
       if (result.status === 'unverified') {
         lines.push('> *Freshness not verified against source (`uiSourceRoot` not configured).*', '');
       }
-      lines.push('| Prop | Type | Required | Description |');
-      lines.push('|------|------|----------|-------------|');
-      for (const prop of props) lines.push(renderPropRow(prop));
-      lines.push('');
-      const alsoAccepts = result.props?.alsoAccepts ?? [];
+      if (props.length) {
+        lines.push('| Prop | Type | Required | Description |');
+        lines.push('|------|------|----------|-------------|');
+        for (const prop of props) lines.push(renderPropRow(prop));
+        lines.push('');
+      } else {
+        lines.push('This component has no props of its own.', '');
+      }
       if (alsoAccepts.length) {
-        lines.push(`*Also accepts native attributes from \`${alsoAccepts.join(', ')}\`.*`, '');
+        lines.push(...renderAlsoAccepts(alsoAccepts));
       }
       return;
     }

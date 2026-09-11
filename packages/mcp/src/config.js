@@ -202,6 +202,11 @@ export function loadConfig() {
     researchMode,
     feedbackDir: rawFeedbackDir ? expandHome(rawFeedbackDir.trim()) : resolve(__dirname, '../feedback'),
     logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
+    // Whether logging was actually asked for, as opposed to `logsDir` merely
+    // holding its default. The long-lived MCP server logs unconditionally and
+    // wants the default; a one-shot CLI must not, and neither must a test
+    // suite — see the gate in packages/cli/src/runtime.js.
+    logsDirExplicit: rawLogsDir != null,
     schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? BUNDLED_VERSION,
   };
 }
@@ -358,5 +363,7 @@ export async function resolveConfig({ cwd = process.cwd(), configPath = undefine
   for (const [key, value] of Object.entries(fileConfig)) {
     if (!envProvided[key]) merged[key] = value;
   }
+  // A config file naming `logsDir` is as explicit a request as the env var.
+  merged.logsDirExplicit = envProvided.logsDir || 'logsDir' in fileConfig;
   return { ...merged, meta };
 }

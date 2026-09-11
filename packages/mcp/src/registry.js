@@ -50,13 +50,49 @@ function validateArgs(toolDef, args) {
       return `Argument "${field}" must be a string, got ${typeof value}`;
     }
     if (prop.type === 'array' && !Array.isArray(value)) {
-      return `Argument "${field}" must be an array, got ${typeof value}`;
+      // A lone string where a list is expected is the single most common
+      // shape mistake agents make against these tools — every argument
+      // error in the 2026-09-10 usage log was this, all on
+      // dsds_lint_by_path's `files`. The intent is never ambiguous (one
+      // item), so accept it and wrap, rather than rejecting a call whose
+      // meaning is clear. The element shape comes from the schema, so this
+      // stays correct as tools are added:
+      //   items: string  -> ['x']
+      //   items: object  -> [{ <sole required key>: 'x' }]
+      // Anything else — a number, an object, an item schema with several
+      // required keys — is still a real error, because guessing there would
+      // be inventing data.
+      const coerced = coerceScalarToArray(value, prop);
+      if (coerced) {
+        args[field] = coerced;
+      } else {
+        return `Argument "${field}" must be an array, got ${typeof value}`;
+      }
     }
     if (prop.enum && !prop.enum.includes(value)) {
       return `Argument "${field}" must be one of: ${prop.enum.join(', ')}`;
     }
   }
 
+  return null;
+}
+
+/**
+ * Wrap a lone string in the one-element array its schema describes, or return
+ * null when the intent cannot be read off the schema.
+ *
+ * @param {unknown} value
+ * @param {{items?: {type?: string, required?: string[]}}} prop
+ * @returns {unknown[]|null}
+ */
+function coerceScalarToArray(value, prop) {
+  if (typeof value !== 'string') return null;
+  const items = prop.items ?? {};
+  if (items.type === 'string') return [value];
+  if (items.type === 'object') {
+    const required = items.required ?? [];
+    if (required.length === 1) return [{ [required[0]]: value }];
+  }
   return null;
 }
 

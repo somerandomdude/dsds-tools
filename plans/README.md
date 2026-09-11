@@ -9,6 +9,7 @@ honor its STOP conditions, and update its status when work changes.
 | --- | --- | --- | --- | --- | --- |
 | [004](004-local-model-evaluation.md) | Evaluate grounded local-model responses | P1 | M | Plan 003 / PR #1 | DONE — conditional smoke run after dependency rebase |
 | [005](005-local-authoring-demo.md) | Prove local docs-to-code authoring in a disposable sandbox | P1 | M | Plans 003 and 004 | TODO |
+| [006](006-spec-version-naming.md) | Settle how spec versions are named in `src/spec/` | P3 | XS–S | none | TODO |
 
 Status values: TODO, IN PROGRESS, DONE, BLOCKED, or REJECTED.
 
@@ -31,3 +32,6 @@ Status values: TODO, IN PROGRESS, DONE, BLOCKED, or REJECTED.
   to prove docs-to-code authoring.
 - Applying generated code to `dsdsds`: rejected for Plan 005; proposals remain
   isolated until deterministic checks and human review establish value.
+- Renaming the `src/spec/` modules: deferred to Plan 006. Nothing is broken —
+  the `-0.20.0` names describe the 0.20.x *model*, not a release — but three
+  naming conventions now coexist and the question reopens at every spec bump.
