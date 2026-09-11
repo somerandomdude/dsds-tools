@@ -24,7 +24,7 @@ import { writeLog } from './logger.js';
 import { createSurface } from './surface.js';
 import { createGraphGetter } from './graph.js';
 
-export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null) {
+export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null, researchMode = 'thorough') {
   // Lets get_entity and the intro prompt reach intro entities (they live
   // outside the queried systems), so the compact-index pointer in the
   // instructions resolves to real content on demand.
@@ -42,6 +42,7 @@ export function createServer(getSystems, getSummaries, introEntities = [], getLi
     logsDir,
     enableFeedback,
     introInline,
+    researchMode,
   });
 
   const server = new Server(

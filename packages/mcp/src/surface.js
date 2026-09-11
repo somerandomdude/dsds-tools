@@ -54,6 +54,7 @@ export function createSurface({
   logsDir = null,
   enableFeedback = true,
   introInline = true,
+  researchMode = 'thorough',
 }) {
   const { toolDefs, dispatch } = createToolRuntime({
     getSystems,
@@ -78,6 +79,6 @@ export function createSurface({
     listResources: () => listResources(getSummaries),
     readResource: uri => readResource(uri, getSystems),
     getInstructions: () =>
-      buildInstructions({ introEntities: getIntro(), enableFeedback, introInline }),
+      buildInstructions({ introEntities: getIntro(), enableFeedback, introInline, researchMode }),
   };
 }

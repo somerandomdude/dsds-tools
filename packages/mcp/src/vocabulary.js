@@ -40,6 +40,7 @@ export const CLI_EQUIVALENTS = {
   dsds_lint_inline: 'dsds lint --stdin',
   dsds_check_exports: 'dsds check-exports',
   dsds_build_component: 'dsds build',
+  dsds_style_check: 'dsds tool dsds_style_check',
   dsds_explain_error: 'dsds tool dsds_explain_error',
   dsds_list_skills: 'dsds tool dsds_list_skills',
   dsds_get_skill: 'dsds tool dsds_get_skill',
