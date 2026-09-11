@@ -25,6 +25,7 @@ export const CLI_EQUIVALENTS = {
   dsds_get_document_block: 'dsds get --block',
   dsds_get_agent_context: 'dsds context',
   dsds_get_chunk: 'dsds chunk',
+  dsds_get_examples: 'dsds examples',
   dsds_get_dependencies: 'dsds deps',
   dsds_get_dependents: 'dsds dependents',
   dsds_get_alternatives: 'dsds alternatives',

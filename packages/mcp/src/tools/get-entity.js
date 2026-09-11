@@ -3,6 +3,7 @@ import { notFoundMessage } from '../suggest.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
 import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
+import { ERROR_CODES, notFoundError, toolError } from '../errors.js';
 
 export const getEntityDef = {
   name: 'dsds_get_entity',
@@ -24,10 +25,11 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
   if (systems.length === 0 && introEntities.length === 0) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: noDocumentsConfiguredBrief() }],
-    };
+    return toolError({
+      code: ERROR_CODES.NOT_CONFIGURED,
+      text: noDocumentsConfiguredBrief(),
+      message: 'No DSDS files configured.',
+    });
   }
 
   const needle = identifier.toLowerCase();
@@ -51,18 +53,12 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   }
 
   if (!found) {
-    return {
-      isError: true,
-      content: [{
-        type: 'text',
-        text: notFoundMessage({
-          label: 'Entity',
-          input: identifier,
-          candidates: getSummaries().map(s => s.identifier),
-          listHint: '`dsds_list_entities`',
-        }),
-      }],
-    };
+    return notFoundError({
+      label: 'Entity',
+      input: identifier,
+      candidates: getSummaries().map(s => s.identifier),
+      listHint: '`dsds_list_entities`',
+    });
   }
 
   const lines = [

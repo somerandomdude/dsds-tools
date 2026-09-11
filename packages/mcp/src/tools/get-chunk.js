@@ -1,6 +1,7 @@
 import { writeLog } from '../logger.js';
 import { renderSections20, resolveFileRef20 } from '../spec/render-0.20.0.js';
 import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
+import { ERROR_CODES, notFoundError } from '../errors.js';
 
 const CHUNK_KINDS = ['chunk', 'blueprint', 'sanity.chunk'];
 
@@ -71,10 +72,13 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
       ? `\n\nAvailable chunks: ${allChunks.map(id => `\`${id}\``).join(', ')}`
       : '\n\nNo chunks found in the loaded design system.';
 
-    return {
-      isError: true,
-      content: [{ type: 'text', text: `Chunk \`${identifier}\` not found.${hint}` }],
-    };
+    return notFoundError({
+      label: 'Chunk',
+      input: identifier,
+      candidates: allChunks,
+      code: ERROR_CODES.UNKNOWN_CHUNK,
+      text: `Chunk \`${identifier}\` not found.${hint}`,
+    });
   }
 
   const lines = [

@@ -1,6 +1,8 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { didYouMean } from '../suggest.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
+import { nextCommandFor } from '../next-command.js';
+import { ERROR_CODES, describeSuggestions, toolError } from '../errors.js';
 
 export const searchEntitiesDef = {
   name: 'dsds_search_entities',
@@ -37,19 +39,30 @@ export const searchEntitiesDef = {
         type: 'integer',
         description: 'Maximum results to return. Omit for all matches.',
       },
+      summaries: {
+        type: 'boolean',
+        description:
+          'Include a one-line summary per result. Default false. Summaries are the single largest part of a result row, so leave this off when you are resolving a name and turn it on when you are deciding between candidates.',
+      },
     },
   },
 };
 
 export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   if (getSystems().length === 0) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: noDocumentsConfiguredBrief() }],
-    };
+    return toolError({
+      code: ERROR_CODES.NOT_CONFIGURED,
+      text: noDocumentsConfiguredBrief(),
+      message: 'No DSDS files configured.',
+    });
   }
 
   const { kind, status, tags, query, limit } = args ?? {};
+  // Default off, for the same reason as dsds_list_entities — see the note
+  // on `withSummaries` there. Search rows are fewer, so the saving is
+  // smaller in absolute terms, but the judgement is identical: the caller
+  // is usually resolving a name, and the next call carries the prose.
+  const withSummaries = args?.summaries === true;
   const all = getSummaries();
   let results = all;
 
@@ -103,11 +116,11 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   const lines = [
     heading,
     '',
-    '| Identifier | Kind | Status | Summary |',
-    '|------------|------|--------|---------|',
-    ...results.map(e =>
-      `| \`${e.identifier}\` | ${e.kind ?? '—'} | ${e.status ?? '—'} | ${truncate(e.summary ?? '', 80)} |`
-    ),
+    withSummaries ? '| Identifier | Kind | Status | Summary | Next |' : '| Identifier | Kind | Status | Next |',
+    withSummaries ? '|------------|------|--------|---------|------|' : '|------------|------|--------|------|',
+    ...results.map(e => (withSummaries
+      ? `| \`${e.identifier}\` | ${e.kind ?? '—'} | ${e.status ?? '—'} | ${truncate(e.summary ?? '', 80)} | ${nextCommandFor(e) ?? '—'} |`
+      : `| \`${e.identifier}\` | ${e.kind ?? '—'} | ${e.status ?? '—'} | ${nextCommandFor(e) ?? '—'} |`)),
   ];
   if (shown < total) lines.push('', `_${total - shown} more — raise \`limit\` to see them._`);
 
@@ -120,7 +133,7 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
       total,
       shown,
       filters: { kind, status, tags, query, limit },
-      entities: results.map(toStructured),
+      entities: results.map(e => toStructured(e, withSummaries)),
     },
   };
 }
@@ -159,14 +172,17 @@ function scoreEntity(entity, terms) {
   return score;
 }
 
-function toStructured(e) {
+function toStructured(e, withSummaries = false) {
   return {
     identifier: e.identifier,
     name: e.name,
     kind: e.kind ?? null,
     status: e.status ?? null,
-    summary: e.summary ?? null,
+    ...(withSummaries ? { summary: e.summary ?? null } : {}),
     tags: e.tags ?? [],
+    // The call that reads this row in full. See next-command.js — emitted
+    // canonically here; the CLI surface rewrites it to `dsds chunk <id>`.
+    next: nextCommandFor(e),
   };
 }
 
@@ -175,7 +191,13 @@ function unknownFilter(field, value, valid) {
   const lines = [`Unknown ${field} "${value}".`];
   if (suggestions.length > 0) lines.push('', `Did you mean: ${suggestions.map(s => `\`${s}\``).join(', ')}?`);
   lines.push('', `Available ${field}s: ${valid.map(v => `\`${v}\``).join(', ')}`);
-  return { isError: true, content: [{ type: 'text', text: lines.join('\n') }] };
+  return toolError({
+    code: ERROR_CODES.UNKNOWN_FILTER,
+    text: lines.join('\n'),
+    message: `Unknown ${field} "${value}".`,
+    suggestions: describeSuggestions(value, suggestions),
+    details: { field, input: value, valid },
+  });
 }
 
 // A dead end should say which part of the query killed it, and offer a way on.

@@ -1,22 +1,17 @@
 import { dependents, dependencies, alternatives, impact, integrity } from '../graph.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { notFoundMessage } from '../suggest.js';
+import { notFoundError } from '../errors.js';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function notFound(graph, identifier) {
-  return {
-    isError: true,
-    content: [{
-      type: 'text',
-      text: notFoundMessage({
-        label: 'Entity',
-        input: identifier,
-        candidates: graph.nodes.keys(),
-        listHint: '`dsds_list_entities`',
-      }),
-    }],
-  };
+  return notFoundError({
+    label: 'Entity',
+    input: identifier,
+    candidates: graph.nodes.keys(),
+    listHint: '`dsds_list_entities`',
+  });
 }
 
 function renderEdge(e) {

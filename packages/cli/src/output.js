@@ -51,7 +51,15 @@ export function printResult(result, { json = false, tool, code = null }) {
   if (json) {
     const envelope = { ok: exitCode === 0, tool, exitCode };
     if (result.isError) {
+      // `error` stays the rendered prose it has always been, so anything
+      // reading it keeps working. A tool that also classified its failure
+      // (see mcp/src/errors.js) gets that half surfaced beside it: a stable
+      // `code` and the suggestions the message already computed, as data.
+      // Matching on the message text was the only option before this, and
+      // the message is written to be read, not parsed.
       envelope.error = text;
+      const structuredError = result.structuredContent?.error;
+      if (structuredError?.code) envelope.errorDetail = structuredError;
     } else if (result.structuredContent) {
       // A tool that knows its own shape wins: `data` is the data, and the
       // rendered prose stays available as `text`. Before this every read

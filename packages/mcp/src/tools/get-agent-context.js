@@ -3,6 +3,7 @@ import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { notFoundMessage, entityIdentifiers } from '../suggest.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
 import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { notFoundError } from '../errors.js';
 
 export const getAgentContextDef = {
   name: 'dsds_get_agent_context',
@@ -204,15 +205,12 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   }
 
   if (!found) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: notFoundMessage({
-          label: 'Entity',
-          input: identifier,
-          candidates: entityIdentifiers(systems),
-          listHint: '`dsds_list_entities`',
-        }) }],
-    };
+    return notFoundError({
+      label: 'Entity',
+      input: identifier,
+      candidates: entityIdentifiers(systems),
+      listHint: '`dsds_list_entities`',
+    });
   }
 
   if (found.__dsds20) return renderAgentContext20(found, verbose, getGraph, propsConfig);

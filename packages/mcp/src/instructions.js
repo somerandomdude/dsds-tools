@@ -37,6 +37,7 @@ DESIGN SYSTEM TOOLS — for querying an existing DSDS document (requires DSDS_PA
 
 RELATIONSHIP GRAPH — typed dependency edges between entities (composes, depends-on, part-of, alternative-to, replaces, extends), with inverse edges derived automatically:
 - dsds_impact(identifier) — blast radius: what breaks if you change/remove this entity (direct + transitive dependents, required edges flagged). Start here before changing a shared token or component.
+- dsds_get_examples(identifier) — the worked examples that USE this entity, as an index: each one's name, what it demonstrates, and the call that fetches it. Browse here first, then pull the single chunk you want with dsds_get_chunk — reading every chunk for a component to find the relevant one costs far more than this listing.
 - dsds_get_dependents(identifier, { relation?, transitive? }) — what points AT this entity.
 - dsds_get_dependencies(identifier, { relation?, transitive? }) — what this entity needs / is built from.
 - dsds_get_alternatives(identifier) — interchangeable options and replacements; surfaces deprecations.

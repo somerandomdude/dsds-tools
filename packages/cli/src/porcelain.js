@@ -33,37 +33,45 @@ const pick = (values, ...names) => {
 export const PORCELAIN = {
   list: {
     summary: 'List entities in the loaded design system',
-    usage: 'dsds list [--kind <kind>] [--status <status>] [--limit <n>]',
+    usage: 'dsds list [--kind <kind>] [--status <status>] [--limit <n>] [--summaries]',
     options: {
       kind: { type: 'string', description: 'Filter by entity kind (component, chunk, pattern, token-group, …)' },
       status: { type: 'string', description: 'Filter by status (draft, experimental, stable, deprecated)' },
       limit: { type: 'string', description: 'Show at most this many entities per kind' },
+      summaries: { type: 'boolean', description: 'Add a one-line summary per entity (off by default — roughly triples the output)' },
     },
     positionals: { min: 0, max: 0 },
     build(pos, values) {
       const limit = parseLimit(values.limit);
       const filters = pick(values, 'kind', 'status');
+      const summaries = values.summaries ? { summaries: true } : {};
       if (Object.keys(filters).length > 0) {
-        return { tool: 'dsds_search_entities', args: { ...filters, ...(limit ? { limit } : {}) } };
+        return { tool: 'dsds_search_entities', args: { ...filters, ...summaries, ...(limit ? { limit } : {}) } };
       }
-      return { tool: 'dsds_list_entities', args: limit ? { limit } : {} };
+      return { tool: 'dsds_list_entities', args: { ...summaries, ...(limit ? { limit } : {}) } };
     },
   },
 
   search: {
     summary: 'Search entities by text query',
-    usage: 'dsds search <query> [--kind <kind>] [--status <status>] [--limit <n>]',
+    usage: 'dsds search <query> [--kind <kind>] [--status <status>] [--limit <n>] [--summaries]',
     options: {
       kind: { type: 'string', description: 'Filter by entity kind' },
       status: { type: 'string', description: 'Filter by status' },
       limit: { type: 'string', description: 'Show at most this many results' },
+      summaries: { type: 'boolean', description: 'Add a one-line summary per result (off by default)' },
     },
     positionals: { min: 1, max: 1, label: '<query>' },
     build([query], values) {
       const limit = parseLimit(values.limit);
       return {
         tool: 'dsds_search_entities',
-        args: { query, ...pick(values, 'kind', 'status'), ...(limit ? { limit } : {}) },
+        args: {
+          query,
+          ...pick(values, 'kind', 'status'),
+          ...(values.summaries ? { summaries: true } : {}),
+          ...(limit ? { limit } : {}),
+        },
       };
     },
   },
@@ -97,6 +105,13 @@ export const PORCELAIN = {
     usage: 'dsds chunk <identifier>',
     positionals: { min: 1, max: 1, label: '<identifier>' },
     build: ([identifier]) => ({ tool: 'dsds_get_chunk', args: { identifier } }),
+  },
+
+  examples: {
+    summary: 'Worked examples that use an entity — an index, not their code',
+    usage: 'dsds examples <identifier>',
+    positionals: { min: 1, max: 1, label: '<identifier>' },
+    build: ([identifier]) => ({ tool: 'dsds_get_examples', args: { identifier } }),
   },
 
   build: {

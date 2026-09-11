@@ -19,6 +19,7 @@ import { getDocumentBlockDef, getDocumentBlockHandler } from './tools/get-docume
 import { getAgentContextDef, getAgentContextHandler } from './tools/get-agent-context.js';
 import { lintByPathDef, lintByPathHandler, lintInlineDef, lintInlineHandler } from './tools/lint-code.js';
 import { getChunkDef, getChunkHandler } from './tools/get-chunk.js';
+import { getExamplesDef, getExamplesHandler } from './tools/get-examples.js';
 import { feedbackDef, feedbackHandler } from './tools/feedback.js';
 import { checkExportsDef, checkExportsHandler } from './tools/check-exports.js';
 import { explainErrorDef, explainErrorHandler } from './tools/explain-error.js';
@@ -150,6 +151,7 @@ export function createToolRuntime({
     getDocumentBlockDef,
     getAgentContextDef,
     getChunkDef,
+    getExamplesDef,
     getDependentsDef,
     getDependenciesDef,
     getAlternativesDef,
@@ -191,6 +193,7 @@ export function createToolRuntime({
         case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
         case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
+        case 'dsds_get_examples':         return getExamplesHandler(args, getGraph, getSummaries);
         case 'dsds_get_dependents':       return getDependentsHandler(args, getGraph);
         case 'dsds_get_dependencies':     return getDependenciesHandler(args, getGraph);
         case 'dsds_get_alternatives':     return getAlternativesHandler(args, getGraph);

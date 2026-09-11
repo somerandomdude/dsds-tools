@@ -7,8 +7,8 @@ import { runCli, VALID_SYSTEM } from './helpers.js';
 const withSystem = { env: { DSDS_PATHS: VALID_SYSTEM } };
 
 describe('discovery', () => {
-  it('fills in the summary column from a 0.20.0 description', async () => {
-    const { code, stdout } = await runCli(['list'], withSystem);
+  it('fills in the summary column from a 0.20.0 description, when asked for one', async () => {
+    const { code, stdout } = await runCli(['list', '--summaries'], withSystem);
     expect(code).toBe(0);
     const rows = stdout.split('\n').filter(l => /^\| `/.test(l));
     expect(rows.length).toBeGreaterThan(0);
@@ -18,6 +18,44 @@ describe('discovery', () => {
       const summary = row.split('|')[3]?.trim();
       expect(summary, `no summary on: ${row}`).toBeTruthy();
     }
+  });
+
+  // The fallback above made every one of those cells expensive rather than
+  // empty: on the 199-entity corpus it took `dsds list` from 6,752 to 17,788
+  // characters. The content is right; paying for it on every list is not.
+  it('omits summaries by default, and says so in the table shape', async () => {
+    const { code, stdout } = await runCli(['list'], withSystem);
+    expect(code).toBe(0);
+    expect(stdout).toContain('| Identifier | Status |');
+    expect(stdout).not.toContain('| Identifier | Status | Summary |');
+    const rows = stdout.split('\n').filter(l => /^\| `/.test(l));
+    expect(rows.length).toBeGreaterThan(0);
+    // Two columns means three pipe-delimited parts, no third cell.
+    for (const row of rows) {
+      expect(row.split('|').length, `unexpected column count: ${row}`).toBe(4);
+    }
+  });
+
+  it('default list is materially smaller than the --summaries one', async () => {
+    const bare = await runCli(['list'], withSystem);
+    const full = await runCli(['list', '--summaries'], withSystem);
+    expect(bare.stdout.length).toBeLessThan(full.stdout.length);
+  });
+
+  it('search omits summaries by default too, keeping the next-call column', async () => {
+    const { code, stdout } = await runCli(['search', 'test button'], withSystem);
+    expect(code).toBe(0);
+    expect(stdout).toContain('| Identifier | Kind | Status | Next |');
+    expect(stdout).not.toContain('| Summary |');
+  });
+
+  it('keeps summaries out of the JSON half as well, so nothing re-adds them', async () => {
+    const bare = await runCli(['list', '--json'], withSystem);
+    const full = await runCli(['list', '--summaries', '--json'], withSystem);
+    const b = JSON.parse(bare.stdout).data.entities[0];
+    const f = JSON.parse(full.stdout).data.entities[0];
+    expect(b).not.toHaveProperty('summary');
+    expect(f).toHaveProperty('summary');
   });
 
   it('matches a multi-word query, in any field order', async () => {
