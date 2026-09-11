@@ -14,6 +14,7 @@
 
 import { parseArgs } from 'node:util';
 import { createRuntime } from './runtime.js';
+import { renderText } from './output.js';
 
 const RESOURCE_PREFIX = 'dsds://entity/';
 
@@ -115,7 +116,7 @@ export async function runPrompt(argv) {
     });
   }
 
-  const text = rendered.messages.map(m => m.content?.text ?? '').join('\n\n');
+  const text = renderText(rendered.messages.map(m => m.content?.text ?? '').join('\n\n'));
   return printPayload({ command: 'prompt', json: values.json, text });
 }
 
@@ -228,7 +229,7 @@ export async function runInstructions(argv) {
   }
 
   const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config });
-  return printPayload({ command: 'instructions', json: values.json, text: surface.getInstructions() });
+  return printPayload({ command: 'instructions', json: values.json, text: renderText(surface.getInstructions()) });
 }
 
 // ── Shared metadata ───────────────────────────────────────────────────────────

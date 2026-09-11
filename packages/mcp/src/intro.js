@@ -9,6 +9,8 @@
 // Lifted verbatim out of server.js so the CLI can reach it without importing
 // the MCP transport.
 
+import { entitySummary } from './loader.js';
+
 /**
  * Render a DSDS entity to a markdown string suitable for agent instructions.
  * Handles section, steps, guideline, and purpose document blocks.
@@ -137,16 +139,9 @@ export function renderIntroIndex(entities) {
   return lines.join('\n');
 }
 
+// Same fallback chain the entity summaries use, at the index's line length.
 export function introSummary(entity) {
-  let s = '';
-  if (Array.isArray(entity.metadata)) {
-    const d = entity.metadata.find(m => m.kind === 'description');
-    if (d?.value) s = d.value;
-  }
-  if (!s && typeof entity.description === 'string') s = entity.description;
-  if (!s && entity.agents?.intent) s = entity.agents.intent;
-  s = (s || '').split('\n')[0].trim();
-  return s.length > 140 ? s.slice(0, 139) + '…' : s;
+  return entitySummary(entity, { maxLength: 140 }) ?? '';
 }
 
 /**

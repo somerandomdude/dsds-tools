@@ -33,31 +33,39 @@ const pick = (values, ...names) => {
 export const PORCELAIN = {
   list: {
     summary: 'List entities in the loaded design system',
-    usage: 'dsds list [--kind <kind>] [--status <status>]',
+    usage: 'dsds list [--kind <kind>] [--status <status>] [--limit <n>]',
     options: {
       kind: { type: 'string', description: 'Filter by entity kind (component, chunk, pattern, token-group, …)' },
       status: { type: 'string', description: 'Filter by status (draft, experimental, stable, deprecated)' },
+      limit: { type: 'string', description: 'Show at most this many entities per kind' },
     },
     positionals: { min: 0, max: 0 },
     build(pos, values) {
+      const limit = parseLimit(values.limit);
       const filters = pick(values, 'kind', 'status');
-      if (Object.keys(filters).length > 0) return { tool: 'dsds_search_entities', args: filters };
-      return { tool: 'dsds_list_entities', args: {} };
+      if (Object.keys(filters).length > 0) {
+        return { tool: 'dsds_search_entities', args: { ...filters, ...(limit ? { limit } : {}) } };
+      }
+      return { tool: 'dsds_list_entities', args: limit ? { limit } : {} };
     },
   },
 
   search: {
     summary: 'Search entities by text query',
-    usage: 'dsds search <query> [--kind <kind>] [--status <status>]',
+    usage: 'dsds search <query> [--kind <kind>] [--status <status>] [--limit <n>]',
     options: {
       kind: { type: 'string', description: 'Filter by entity kind' },
       status: { type: 'string', description: 'Filter by status' },
+      limit: { type: 'string', description: 'Show at most this many results' },
     },
     positionals: { min: 1, max: 1, label: '<query>' },
-    build: ([query], values) => ({
-      tool: 'dsds_search_entities',
-      args: { query, ...pick(values, 'kind', 'status') },
-    }),
+    build([query], values) {
+      const limit = parseLimit(values.limit);
+      return {
+        tool: 'dsds_search_entities',
+        args: { query, ...pick(values, 'kind', 'status'), ...(limit ? { limit } : {}) },
+      };
+    },
   },
 
   get: {
@@ -255,14 +263,24 @@ export const PORCELAIN = {
 
   lint: {
     summary: 'Lint files (or stdin) against the configured design system ESLint plugins',
-    usage: 'dsds lint <path…> [--apply] | dsds lint --stdin [--filename <name>]',
+    usage: 'dsds lint <path…> [--apply [--dry-run]] | dsds lint --stdin [--filename <name>]',
     options: {
       stdin: { type: 'boolean', description: 'Lint code piped on stdin instead of files' },
       filename: { type: 'string', description: 'Filename for parser inference in --stdin mode (e.g. App.tsx)' },
-      apply: { type: 'boolean', description: 'Write auto-fixed code back to disk (path mode only) — for CI/harness gates' },
+      apply: {
+        type: 'boolean',
+        description: 'OVERWRITES the files in place with auto-fixed code (path mode only). Preview with --dry-run first',
+      },
+      'dry-run': {
+        type: 'boolean',
+        description: 'With --apply, report what would be rewritten without touching any file',
+      },
     },
     positionals: { min: 0, max: Infinity, label: '<path…>' },
     async build(paths, values) {
+      if (values['dry-run'] && !values.apply) {
+        throw new UsageError('--dry-run only means something with --apply (linting never writes on its own)');
+      }
       if (values.stdin) {
         if (values.apply) throw new UsageError('--apply requires path mode (stdin has no file to write back to)');
         const code = await readStdin();
@@ -277,7 +295,12 @@ export const PORCELAIN = {
       }
       return {
         tool: 'dsds_lint_by_path',
-        args: { files: paths.map(path => ({ path })), ...(values.apply ? { apply: true } : {}) },
+        args: {
+          files: paths.map(path => ({ path })),
+          // --dry-run runs the fixer but keeps `apply` off, so the report
+          // shows what would change and nothing is written.
+          ...(values.apply && !values['dry-run'] ? { apply: true } : {}),
+        },
       };
     },
     // isError = environment problems (no plugins, eslint missing) → 1.
@@ -309,4 +332,12 @@ export function porcelainHelp(name, spec) {
   }
   lines.push('', `Exit codes: 0 success · 1 error${spec.exitCode ? ' · 2 ran but found problems' : ''}`);
   return lines.join('\n');
+}
+
+// --limit arrives as a string from parseArgs; the tools want a number.
+function parseLimit(raw) {
+  if (raw === undefined) return undefined;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isInteger(n) || n < 1) throw new UsageError(`--limit expects a positive integer, got "${raw}"`);
+  return n;
 }

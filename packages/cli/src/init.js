@@ -118,7 +118,7 @@ export function buildAgentsStanza({ binPath = process.argv[1] } = {}) {
     'These reach the capabilities an MCP client would get on connect, so a shell-only agent is not working with less:',
     ...surfaceCommands,
     '',
-    'Every command accepts `--json` (envelope `{ok, tool, exitCode, data|error}`; the three commands above use a `command` key instead of `tool`). Exit codes: `0` success · `1` error · `2` ran but found problems (lint, validate, doctor). Full machine-readable surface: `dsds manifest`. Setup diagnosis: `dsds doctor`.',
+    'Every command accepts `--json` (envelope `{ok, tool, exitCode, data|error}`; the three commands above use a `command` key instead of `tool`). For `list`, `search` and `lint`, `data` is structured data you can pipe into `jq` and the rendered text moves to `text`. Exit codes: `0` success · `1` error · `2` ran but found problems (lint, validate, doctor). Full surface: `dsds manifest --compact`. Setup diagnosis: `dsds doctor`.',
     MARK_END,
   ].join('\n');
 }

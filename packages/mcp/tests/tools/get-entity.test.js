@@ -42,6 +42,16 @@ describe('getEntityHandler', () => {
     const result = await getEntityHandler({ identifier: 'nonexistent' }, ...makeGetters(systems));
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('not found');
+    // Points at the listing rather than inlining every identifier: on a real
+    // corpus that was 199 of them on one line.
+    expect(result.content[0].text).toContain('dsds_list_entities');
+  });
+
+  it('suggests a near miss instead of dumping the whole catalog', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+    const result = await getEntityHandler({ identifier: 'buton' }, ...makeGetters(systems));
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Did you mean');
     expect(result.content[0].text).toContain('button');
   });
 

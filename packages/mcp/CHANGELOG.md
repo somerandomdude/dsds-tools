@@ -7,6 +7,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **`src/vocabulary.js`** — `toCliVocabulary(text)` renders the core's
+  canonical prose for a shell: tool names become the equivalent `dsds`
+  commands, call expressions become runnable invocations, and phrases that
+  assume an MCP client are rewritten. MCP keeps the canonical text; only the
+  CLI translates, so handlers stay transport-agnostic and a new porcelain
+  command costs one line in `CLI_EQUIVALENTS`.
+- **`src/setup-guidance.js`** — the "nothing is loaded" copy for both
+  surfaces. The two answers genuinely differ (edit a client config vs. run
+  `dsds init`), so this is a whole-block swap rather than vocabulary.
+- **`src/suggest.js`** — `didYouMean` / `notFoundMessage`, a capped
+  Damerau-Levenshtein matcher. Adjacent transposition counts as one edit,
+  which plain Levenshtein scores as two: "crad" would not have suggested
+  "card".
+- `dsds_list_entities` and `dsds_search_entities` accept `limit` and return
+  `structuredContent`, so a caller can consume the entity list as data
+  instead of parsing a markdown table.
 - **`src/surface.js` — the whole surface in one object.** `createSurface()`
   returns every capability group this server advertises: `toolDefs` /
   `dispatch`, `listPrompts` / `getPrompt`, `listResources` / `readResource`,
@@ -37,6 +53,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is unchanged.
 
 ### Fixed
+- **Entity summaries were empty on every real 0.20.0 document.**
+  `summarizeEntities` resolved `metadata.summary` only, but 0.20.0 keeps the
+  one-liner in the entity's top-level `description` — so `dsds_list_entities`
+  returned 199 blank summary cells against the Sanity UI corpus, and
+  `dsds_search_entities`, which searches that same field, could only match
+  identifiers and names. `entitySummary()` now falls back through
+  `metadata.summary` → `metadata.description` → `description` → `purpose` →
+  `agents.intent`; `intro.js` shares it instead of keeping its own copy.
+- **Multi-word searches always returned nothing.** The query was one
+  substring match against the whole string, so "primary button" matched no
+  entity whose text did not contain that exact phrase. Terms are tokenized
+  and ANDed, tags and kind joined the index, and results are ranked.
+- An entity with no `kind` was listed under the heading "Undefineds".
+- A `dsds_get_document_block` miss listed available blocks with duplicates
+  (one per section sharing a kind) and omitted `api`, which the server's own
+  HARD RULE tells agents to request.
 - **`resources/read` no longer throws on a 0.20.0 entity.** The loader
   annotates each entity in place with `__sharedEntries` — the base document's
   `shared[]` pool, whose own entries carry the same pool — so the entity is a

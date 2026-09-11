@@ -30,10 +30,12 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
     loadIntroEntities(config.introPaths),
   ]);
 
+  // Only real problems are reported here. "No paths configured" used to warn
+  // on stderr as well, which meant a spec command that needs no configuration
+  // nagged about it, and a command that does need it printed the complaint
+  // twice — once here and once as the handler's setup guidance, which is the
+  // one that actually tells you what to do.
   if (!quiet) {
-    if (config.paths.length === 0) {
-      process.stderr.write('dsds: DSDS_PATHS not set — design system tools unavailable (spec tools still work)\n');
-    }
     for (const { path, error } of errors) {
       process.stderr.write(`dsds: failed to load ${path}: ${error}\n`);
     }

@@ -15,8 +15,11 @@ import { SURFACE_COMMANDS } from './surface-commands.js';
 /**
  * @param {{toolDefs: Array, listPrompts: () => Array}} surface
  * @param {object} pkg - the CLI package.json
+ * @param {{compact?: boolean}} [options] - compact drops the tool input
+ *   schemas, which are most of the payload's ~38KB; an agent that only needs
+ *   to know what exists should not have to spend that.
  */
-export function buildManifest(surface, pkg) {
+export function buildManifest(surface, pkg, { compact = false } = {}) {
   return {
     name: 'dsds',
     package: pkg.name,
@@ -25,7 +28,8 @@ export function buildManifest(surface, pkg) {
     description: pkg.description,
     output: {
       default: 'human-readable text on stdout',
-      json: 'pass --json for a {ok, tool, exitCode, data|error} envelope on stdout (lint adds a structured findings mirror)',
+      json:
+        'pass --json for a {ok, tool, exitCode, data|error} envelope on stdout. When the tool emits structured data (list, search, lint) `data` is that data and the rendered prose moves to `text`; otherwise `data` is the text.',
       jsonSurfaceCommands:
         'prompt, resource, and instructions return {ok, command, exitCode, data|error} — no tool ran, so the tool key is a command key',
       stderr: 'diagnostics only — stdout is always pipe-safe',
@@ -73,7 +77,16 @@ export function buildManifest(surface, pkg) {
         description:
           'Invoke any registered tool, including the wizards. Flat scalar inputs as flags; everything else as JSON.',
       },
-      { name: 'manifest', usage: 'dsds manifest', description: 'This payload.' },
+      {
+        name: 'manifest',
+        usage: 'dsds manifest [--compact]',
+        description: 'This payload. --compact drops tool input schemas.',
+      },
+      {
+        name: 'completion',
+        usage: 'dsds completion <bash|zsh|fish>',
+        description: 'Shell completion script; completes commands, flags, and entity identifiers.',
+      },
       { name: 'help', usage: 'dsds help', description: 'Usage. `dsds tool <tool-name> --help` shows per-tool inputs.' },
     ],
     configFile: {
@@ -100,9 +113,10 @@ export function buildManifest(surface, pkg) {
     },
     tools: surface.toolDefs.map(d => ({
       name: d.name,
-      description: d.description,
-      inputSchema: d.inputSchema,
+      description: compact ? firstSentence(d.description) : d.description,
+      ...(compact ? {} : { inputSchema: d.inputSchema }),
     })),
+    ...(compact ? { note: 'Compact form — run `dsds manifest` for tool input schemas.' } : {}),
     prompts: surface.listPrompts().map(p => ({
       name: p.name,
       description: p.description,
@@ -116,4 +130,10 @@ export function buildManifest(surface, pkg) {
       read: 'dsds resource <uri|identifier>',
     },
   };
+}
+
+function firstSentence(description = '') {
+  const text = description.trim();
+  const end = text.search(/\.\s/);
+  return end === -1 ? text : text.slice(0, end + 1);
 }

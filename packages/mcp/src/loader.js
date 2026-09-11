@@ -314,11 +314,52 @@ export function summarizeEntities(systems) {
       name: entity.name ?? entity.identifier,
       kind: entity.kind,
       status: resolveMetaStatus(entity.metadata),
-      summary: resolveMetaSummary(entity.metadata),
+      summary: entitySummary(entity),
       tags: resolveMetaTags(entity.metadata),
       filePath: system.filePath,
     }))
   );
+}
+
+/**
+ * The one-line description of an entity, wherever the document keeps it.
+ *
+ * `metadata.summary` is the legacy home. Real 0.20.0 documents put it in the
+ * entity's top-level `description` — which is why every summary in a 0.20.0
+ * corpus came back empty before this fallback existed: the Sanity UI
+ * document has a good description on all 199 entities and `dsds list`
+ * rendered 199 blank cells. Search reads this field too, so an empty summary
+ * also meant no entity was findable by what it does, only by its name.
+ *
+ * @param {object} entity
+ * @param {{maxLength?: number}} [options]
+ * @returns {string|undefined}
+ */
+export function entitySummary(entity, { maxLength = 160 } = {}) {
+  if (!entity) return undefined;
+
+  const candidate =
+    resolveMetaSummary(entity.metadata) ??
+    resolveMetaDescription(entity.metadata) ??
+    (typeof entity.description === 'string' ? entity.description : undefined) ??
+    (typeof entity.purpose === 'string' ? entity.purpose : undefined) ??
+    entity.agents?.intent;
+
+  if (typeof candidate !== 'string') return undefined;
+
+  const firstLine = candidate.split('\n')[0].trim();
+  if (!firstLine) return undefined;
+  return firstLine.length > maxLength ? `${firstLine.slice(0, maxLength - 1)}…` : firstLine;
+}
+
+function resolveMetaDescription(metadata) {
+  if (!metadata) return undefined;
+  if (Array.isArray(metadata)) {
+    return metadata.find(m => m.kind === 'description')?.value ?? undefined;
+  }
+  const d = metadata.description;
+  if (!d) return undefined;
+  return typeof d === 'string' ? d : d.value ?? undefined;
 }
 
 // Handles both v0.2.2 array format and legacy object format

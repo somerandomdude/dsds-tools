@@ -177,8 +177,13 @@ describe('dsds instructions', () => {
     const { code, stdout } = await runCli(['instructions'], withSystem);
     expect(code).toBe(0);
     expect(stdout).toContain('Design System Documentation Spec');
-    expect(stdout).toContain('dsds_get_agent_context');
-    expect(stdout).toContain('dsds_context_brief');
+    // Rendered in CLI vocabulary: an MCP tool name here would name something
+    // a shell user cannot invoke.
+    expect(stdout).toContain('dsds context');
+    expect(stdout).toContain('dsds brief');
+    // The only tool names left are the ones with no porcelain, and those are
+    // shown as the `dsds tool …` invocation that actually runs them.
+    expect(stdout).not.toMatch(/(?<!dsds tool )dsds_[a-z_]+/);
   });
 
   it('appends the configured intro documents', async () => {

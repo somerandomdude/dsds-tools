@@ -1,4 +1,6 @@
 import { getUpdateNotice } from '../spec/version.js';
+import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
+import { notFoundMessage, entityIdentifiers } from '../suggest.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
 import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
 
@@ -187,7 +189,7 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   if (systems.length === 0) {
     return {
       isError: true,
-      content: [{ type: 'text', text: 'No DSDS files configured. Set the `DSDS_PATHS` environment variable.' }],
+      content: [{ type: 'text', text: noDocumentsConfiguredBrief() }],
     };
   }
 
@@ -204,7 +206,12 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   if (!found) {
     return {
       isError: true,
-      content: [{ type: 'text', text: `Entity "${identifier}" not found. Use dsds_list_entities to see available identifiers.` }],
+      content: [{ type: 'text', text: notFoundMessage({
+          label: 'Entity',
+          input: identifier,
+          candidates: entityIdentifiers(systems),
+          listHint: '`dsds_list_entities`',
+        }) }],
     };
   }
 

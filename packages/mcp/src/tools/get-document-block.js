@@ -1,4 +1,6 @@
 import { getUpdateNotice } from '../spec/version.js';
+import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
+import { notFoundMessage, entityIdentifiers, didYouMean } from '../suggest.js';
 import { renderApi20 } from '../spec/render-0.20.0.js';
 
 export const getDocumentBlockDef = {
@@ -26,7 +28,7 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
   if (systems.length === 0) {
     return {
       isError: true,
-      content: [{ type: 'text', text: 'No DSDS files configured. Set the `DSDS_PATHS` environment variable.' }],
+      content: [{ type: 'text', text: noDocumentsConfiguredBrief() }],
     };
   }
 
@@ -43,7 +45,12 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
   if (!found) {
     return {
       isError: true,
-      content: [{ type: 'text', text: `Entity "${identifier}" not found. Use dsds_list_entities to see available identifiers.` }],
+      content: [{ type: 'text', text: notFoundMessage({
+          label: 'Entity',
+          input: identifier,
+          candidates: entityIdentifiers(systems),
+          listHint: '`dsds_list_entities`',
+        }) }],
     };
   }
 
@@ -77,20 +84,36 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
       block = found.sections?.find(b => b.kind === blockType) ??
         found.sections?.find(b => b.title?.toLowerCase() === blockNeedle);
     }
-    available = [
-      ...(found.sections ?? []).map(b => `\`${b.kind}${b.title ? `:${b.title}` : ''}\``),
-      ...TOP_LEVEL_FIELDS.filter(f => found[f]?.length).map(f => `\`${f}\``),
-    ].join(', ');
+    // Every name that actually resolves, each listed once. This used to
+    // print one entry per section — so a component with four `guidelines`
+    // sections advertised `guidelines` four times — while omitting `api`,
+    // which is handled above and is the name the instructions tell agents
+    // to ask for.
+    available = unique([
+      'api',
+      ...(found.sections ?? []).map(b => b.kind),
+      ...(found.sections ?? []).map(b => b.title).filter(Boolean),
+      ...TOP_LEVEL_FIELDS.filter(f => found[f]?.length),
+    ]);
   } else {
     block = found.documentBlocks?.find(b => b.kind === blockType);
-    available = (found.documentBlocks ?? []).map(b => `\`${b.kind}\``).join(', ');
+    available = unique((found.documentBlocks ?? []).map(b => b.kind));
   }
 
   if (!block) {
-    const msg = available
-      ? `Entity "${found.identifier}" has no "${blockType}" section/block. Available: ${available}`
-      : `Entity "${found.identifier}" has no sections or document blocks defined.`;
-    return { isError: true, content: [{ type: 'text', text: msg }] };
+    if (available.length === 0) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Entity "${found.identifier}" has no sections or document blocks defined.` }],
+      };
+    }
+    const suggestions = didYouMean(blockType, available);
+    const lines = [`Entity "${found.identifier}" has no "${blockType}" section or block.`];
+    if (suggestions.length > 0) {
+      lines.push('', `Did you mean: ${suggestions.map(s => `\`${s}\``).join(', ')}?`);
+    }
+    lines.push('', `Available: ${available.map(a => `\`${a}\``).join(', ')}`);
+    return { isError: true, content: [{ type: 'text', text: lines.join('\n') }] };
   }
 
   const lines = [
@@ -105,4 +128,8 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
   if (notice) lines.push(notice);
 
   return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
 }
