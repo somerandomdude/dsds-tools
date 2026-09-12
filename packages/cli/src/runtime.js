@@ -13,7 +13,7 @@ import { loadSystems, summarizeEntities, loadIntroEntities } from 'dsds-mcp/src/
 import { createGraphGetter } from 'dsds-mcp/src/graph.js';
 import { createSurface } from 'dsds-mcp/src/surface.js';
 
-export async function createRuntime({ quiet = false, configPath = null } = {}) {
+export async function createRuntime({ quiet = false, configPath = null, outputFormat = null } = {}) {
   // Env vars > dsds.config.{mjs,js,json} (discovered from cwd upward, or via
   // --config / DSDS_CONFIG) > defaults.
   // Pass `undefined` (not null) when no --config flag was given, so
@@ -65,6 +65,9 @@ export async function createRuntime({ quiet = false, configPath = null } = {}) {
     logsDir: config.logsDirExplicit ? config.logsDir : null,
     enableFeedback: config.enableFeedback,
     introInline: config.introInline,
+    // --format wins over config/env for this one invocation; anything
+    // else falls back to what the config resolved.
+    outputFormat: outputFormat ?? config.outputFormat,
   });
 
   return { config, surface, toolDefs: surface.toolDefs, dispatch: surface.dispatch };

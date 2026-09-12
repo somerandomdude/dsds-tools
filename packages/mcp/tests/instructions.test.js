@@ -3,6 +3,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildInstructions, BASE_INSTRUCTIONS, FEEDBACK_INSTRUCTION } from '../src/instructions.js';
+import { MCP_SCHEMA_POINTER } from '../src/setup-guidance.js';
+import { toCliVocabulary } from '../src/vocabulary.js';
 import { BUNDLED_VERSION } from '../src/spec/version.js';
 
 const introEntity = {
@@ -29,13 +31,26 @@ describe('buildInstructions', () => {
   it('omits the feedback reminder when the feedback tool is disabled', () => {
     const text = buildInstructions({ enableFeedback: false });
     expect(text).not.toContain(FEEDBACK_INSTRUCTION);
-    expect(text).toBe(BASE_INSTRUCTIONS);
+    expect(text).toBe(`${BASE_INSTRUCTIONS}\n\n${MCP_SCHEMA_POINTER}`);
   });
 
   it('appends nothing when there are no intro entities', () => {
     expect(buildInstructions({ introEntities: [] })).toBe(
-      `${BASE_INSTRUCTIONS}\n\n${FEEDBACK_INSTRUCTION}`
+      `${BASE_INSTRUCTIONS}\n\n${MCP_SCHEMA_POINTER}\n\n${FEEDBACK_INSTRUCTION}`
     );
+  });
+
+  // The CLI cannot publish input schemas through one generic tool, so the
+  // pointer is swapped per surface: MCP says "your client already has
+  // them", the CLI names `dsds manifest --compact`.
+  it('tells an MCP client its schemas are already present', () => {
+    expect(buildInstructions({})).toContain(MCP_SCHEMA_POINTER);
+    expect(buildInstructions({})).not.toContain('dsds manifest');
+  });
+
+  it('the CLI surface gets the manifest pointer instead', () => {
+    expect(toCliVocabulary(buildInstructions({}))).toContain('dsds manifest --compact');
+    expect(toCliVocabulary(buildInstructions({}))).not.toContain(MCP_SCHEMA_POINTER);
   });
 
   it('inlines intro entities in full by default', () => {

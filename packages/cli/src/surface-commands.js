@@ -23,6 +23,9 @@ const BASE_OPTIONS = {
   config: { type: 'string' },
   quiet: { type: 'boolean' },
   help: { type: 'boolean' },
+  // --format is global (see flags.js); this module keeps its own option
+  // table, so it has to be declared here too or parseArgs rejects it.
+  format: { type: 'string' },
 };
 
 // {ok, command, exitCode, data|error} — the tool envelope's shape with the
@@ -87,7 +90,7 @@ export async function runPrompt(argv) {
 
   // Listing needs the intro documents (the intro prompt is conditional on
   // them), so both paths load the full surface.
-  const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config });
+  const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config, outputFormat: normFormat(values.format) });
   const prompts = surface.listPrompts();
 
   if (!name) {
@@ -149,7 +152,7 @@ export async function runResource(argv) {
     return 1;
   }
 
-  const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config });
+  const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config, outputFormat: normFormat(values.format) });
   const target = positionals[0];
 
   if (!target) {
@@ -228,7 +231,7 @@ export async function runInstructions(argv) {
     return 1;
   }
 
-  const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config });
+  const { surface } = await createRuntime({ quiet: values.quiet, configPath: values.config, outputFormat: normFormat(values.format) });
   return printPayload({ command: 'instructions', json: values.json, text: renderText(surface.getInstructions()) });
 }
 
@@ -249,3 +252,12 @@ export const SURFACE_COMMANDS = {
     summary: 'The agent instructions an MCP client receives on connect',
   },
 };
+
+// `--format` is a global flag; surface commands parse their own option set,
+// so it has to be accepted here too or `dsds instructions --format toon`
+// dies on an unknown option before it reaches the runtime.
+function normFormat(value) {
+  if (value === undefined || value === null) return null;
+  const v = String(value).trim().toLowerCase();
+  return v === 'toon' || v === 'markdown' ? v : null;
+}

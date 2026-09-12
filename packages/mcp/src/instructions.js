@@ -7,6 +7,7 @@
 
 import { BUNDLED_VERSION } from './spec/version.js';
 import { renderIntroBlock } from './intro.js';
+import { MCP_SCHEMA_POINTER } from './setup-guidance.js';
 
 export const BASE_INSTRUCTIONS = `
 DSDS MCP — Design System Documentation Spec v${BUNDLED_VERSION}
@@ -104,13 +105,28 @@ const RESEARCH_BUDGET =
   'and start emitting files. An unwritten file is worth less than a perfectly researched one.\n' +
   '- Batch your thinking, not your calls: decide everything you need to know, then fetch it.';
 
+// Tables are emitted as TOON when the server is configured for it. TOON is
+// newer than most training data, so the format is explained rather than
+// assumed — ~50 tokens, once, inside the cached prefix, against a saving
+// that recurs on every table.
+const TOON_LEGEND = `
+TABLE FORMAT — tables in these responses are TOON, not Markdown. A header line
+\`name[N]{field1,field2}:\` declares the row count and the field names once, and
+each following indented line is one row with comma-separated values in that
+same field order. A value containing a comma or quote is double-quoted; an em
+dash means the field is empty. Read \`props[9]{prop,type,required,description}:\`
+as a nine-row table with those four columns.`;
+
 export function buildInstructions({
   introEntities = [],
   enableFeedback = true,
   introInline = true,
   researchMode = 'thorough',
+  outputFormat = 'markdown',
 } = {}) {
-  const base = enableFeedback ? `${BASE_INSTRUCTIONS}\n\n${FEEDBACK_INSTRUCTION}` : BASE_INSTRUCTIONS;
+  const withPointer = `${BASE_INSTRUCTIONS}\n\n${MCP_SCHEMA_POINTER}`;
+  const withFeedback = enableFeedback ? `${withPointer}\n\n${FEEDBACK_INSTRUCTION}` : withPointer;
+  const base = outputFormat === 'toon' ? `${withFeedback}\n${TOON_LEGEND}` : withFeedback;
   const introBlock = renderIntroBlock(introEntities, { inline: introInline });
   if (!introBlock) return base;
 

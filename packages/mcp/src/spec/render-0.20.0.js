@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, extname, resolve as resolvePath } from 'node:path';
 import { getApiForEntry } from './prop-extractor-0.20.0.js';
+import { renderTable } from '../render/table.js';
 
 const asText20 = (v) => (typeof v === 'string' ? v : (v?.value ?? ''));
 
@@ -329,11 +330,21 @@ export function renderSourceAndImports20(entity, lines) {
   }
 }
 
-function renderPropRow(prop) {
-  const req = prop.required ? 'yes' : '—';
-  const type = prop.type ? `\`${cell20(prop.type)}\`` : '—';
+const API_COLUMNS = [
+  { key: 'prop', header: 'Prop' },
+  { key: 'type', header: 'Type' },
+  { key: 'required', header: 'Required' },
+  { key: 'description', header: 'Description' },
+];
+
+function propRow(prop) {
   const inherited = prop.inheritedFrom ? ` *(from \`${cell20(prop.inheritedFrom)}\`)*` : '';
-  return `| \`${cell20(prop.name)}\` | ${type} | ${req} | ${cell20(asText20(prop.description ?? ''))}${inherited} |`;
+  return {
+    prop: `\`${cell20(prop.name)}\``,
+    type: prop.type ? `\`${cell20(prop.type)}\`` : null,
+    required: prop.required ? 'yes' : null,
+    description: `${cell20(asText20(prop.description ?? ''))}${inherited}`,
+  };
 }
 
 /**
@@ -373,7 +384,7 @@ function renderAlsoAccepts(entries) {
   return out;
 }
 
-export function renderApi20(entity, lines, propsConfig) {
+export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
   const result = getApiForEntry(entity, propsConfig);
 
   switch (result.status) {
@@ -415,10 +426,7 @@ export function renderApi20(entity, lines, propsConfig) {
         lines.push('> *Freshness not verified against source (`uiSourceRoot` not configured).*', '');
       }
       if (props.length) {
-        lines.push('| Prop | Type | Required | Description |');
-        lines.push('|------|------|----------|-------------|');
-        for (const prop of props) lines.push(renderPropRow(prop));
-        lines.push('');
+        lines.push(...renderTable(props.map(propRow), API_COLUMNS, { format, name: 'props' }).split('\n'), '');
       } else {
         lines.push('This component has no props of its own.', '');
       }

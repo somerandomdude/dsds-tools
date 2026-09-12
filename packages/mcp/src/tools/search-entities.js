@@ -2,6 +2,7 @@ import { getUpdateNotice } from '../spec/version.js';
 import { didYouMean } from '../suggest.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { nextCommandFor } from '../next-command.js';
+import { renderTable } from '../render/table.js';
 import { ERROR_CODES, describeSuggestions, toolError } from '../errors.js';
 
 export const searchEntitiesDef = {
@@ -39,6 +40,11 @@ export const searchEntitiesDef = {
         type: 'integer',
         description: 'Maximum results to return. Omit for all matches.',
       },
+      nextCommands: {
+        type: 'boolean',
+        description:
+          'Append the follow-up call that reads each result in full. Default false. Measured 2026-09-10: with this on, the agent treated the listing as a worklist and made 13% more dsds_get_agent_context calls, adding ~30k characters per iteration against the ~12k the listing itself saves. Turn it on for an interactive session where the next command is a convenience, not for an agent loop.',
+      },
       summaries: {
         type: 'boolean',
         description:
@@ -48,7 +54,7 @@ export const searchEntitiesDef = {
   },
 };
 
-export async function searchEntitiesHandler(args, getSystems, getSummaries) {
+export async function searchEntitiesHandler(args, getSystems, getSummaries, format = 'markdown') {
   if (getSystems().length === 0) {
     return toolError({
       code: ERROR_CODES.NOT_CONFIGURED,
@@ -63,21 +69,43 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   // smaller in absolute terms, but the judgement is identical: the caller
   // is usually resolving a name, and the next call carries the prose.
   const withSummaries = args?.summaries === true;
+  // Off by default — see the note in dsds_list_entities' handler.
+  const withNext = args?.nextCommands === true;
   const all = getSummaries();
   let results = all;
 
   // An unknown kind or status used to return the same "no matches" as a
   // genuinely empty result, so a typo looked like an answer. Name the
   // mistake and list what is actually there.
+  // A filter value the tool can already name the correction for is accepted
+  // rather than rejected. `--kind components` and `--kind sanity.chunks`
+  // were 23 of the 55 failed calls in the 2026-09-11 runs: the plural of a
+  // real kind, diagnosed correctly ("Did you mean `component`?") and then
+  // refused, costing a turn to retype what the tool had just worked out.
+  // Only an unambiguous single candidate is corrected; two or more and the
+  // caller still has a real choice to make, so it stays an error.
+  const notes = [];
+  const coerced = (field, value, valid) => {
+    if (valid.includes(value)) return value;
+    const near = didYouMean(value, valid);
+    if (near.length !== 1) return null;
+    notes.push(`Read \`${field}=${value}\` as \`${near[0]}\`.`);
+    return near[0];
+  };
+
+  let kindFilter = kind;
   if (kind) {
     const kinds = [...new Set(all.map(e => e.kind).filter(Boolean))].sort();
-    if (!kinds.includes(kind)) return unknownFilter('kind', kind, kinds);
-    results = results.filter(e => e.kind === kind);
+    kindFilter = coerced('kind', kind, kinds);
+    if (kindFilter === null) return unknownFilter('kind', kind, kinds);
+    results = results.filter(e => e.kind === kindFilter);
   }
+  let statusFilter = status;
   if (status) {
     const statuses = [...new Set(all.map(e => e.status).filter(Boolean))].sort();
-    if (!statuses.includes(status)) return unknownFilter('status', status, statuses);
-    results = results.filter(e => e.status === status);
+    statusFilter = coerced('status', status, statuses);
+    if (statusFilter === null) return unknownFilter('status', status, statuses);
+    results = results.filter(e => e.status === statusFilter);
   }
   if (tags?.length) results = results.filter(e => tags.every(t => e.tags.includes(t)));
 
@@ -97,8 +125,8 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   if (limit !== undefined && limit > 0) results = results.slice(0, limit);
 
   const filterDesc = [
-    kind && `kind=${kind}`,
-    status && `status=${status}`,
+    kindFilter && `kind=${kindFilter}`,
+    statusFilter && `status=${statusFilter}`,
     tags?.length && `tags=[${tags.join(', ')}]`,
     query && `query="${query}"`,
   ].filter(Boolean).join(', ');
@@ -116,13 +144,23 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   const lines = [
     heading,
     '',
-    withSummaries ? '| Identifier | Kind | Status | Summary | Next |' : '| Identifier | Kind | Status | Next |',
-    withSummaries ? '|------------|------|--------|---------|------|' : '|------------|------|--------|------|',
-    ...results.map(e => (withSummaries
-      ? `| \`${e.identifier}\` | ${e.kind ?? '—'} | ${e.status ?? '—'} | ${truncate(e.summary ?? '', 80)} | ${nextCommandFor(e) ?? '—'} |`
-      : `| \`${e.identifier}\` | ${e.kind ?? '—'} | ${e.status ?? '—'} | ${nextCommandFor(e) ?? '—'} |`)),
+    ...renderTable(
+      results.map(e => ({
+        identifier: `\`${e.identifier}\``,
+        kind: e.kind ?? null,
+        status: e.status ?? null,
+        summary: truncate(e.summary ?? '', 80),
+        next: nextCommandFor(e),
+      })),
+      searchColumns(withSummaries, withNext),
+      { format, name: 'results' }
+    ).split('\n'),
   ];
   if (shown < total) lines.push('', `_${total - shown} more — raise \`limit\` to see them._`);
+
+  // Say what was assumed. A silent correction is worse than an error: the
+  // caller cannot tell it asked for something that does not exist.
+  if (notes.length) lines.push('', `> ${notes.join(' ')}`);
 
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
@@ -132,8 +170,9 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
     structuredContent: {
       total,
       shown,
-      filters: { kind, status, tags, query, limit },
-      entities: results.map(e => toStructured(e, withSummaries)),
+      filters: { kind: kindFilter, status: statusFilter, tags, query, limit },
+      ...(notes.length ? { corrections: notes } : {}),
+      entities: results.map(e => toStructured(e, withSummaries, withNext)),
     },
   };
 }
@@ -172,7 +211,18 @@ function scoreEntity(entity, terms) {
   return score;
 }
 
-function toStructured(e, withSummaries = false) {
+function searchColumns(withSummaries, withNext) {
+  const cols = [
+    { key: 'identifier', header: 'Identifier' },
+    { key: 'kind', header: 'Kind' },
+    { key: 'status', header: 'Status' },
+  ];
+  if (withSummaries) cols.push({ key: 'summary', header: 'Summary' });
+  if (withNext) cols.push({ key: 'next', header: 'Next' });
+  return cols;
+}
+
+function toStructured(e, withSummaries = false, withNext = false) {
   return {
     identifier: e.identifier,
     name: e.name,
@@ -182,7 +232,7 @@ function toStructured(e, withSummaries = false) {
     tags: e.tags ?? [],
     // The call that reads this row in full. See next-command.js — emitted
     // canonically here; the CLI surface rewrites it to `dsds chunk <id>`.
-    next: nextCommandFor(e),
+    ...(withNext ? { next: nextCommandFor(e) } : {}),
   };
 }
 

@@ -77,3 +77,28 @@ export function noDocumentsConfigured({ surface = 'mcp' } = {}) {
 export function noDocumentsConfiguredBrief({ surface = 'mcp' } = {}) {
   return surface === 'cli' ? CLI_BRIEF : MCP_BRIEF;
 }
+
+// ── Where the argument shapes come from ──────────────────────────────────
+//
+// An MCP client receives every tool's input schema on connect, so the model
+// can see that `useCase` is an enum of three values and that `components`
+// is an array before it calls anything. A CLI agent gets one tool whose
+// schema is `args: string[]`, and discovers argument shapes by being wrong:
+// measured 0.3% failed calls across 387 MCP run-arms versus 4.8-13.7%
+// across the CLI arms, almost all of it invented flags and enum values.
+//
+// `dsds manifest --compact` is the same data the MCP client gets for free —
+// 13KB of commands, arguments and allowed values. Nothing pointed agents at
+// it, so nothing read it. These two strings are swapped by surface, like
+// the pair above, because the MCP advice would be wrong on a CLI and the
+// CLI advice names a command an MCP client cannot run.
+export const MCP_SCHEMA_POINTER =
+  'Your client already has every tool\'s input schema, including which arguments are ' +
+  'required and which take a fixed set of values. Read it there rather than guessing.';
+
+export const CLI_SCHEMA_POINTER =
+  'Run `dsds manifest --compact` once if you are unsure of an argument. It lists every ' +
+  'command with its arguments and allowed values (13KB), and is the only place those are ' +
+  'stated in full — `--kind`, `--block` and `useCase` all take fixed sets. Porcelain also ' +
+  'accepts the schema form, so `dsds brief --useCase build`, `dsds brief useCase=build` and ' +
+  '`dsds brief build` are the same call.';

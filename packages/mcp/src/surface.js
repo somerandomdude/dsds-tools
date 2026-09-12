@@ -55,6 +55,7 @@ export function createSurface({
   enableFeedback = true,
   introInline = true,
   researchMode = 'thorough',
+  outputFormat = 'markdown',
 }) {
   const { toolDefs, dispatch } = createToolRuntime({
     getSystems,
@@ -67,6 +68,7 @@ export function createSurface({
     feedbackDir,
     logsDir,
     enableFeedback,
+    outputFormat,
   });
 
   const { listPrompts, getPrompt } = createPromptRuntime({ getIntro });
@@ -79,6 +81,6 @@ export function createSurface({
     listResources: () => listResources(getSummaries),
     readResource: uri => readResource(uri, getSystems),
     getInstructions: () =>
-      buildInstructions({ introEntities: getIntro(), enableFeedback, introInline, researchMode }),
+      buildInstructions({ introEntities: getIntro(), enableFeedback, introInline, researchMode, outputFormat }),
   };
 }

@@ -14,7 +14,7 @@
 // identity, the CLI translates. Adding a porcelain command means adding one
 // line to CLI_EQUIVALENTS.
 
-import { MCP_GUIDANCE, CLI_GUIDANCE, MCP_BRIEF, CLI_BRIEF } from './setup-guidance.js';
+import { MCP_GUIDANCE, CLI_GUIDANCE, MCP_BRIEF, CLI_BRIEF, MCP_SCHEMA_POINTER, CLI_SCHEMA_POINTER } from './setup-guidance.js';
 
 // Canonical tool name → the CLI command that does the same job. A tool with
 // no porcelain maps to its `dsds tool` invocation, which is still accurate.
@@ -72,6 +72,7 @@ const TOOL_NAME_PATTERN = /dsds_[a-z_]+/g;
 const BLOCK_SWAPS = [
   [MCP_GUIDANCE, CLI_GUIDANCE],
   [MCP_BRIEF, CLI_BRIEF],
+  [MCP_SCHEMA_POINTER, CLI_SCHEMA_POINTER],
 ];
 
 /**

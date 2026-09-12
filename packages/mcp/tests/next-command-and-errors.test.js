@@ -122,8 +122,16 @@ describe('dsds_get_examples', () => {
     expect(r.content[0].text).toContain('A table of rows.');
   });
 
-  it('gives every row a fetch call', async () => {
+  it('omits the fetch column by default', async () => {
     const r = await getExamplesHandler({ identifier: 'button' }, getGraph, getSummaries);
+    expect(r.content[0].text).toContain('| Example | Demonstrates |');
+    expect(r.content[0].text).not.toContain('Fetch');
+    for (const e of r.structuredContent.examples) expect(e).not.toHaveProperty('next');
+  });
+
+  it('gives every row a fetch call on request', async () => {
+    const r = await getExamplesHandler({ identifier: 'button', nextCommands: true }, getGraph, getSummaries);
+    expect(r.content[0].text).toContain('| Example | Demonstrates | Fetch |');
     for (const e of r.structuredContent.examples) {
       expect(e.next).toBe(`dsds_get_chunk("${e.identifier}")`);
     }
@@ -151,45 +159,87 @@ describe('summaries are opt-in', () => {
   const getSystems = () => [{ entities }];
   const getSummaries = () => entities;
 
-  it('list omits the summary column by default', async () => {
+  it('list includes the summary column by default', async () => {
     const r = await listEntitiesHandler({}, getSystems, getSummaries);
+    const t = r.content[0].text;
+    expect(t).toContain('| Identifier | Status | Summary |');
+    expect(t).toContain('Triggers an action.');
+  });
+
+  it('list drops it when summaries is explicitly false', async () => {
+    const r = await listEntitiesHandler({ summaries: false }, getSystems, getSummaries);
     const t = r.content[0].text;
     expect(t).toContain('| Identifier | Status |');
     expect(t).not.toContain('Summary');
-    expect(t).not.toContain('Triggers an action.');
-  });
-
-  it('list includes it on request', async () => {
-    const r = await listEntitiesHandler({ summaries: true }, getSystems, getSummaries);
-    expect(r.content[0].text).toContain('| Identifier | Status | Summary |');
-    expect(r.content[0].text).toContain('Triggers an action.');
   });
 
   // The structured half has to follow the text, or an MCP client that reads
   // structuredContent pays the cost the rendered table just avoided.
   it('keeps structuredContent in step with the rendered table', async () => {
-    const off = await listEntitiesHandler({}, getSystems, getSummaries);
-    const on = await listEntitiesHandler({ summaries: true }, getSystems, getSummaries);
+    const off = await listEntitiesHandler({ summaries: false }, getSystems, getSummaries);
+    const on = await listEntitiesHandler({}, getSystems, getSummaries);
     expect(off.structuredContent.entities[0]).not.toHaveProperty('summary');
     expect(on.structuredContent.entities[0]).toHaveProperty('summary', 'Triggers an action.');
   });
 
-  it('only the literal true turns it on, not any truthy value', async () => {
-    const r = await listEntitiesHandler({ summaries: 'yes' }, getSystems, getSummaries);
-    expect(r.content[0].text).not.toContain('Summary');
+  // Only an explicit `false` turns it off — a stray truthy/absent value
+  // must not silently strip the column the default promises.
+  it('only an explicit false turns summaries off', async () => {
+    for (const args of [{}, { summaries: true }, { summaries: 'no' }, { summaries: undefined }]) {
+      const r = await listEntitiesHandler(args, getSystems, getSummaries);
+      expect(r.content[0].text, JSON.stringify(args)).toContain('Summary');
+    }
   });
 
-  it('search omits summaries by default but keeps the Next column', async () => {
+  it('says the catalogue is complete, and not when limit hides rows', async () => {
+    const all = await listEntitiesHandler({}, getSystems, getSummaries);
+    expect(all.content[0].text).toContain('This is the complete catalogue');
+    const capped = await listEntitiesHandler({ limit: 1 }, getSystems, getSummaries);
+    expect(capped.content[0].text).not.toContain('This is the complete catalogue');
+  });
+
+  it('search omits both summaries and next commands by default', async () => {
     const r = await searchEntitiesHandler({ query: 'button' }, getSystems, getSummaries);
     const t = r.content[0].text;
-    expect(t).toContain('| Identifier | Kind | Status | Next |');
-    expect(t).not.toContain('Triggers an action.');
-    expect(t).toContain('dsds_get_agent_context("button")');
+    expect(t).toContain('| Identifier | Kind | Status |');
+    expect(t).not.toContain('Summary');
+    expect(t).not.toContain('Next');
+    expect(t).not.toContain('dsds_get_agent_context');
+    expect(r.structuredContent.entities[0]).not.toHaveProperty('next');
   });
 
   it('search includes summaries on request', async () => {
     const r = await searchEntitiesHandler({ query: 'button', summaries: true }, getSystems, getSummaries);
-    expect(r.content[0].text).toContain('| Identifier | Kind | Status | Summary | Next |');
+    expect(r.content[0].text).toContain('| Identifier | Kind | Status | Summary |');
     expect(r.structuredContent.entities[0]).toHaveProperty('summary');
+  });
+
+  // The two flags are independent, and the column order has to stay stable
+  // whichever combination is asked for.
+  it('search renders every flag combination with matching columns', async () => {
+    const cases = [
+      [{}, '| Identifier | Kind | Status |'],
+      [{ summaries: true }, '| Identifier | Kind | Status | Summary |'],
+      [{ nextCommands: true }, '| Identifier | Kind | Status | Next |'],
+      [{ summaries: true, nextCommands: true }, '| Identifier | Kind | Status | Summary | Next |'],
+    ];
+    for (const [args, header] of cases) {
+      const r = await searchEntitiesHandler({ query: 'button', ...args }, getSystems, getSummaries);
+      const lines = r.content[0].text.split('\n');
+      const h = lines.find(l => l.startsWith('| Identifier'));
+      expect(h, JSON.stringify(args)).toBe(header);
+      // divider column count must match the header's
+      const divider = lines[lines.indexOf(h) + 1];
+      expect(divider.split('|').length).toBe(h.split('|').length);
+    }
+  });
+
+  it('list omits the Read one: line by default and adds it on request', async () => {
+    const off = await listEntitiesHandler({}, getSystems, getSummaries);
+    const on = await listEntitiesHandler({ nextCommands: true }, getSystems, getSummaries);
+    expect(off.content[0].text).not.toContain('Read one:');
+    expect(on.content[0].text).toContain('Read one: dsds_get_agent_context("<identifier>")');
+    expect(off.structuredContent.entities[0]).not.toHaveProperty('next');
+    expect(on.structuredContent.entities[0]).toHaveProperty('next');
   });
 });

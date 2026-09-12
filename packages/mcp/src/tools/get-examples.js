@@ -21,6 +21,7 @@ import { getUpdateNotice } from '../spec/version.js';
 import { notFoundMessage } from '../suggest.js';
 import { didYouMean } from '../suggest.js';
 import { nextCommandFor } from '../next-command.js';
+import { renderTable } from '../render/table.js';
 import { ERROR_CODES, describeSuggestions, toolError } from '../errors.js';
 
 // `composes` is the authored relation for "this chunk is built out of that
@@ -47,12 +48,18 @@ export const getExamplesDef = {
         type: 'string',
         description: 'The entity identifier (e.g. "button").',
       },
+      nextCommands: {
+        type: 'boolean',
+        description:
+          'Add a column with the call that fetches each example. Default false — the example identifiers are already the argument to dsds_get_chunk, so the column mostly restates them. See dsds_list_entities for the measurement behind the default.',
+      },
     },
     required: ['identifier'],
   },
 };
 
-export async function getExamplesHandler({ identifier }, getGraph, getSummaries) {
+export async function getExamplesHandler({ identifier, nextCommands }, getGraph, getSummaries, format = 'markdown') {
+  const withNext = nextCommands === true;
   const graph = getGraph();
 
   if (!graph.nodes.has(identifier)) {
@@ -89,7 +96,7 @@ export async function getExamplesHandler({ identifier }, getGraph, getSummaries)
       // one written about this pairing specifically.
       role: e.role ?? null,
       summary: summaryById.get(e.identifier) ?? null,
-      next: nextCommandFor(e),
+      ...(withNext ? { next: nextCommandFor(e) } : {}),
     }))
     .sort((a, b) => a.identifier.localeCompare(b.identifier));
 
@@ -108,14 +115,19 @@ export async function getExamplesHandler({ identifier }, getGraph, getSummaries)
     );
   } else {
     lines.push(
-      `${examples.length} example${examples.length === 1 ? '' : 's'} — fetch one with the call in the last column, not all of them.`,
+      `${examples.length} example${examples.length === 1 ? '' : 's'} — fetch the one you want with dsds_get_chunk, not all of them.`,
       '',
-      '| Example | Demonstrates | Fetch |',
-      '|---------|--------------|-------|',
-      ...examples.map(e => {
-        const what = e.role ?? truncate(e.summary ?? '', 70);
-        return `| \`${e.identifier}\` | ${what || '—'} | ${e.next} |`;
-      })
+      ...renderTable(
+        examples.map(e => ({
+          example: `\`${e.identifier}\``,
+          demonstrates: e.role ?? truncate(e.summary ?? '', 70),
+          fetch: e.next,
+        })),
+        withNext
+          ? [{ key: 'example', header: 'Example' }, { key: 'demonstrates', header: 'Demonstrates' }, { key: 'fetch', header: 'Fetch' }]
+          : [{ key: 'example', header: 'Example' }, { key: 'demonstrates', header: 'Demonstrates' }],
+        { format, name: 'examples' }
+      ).split('\n')
     );
   }
 

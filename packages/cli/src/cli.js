@@ -6,7 +6,7 @@ import { BASE_OPTIONS, optionsForTool, coerceFlagValues, explainParseError } fro
 import { printResult, contentText } from './output.js';
 import { buildManifest } from './manifest.js';
 import { mainHelp, toolList, toolHelp } from './help.js';
-import { PORCELAIN, UsageError, checkPositionals, porcelainHelp } from './porcelain.js';
+import { PORCELAIN, UsageError, aliasOptions, applyFlagAliases, checkPositionals, porcelainHelp, resolvePositionals } from './porcelain.js';
 import { runDoctor } from './doctor.js';
 import { runInit } from './init.js';
 import { runPrompt, runResource, runInstructions } from './surface-commands.js';
@@ -176,7 +176,9 @@ async function initCommand(argv) {
 
 async function porcelainCommand(name, argv) {
   const spec = PORCELAIN[name];
-  const options = { ...BASE_OPTIONS, ...(spec.options ?? {}) };
+  // Schema-named flags are accepted alongside the command's own — see the
+  // "One calling convention" note in porcelain.js.
+  const options = { ...BASE_OPTIONS, ...aliasOptions(spec), ...(spec.options ?? {}) };
   let values, positionals;
   try {
     ({ values, positionals } = parseArgs({ args: argv, options, allowPositionals: true }));
@@ -192,8 +194,9 @@ async function porcelainCommand(name, argv) {
 
   let route;
   try {
-    checkPositionals(spec, positionals);
-    route = await spec.build(positionals, values);
+    const resolved = resolvePositionals(spec, positionals, values);
+    checkPositionals(spec, resolved);
+    route = await spec.build(resolved, applyFlagAliases(spec, values));
   } catch (err) {
     if (err instanceof UsageError) {
       process.stderr.write(`dsds: ${err.message}\n`);
@@ -254,7 +257,12 @@ async function toolCommand(argv) {
 // Shared execution path for `dsds tool` and every porcelain command: load the
 // runtime, dispatch through the registry, log, print, and map the exit code.
 async function executeTool(name, args, values, exitCodeFn = null) {
-  const { config, dispatch } = await createRuntime({ quiet: values.quiet, configPath: values.config });
+  const fmt = normalizeFormat(values.format);
+  if (values.format !== undefined && fmt === null) {
+    process.stderr.write(`dsds: --format must be "markdown" or "toon", got "${values.format}".\n`);
+    return 1;
+  }
+  const { config, dispatch } = await createRuntime({ quiet: values.quiet, configPath: values.config, outputFormat: fmt });
 
   const startedAt = Date.now();
   const result = await dispatch(name, args);
@@ -315,4 +323,13 @@ function unknownCommand(command) {
   const near = didYouMean(command, names);
   const hint = near.length > 0 ? ` Did you mean \`dsds ${near[0]}\`?` : '';
   return `unknown command "${command}".${hint} Run \`dsds help\` for the list.`;
+}
+
+// `--format` accepts exactly the two the renderer implements. An unknown
+// value is rejected rather than silently falling back to markdown, which
+// would quietly produce the format the caller did not ask for.
+function normalizeFormat(value) {
+  if (value === undefined || value === null) return null;
+  const v = String(value).trim().toLowerCase();
+  return v === 'toon' || v === 'markdown' ? v : null;
 }

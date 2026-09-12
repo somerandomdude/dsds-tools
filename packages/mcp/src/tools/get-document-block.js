@@ -23,7 +23,69 @@ export const getDocumentBlockDef = {
   },
 };
 
-export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null) {
+// Names agents ask for that are not typos of a real block, just a different
+// word for it. Edit distance cannot bridge `props` -> `api`, so the mapping
+// is stated. Each candidate is still checked against what the entity
+// actually has, so a synonym never invents a block.
+//
+// Sourced from the 2026-09-11 ui5-cli runs, where `--block props`, `code`
+// and `notes` each cost a turn. `content` is absent deliberately: it
+// already resolves, case-insensitively, against a section titled "Content".
+const BLOCK_SYNONYMS = {
+  props: ['api'],
+  properties: ['api'],
+  propstable: ['api'],
+  proptypes: ['api'],
+  usage: ['guidelines', 'When to use'],
+  a11y: ['accessibility', 'Accessibility'],
+  accessibility: ['Accessibility'],
+  keyboard: ['Keyboard interactions'],
+  code: ['code', 'Code', 'section'],
+  notes: ['notes', 'Notes', 'section'],
+  examples: ['examples', 'Examples'],
+};
+
+// The top-level fields a block name can resolve to.
+const TOP_LEVEL_FIELD_NAMES = ['traits', 'sourceFiles', 'combos', 'imports'];
+
+/** Every block name that resolves on this entity, each listed once. */
+function availableBlockNames(entity) {
+  const unique = xs => [...new Set(xs.filter(Boolean))];
+  if (entity.__dsds20) {
+    return unique([
+      'api',
+      ...(entity.sections ?? []).map(b => b.kind),
+      ...(entity.sections ?? []).map(b => b.title),
+      ...TOP_LEVEL_FIELD_NAMES.filter(f => entity[f]?.length),
+    ]);
+  }
+  return unique((entity.documentBlocks ?? []).map(b => b.kind));
+}
+
+/**
+ * The real block name for what the caller asked for.
+ *
+ * Resolution order: exact, then synonym, then single-candidate typo. Every
+ * candidate is checked against `availableBlockNames`, so this can rename a
+ * request but never invent a block. Returns the original name unchanged
+ * when nothing matches, leaving the caller's existing error path intact.
+ */
+function canonicalBlockName(entity, requested) {
+  const available = availableBlockNames(entity);
+  const hit = name => available.find(a => a.toLowerCase() === String(name).toLowerCase());
+  const exact = hit(requested);
+  if (exact) return { name: exact === requested ? requested : exact, coercedFrom: null };
+
+  for (const candidate of BLOCK_SYNONYMS[String(requested).toLowerCase()] ?? []) {
+    const found = hit(candidate);
+    if (found) return { name: found, coercedFrom: requested };
+  }
+  const near = didYouMean(requested, available);
+  if (near.length === 1) return { name: near[0], coercedFrom: requested };
+  return { name: requested, coercedFrom: null };
+}
+
+export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null, format = 'markdown') {
   const systems = getSystems();
   if (systems.length === 0) {
     return {
@@ -54,14 +116,20 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
     };
   }
 
+  // Normalised before anything dispatches on the name, so `--block props`
+  // reaches the same `api` branch the HARD RULE points agents at.
+  const { name: canonical, coercedFrom } = canonicalBlockName(found, blockType);
+  blockType = canonical;
+
   if (found.__dsds20 && blockType === 'api') {
     // Real 0.20.0 has no `api`-kind section — the API comes from `sourceFiles`
     // resolved through the extractor cache (DEC-2). This is the call site the
     // server's HARD RULE points agents at ("at minimum
     // dsds_get_document_block(identifier, 'api')"), so it must render real
     // prop data, not the raw `sourceFiles` pointer a generic passthrough would.
-    const lines = [`# ${found.name ?? found.identifier} — \`api\` block`, ''];
-    renderApi20(found, lines, propsConfig);
+    const lines = [`# ${found.name ?? found.identifier} — \`api\` block`,
+      ...(coercedFrom ? [`> Read \`${coercedFrom}\` as \`api\`.`] : []), ''];
+    renderApi20(found, lines, propsConfig, format);
     if (lines.length === 2) lines.push('*No API data available for this entry.*', '');
     const notice = getUpdateNotice();
     if (notice) lines.push(notice);
@@ -118,6 +186,7 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
 
   const lines = [
     `# ${found.name ?? found.identifier} — \`${blockType}\` block`,
+    ...(coercedFrom ? ['', `> Read \`${coercedFrom}\` as \`${blockType}\`.`] : []),
     '',
     '```json',
     JSON.stringify(block, null, 2),

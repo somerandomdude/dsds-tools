@@ -14,6 +14,7 @@ export const BASE_OPTIONS = {
   json: { type: 'boolean' },
   quiet: { type: 'boolean' },
   'no-log': { type: 'boolean' },
+  format: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 };
 

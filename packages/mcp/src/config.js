@@ -126,6 +126,18 @@ export function loadConfig() {
     ? true
     : !/^(false|0|no|off)$/i.test(rawIntroInline.trim());
 
+  // OUTPUT_FORMAT: how tables are written. 'markdown' (default) or 'toon'.
+  //
+  // TOON declares an array's fields once and emits one delimited row each,
+  // which measured 13.3% smaller than Markdown across 36 API tables and 25%
+  // smaller on the 199-row entity index. It is NOT the default: the saving
+  // is real but modest against the whole payload (tables are ~18% of what
+  // get_agent_context returns), and a format the model may not have seen in
+  // training is a comprehension risk on content it writes code against.
+  // Plan 007 phase 3 is the paired run that decides whether to flip it.
+  const rawOutputFormat = (process.env['DSDS_OUTPUT_FORMAT'] ?? '').trim().toLowerCase();
+  const outputFormat = rawOutputFormat === 'toon' ? 'toon' : 'markdown';
+
   // RESEARCH_MODE: how hard the server pushes an agent to economise on lookups
   // when an intro is inlined. Measured on the agent-tester at 5 iterations per
   // arm, Opus, same knowledge in both modes:
@@ -199,6 +211,7 @@ export function loadConfig() {
     propsExtractorDir,
     enableFeedback,
     introInline,
+    outputFormat,
     researchMode,
     feedbackDir: rawFeedbackDir ? expandHome(rawFeedbackDir.trim()) : resolve(__dirname, '../feedback'),
     logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
@@ -284,6 +297,10 @@ function normalizeFileConfig(raw, fileDir) {
   if (raw.logsDir != null) out.logsDir = resolveFrom(raw.logsDir);
   if (raw.enableFeedback != null) out.enableFeedback = !!raw.enableFeedback;
   if (raw.introInline != null) out.introInline = !!raw.introInline;
+  if (typeof raw.outputFormat === 'string') {
+    const v = raw.outputFormat.trim().toLowerCase();
+    if (v === 'toon' || v === 'markdown') out.outputFormat = v;
+  }
   if (raw.researchMode != null) out.researchMode = /^frugal$/i.test(String(raw.researchMode)) ? 'frugal' : 'thorough';
   if (raw.schemaVersion != null) out.schemaVersion = String(raw.schemaVersion);
   return out;
@@ -310,6 +327,7 @@ function envProvidedKeys() {
     propsExtractorDir: has('DSDS_PROPS_EXTRACTOR_DIR'),
     enableFeedback: has('DSDS_ENABLE_FEEDBACK'),
     introInline: has('DSDS_INTRO_INLINE'),
+    outputFormat: has('DSDS_OUTPUT_FORMAT'),
     researchMode: has('RESEARCH_MODE'),
     feedbackDir: has('DSDS_FEEDBACK_DIR'),
     logsDir: has('DSDS_LOGS_DIR'),

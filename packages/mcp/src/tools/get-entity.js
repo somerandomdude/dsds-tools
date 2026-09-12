@@ -21,7 +21,7 @@ export const getEntityDef = {
   },
 };
 
-export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null) {
+export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null, format = 'markdown') {
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
   if (systems.length === 0 && introEntities.length === 0) {
@@ -132,7 +132,7 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     renderTraits20(found.traits, lines);
     renderCombos20(found.combos, lines);
     renderSourceAndImports20(found, lines);
-    renderApi20(found, lines, propsConfig);
+    renderApi20(found, lines, propsConfig, format);
     if (found.sections?.length) {
       renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
     } else {

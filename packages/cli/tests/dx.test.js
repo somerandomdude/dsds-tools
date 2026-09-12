@@ -7,8 +7,8 @@ import { runCli, VALID_SYSTEM } from './helpers.js';
 const withSystem = { env: { DSDS_PATHS: VALID_SYSTEM } };
 
 describe('discovery', () => {
-  it('fills in the summary column from a 0.20.0 description, when asked for one', async () => {
-    const { code, stdout } = await runCli(['list', '--summaries'], withSystem);
+  it('fills in the summary column from a 0.20.0 description', async () => {
+    const { code, stdout } = await runCli(['list'], withSystem);
     expect(code).toBe(0);
     const rows = stdout.split('\n').filter(l => /^\| `/.test(l));
     expect(rows.length).toBeGreaterThan(0);
@@ -23,8 +23,8 @@ describe('discovery', () => {
   // The fallback above made every one of those cells expensive rather than
   // empty: on the 199-entity corpus it took `dsds list` from 6,752 to 17,788
   // characters. The content is right; paying for it on every list is not.
-  it('omits summaries by default, and says so in the table shape', async () => {
-    const { code, stdout } = await runCli(['list'], withSystem);
+  it('drops the summary column on --no-summaries', async () => {
+    const { code, stdout } = await runCli(['list', '--no-summaries'], withSystem);
     expect(code).toBe(0);
     expect(stdout).toContain('| Identifier | Status |');
     expect(stdout).not.toContain('| Identifier | Status | Summary |');
@@ -36,22 +36,51 @@ describe('discovery', () => {
     }
   });
 
-  it('default list is materially smaller than the --summaries one', async () => {
-    const bare = await runCli(['list'], withSystem);
-    const full = await runCli(['list', '--summaries'], withSystem);
+  it('--no-summaries is materially smaller than the default list', async () => {
+    const bare = await runCli(['list', '--no-summaries'], withSystem);
+    const full = await runCli(['list'], withSystem);
     expect(bare.stdout.length).toBeLessThan(full.stdout.length);
   });
 
-  it('search omits summaries by default too, keeping the next-call column', async () => {
-    const { code, stdout } = await runCli(['search', 'test button'], withSystem);
-    expect(code).toBe(0);
-    expect(stdout).toContain('| Identifier | Kind | Status | Next |');
-    expect(stdout).not.toContain('| Summary |');
+  // The catalogue cannot change mid-session, so the response says so —
+  // one iteration in five was re-listing and getting identical bytes.
+  it('tells the caller the catalogue is complete, so it is not re-fetched', async () => {
+    const { stdout } = await runCli(['list'], withSystem);
+    expect(stdout).toContain('This is the complete catalogue');
+    expect(stdout).toContain('returns exactly the same text');
   });
 
-  it('keeps summaries out of the JSON half as well, so nothing re-adds them', async () => {
-    const bare = await runCli(['list', '--json'], withSystem);
-    const full = await runCli(['list', '--summaries', '--json'], withSystem);
+  it('does not claim completeness when --limit hid some entities', async () => {
+    const { stdout } = await runCli(['list', '--limit', '1'], withSystem);
+    expect(stdout).not.toContain('This is the complete catalogue');
+  });
+
+  it('search omits summaries and next commands by default', async () => {
+    const { code, stdout } = await runCli(['search', 'test button'], withSystem);
+    expect(code).toBe(0);
+    expect(stdout).toContain('| Identifier | Kind | Status |');
+    expect(stdout).not.toContain('Summary');
+    expect(stdout).not.toContain('Next');
+  });
+
+  // Turned off after measuring it: the listing became a worklist and the
+  // agent made 13% more agent-context calls. Still available on request.
+  it('--next restores the follow-up command on list and search', async () => {
+    const l = await runCli(['list', '--next'], withSystem);
+    expect(l.stdout).toContain('Read one: dsds context');
+    const s = await runCli(['search', 'test button', '--next'], withSystem);
+    expect(s.stdout).toContain('| Identifier | Kind | Status | Next |');
+    expect(s.stdout).toContain('dsds context');
+  });
+
+  it('list has no Read one: line by default', async () => {
+    const { stdout } = await runCli(['list'], withSystem);
+    expect(stdout).not.toContain('Read one:');
+  });
+
+  it('keeps the JSON half in step with the rendered table', async () => {
+    const bare = await runCli(['list', '--no-summaries', '--json'], withSystem);
+    const full = await runCli(['list', '--json'], withSystem);
     const b = JSON.parse(bare.stdout).data.entities[0];
     const f = JSON.parse(full.stdout).data.entities[0];
     expect(b).not.toHaveProperty('summary');
@@ -118,11 +147,27 @@ describe('errors that help', () => {
     expect(stderr).toContain('dsds list');
   });
 
-  it('names an unknown --kind instead of reporting an empty result', async () => {
-    const { code, stderr } = await runCli(['list', '--kind', 'compnent'], withSystem);
+  // Changed 2026-09-11: a --kind the tool can correct unambiguously is now
+  // accepted with a note, rather than refused. `--kind components` and
+  // `--kind sanity.chunks` were 23 of 55 failed calls in the ui5-cli runs —
+  // diagnosed correctly, then rejected, costing a turn to retype.
+  it('accepts a single-candidate --kind typo and says what it assumed', async () => {
+    const { code, stdout } = await runCli(['list', '--kind', 'compnent'], withSystem);
+    expect(code).toBe(0);
+    expect(stdout).toContain('kind=component');
+    expect(stdout).toContain('Read `kind=compnent` as `component`');
+  });
+
+  it('still refuses a --kind with more than one candidate', async () => {
+    const { code, stderr } = await runCli(['list', '--kind', 'sanity'], withSystem);
     expect(code).toBe(1);
     expect(stderr).toContain('Unknown kind');
-    expect(stderr).toContain('component');
+  });
+
+  it('still refuses a --kind that resembles nothing', async () => {
+    const { code, stderr } = await runCli(['list', '--kind', 'zzzzzzzz'], withSystem);
+    expect(code).toBe(1);
+    expect(stderr).toContain('Unknown kind');
   });
 
   it('explains which word of a multi-word query found nothing', async () => {
