@@ -27,6 +27,28 @@ Each step uses a tool from this MCP server — call them in order.
 
 ---
 
+### Before any of it — project setup
+
+A design system almost always needs one-time project setup before ANY component
+renders correctly: a stylesheet import, a theme provider, required polyfills, a
+build plugin. None of this appears in an individual component's documentation,
+and getting it wrong is silent — the page renders, nothing throws, nothing is
+logged, and the result is an unstyled app that looks like a success.
+
+Find this system's setup documentation and read it before you write code:
+
+1. Call \`dsds_search_entities\` for this system's guide category (a legacy system
+   names it plain "guide"; a 0.20.0 system typically uses a namespaced kind such
+   as "sanity.guide").
+2. Read any getting-started, installation or quick-start entry it returns with
+   \`dsds_get_agent_context\`.
+3. Do every setup step it lists, in your entry file, before the first component.
+
+Do not skip this because you recognise the library. Setup requirements differ
+between major versions of the same design system.
+
+---
+
 ### Step 1 — Inventory what exists
 
 Call \`dsds_list_entities\` to see every documented entity grouped by kind.

@@ -185,9 +185,9 @@ export function createToolRuntime({
       switch (name) {
         case 'dsds_context_brief':        return contextBriefHandler(args, getSystems, getSummaries);
         case 'dsds_spec_overview':        return specOverviewHandler(args);
-        case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args);
-        case 'dsds_spec_document_blocks': return specDocumentBlocksHandler(args);
-        case 'dsds_spec_scaffold':        return specScaffoldHandler(args);
+        case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args, getSystems, fmt);
+        case 'dsds_spec_document_blocks': return specDocumentBlocksHandler(args, getSystems);
+        case 'dsds_spec_scaffold':        return specScaffoldHandler(args, getSystems);
         case 'dsds_build_component':      return buildComponentHandler(args, getSystems, getSummaries);
         case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);

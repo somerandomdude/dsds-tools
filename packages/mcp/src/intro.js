@@ -35,6 +35,41 @@ export function renderIntroEntity(entity) {
     lines.push(entity.agents.intent, '');
   }
 
+  // DSDS 0.20 entities carry their content under `sections`, not the older
+  // `documentBlocks` / `agentDocumentBlocks` pair below. Without this branch a
+  // 0.20 intro entity renders as nothing but its name and description: the
+  // two guides configured here produced 228 characters between them, out of
+  // 21,287 on disk, so `introInline: true` silently behaved like the index.
+  for (const section of (entity.sections ?? [])) {
+    if (section.kind === 'guidelines') {
+      if (section.title) lines.push(`### ${section.title}`, '');
+      for (const item of (section.items ?? [])) {
+        const level = String(item.level ?? '').toLowerCase();
+        const label =
+          level === 'must' ? 'Must'
+          : level === 'must-not' ? 'Must not'
+          : level === 'should' ? 'Should'
+          : level === 'should-not' ? 'Should not'
+          : 'Note';
+        // 0.20 names the text `statement`; older shapes used `guidance`.
+        const text = item.statement ?? item.guidance;
+        if (text) lines.push(`- **${label}:** ${text}`);
+      }
+      lines.push('');
+    } else if (section.kind === 'section') {
+      for (const entry of (section.freeform ?? [])) {
+        if (entry.title) lines.push(`### ${entry.title}`, '');
+        if (entry.body) lines.push(entry.body, '');
+      }
+    } else if (section.kind === 'definitions') {
+      if (section.title) lines.push(`### ${section.title}`, '');
+      for (const item of (section.items ?? [])) {
+        if (item.term) lines.push(`- **${item.term}:** ${item.definition ?? ''}`);
+      }
+      lines.push('');
+    }
+  }
+
   for (const block of (entity.documentBlocks ?? [])) {
     if (block.kind === 'section') {
       for (const item of (block.items ?? [])) renderSectionItem(item, 3, lines);

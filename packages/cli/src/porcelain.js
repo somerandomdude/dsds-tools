@@ -255,26 +255,39 @@ export const PORCELAIN = {
 
   scaffold: {
     summary: 'Blank DSDS JSON template for an entity kind',
-    usage: 'dsds scaffold <kind>',
+    usage: 'dsds scaffold <kind> [--spec <version>]',
     schemaKeys: ['kind'],
+    options: {
+      spec: { type: 'string', description: 'Which DSDS model to scaffold (0.15.2, 0.20.0, 0.20.1)' },
+    },
     positionals: { min: 1, max: 1, label: '<kind>' },
-    build: ([kind]) => ({ tool: 'dsds_spec_scaffold', args: { kind } }),
+    build: ([kind], values) => ({
+      tool: 'dsds_spec_scaffold',
+      args: { kind, ...(values.spec ? { spec: values.spec } : {}) },
+    }),
   },
 
   spec: {
     summary: 'DSDS spec reference: overview, entity schema, block types',
-    usage: 'dsds spec overview | schema <kind> | blocks <kind>',
+    usage: 'dsds spec overview | schema <kind> | blocks <kind> [--spec <version>]',
+    options: {
+      // Reachable only through `dsds tool` before this. The default follows
+      // the loaded document's own schemaVersion, so the flag is for reading
+      // a model the corpus is not written in — usually the legacy one.
+      spec: { type: 'string', description: 'Which DSDS model to describe (0.15.2, 0.20.0, 0.20.1). Defaults to the loaded document\'s schemaVersion' },
+    },
     positionals: { min: 1, max: 2, label: 'overview | schema <kind> | blocks <kind>' },
-    build([sub, kind]) {
+    build([sub, kind], values) {
+      const spec = values.spec ? { spec: values.spec } : {};
       if (sub === 'overview') {
         if (kind) throw new UsageError('usage: dsds spec overview');
-        return { tool: 'dsds_spec_overview', args: {} };
+        return { tool: 'dsds_spec_overview', args: { ...spec } };
       }
       if (sub === 'schema' || sub === 'blocks') {
         if (!kind) throw new UsageError(`usage: dsds spec ${sub} <kind>`);
         return {
           tool: sub === 'schema' ? 'dsds_spec_entity_schema' : 'dsds_spec_document_blocks',
-          args: { kind },
+          args: { kind, ...spec },
         };
       }
       throw new UsageError('usage: dsds spec overview | schema <kind> | blocks <kind>');

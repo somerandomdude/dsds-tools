@@ -19,6 +19,24 @@ you are confident about, and even for one you already used earlier in the same f
 Skipping this check for even one component is the single most common cause of avoidable build
 failures — do not rely on general training knowledge for this design system's API surface.
 
+SET THE PROJECT UP BEFORE YOU USE COMPONENTS — most design systems need one-time
+setup before ANY component renders correctly: a stylesheet import, a theme provider,
+polyfills, a build plugin. It is not described in any individual component's docs, and
+missing it fails silently — the page renders, nothing throws, nothing is logged, and you
+ship an unstyled app that looks fine to every check. Before writing code, search this
+system's guide category (often a namespaced kind such as "sanity.guide") and read its
+getting-started / installation / quick-start entry. Recognising the library is not a
+substitute: setup differs between major versions of the same design system.
+
+WORK WITHIN THE SYSTEM'S OPINIONS — this design system is opinionated on purpose, and your job
+is to build inside its constraints rather than around them. Use the prop a component gives you
+even when it is coarser than the control you had in mind: Card takes a density prop (compact,
+regular or loose) and has no padding, gap or radius prop — that is the whole of its spacing surface.
+A missing knob is a decision, not a gap. Never restyle a component with style={{ … }}, a
+className, or a CSS custom property override to reach a particular look — reach for a different
+component, or accept the nearest value the system offers. Match the brief's content and
+structure; do not reproduce a visual treatment the system does not support.
+
 START HERE: Call dsds_context_brief first to get a full briefing before any work begins.
 - dsds_context_brief(useCase="build") — before implementing UI with the design system. To implement an existing component interactively, use dsds_build_component (a prop-by-prop wizard, listed under DESIGN SYSTEM TOOLS); for one-shot context use dsds_get_chunk / dsds_get_entity / dsds_get_agent_context.
 - dsds_context_brief(useCase="author") — before documenting a design system in DSDS format

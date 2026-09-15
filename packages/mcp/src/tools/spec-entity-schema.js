@@ -1,6 +1,9 @@
 import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0, VALID_BLOCKS_BY_KIND, METADATA_FIELDS } from '../spec/knowledge.js';
 import { isValidKind20 } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
+import { describeEntryFields, describeSectionKinds } from '../spec/schema-describe.js';
+import { corpusSpec } from '../spec/corpus-spec.js';
+import { renderTable } from '../render/table.js';
 
 // 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
 // ORDER and added advisory rules, not the shape an author writes. Accept
@@ -23,18 +26,23 @@ export const specEntitySchemaDef = {
       spec: {
         type: 'string',
         enum: ['0.15.2', '0.20.0', '0.20.1'],
-        description: 'Which DSDS model to describe this kind under. Defaults to 0.15.2 (legacy) for a kind that exists in both; system/entry are 0.20.0-only regardless of this flag.',
+        description: 'Which DSDS model to describe this kind under. Defaults to the schemaVersion of the loaded document, so it describes the model the corpus actually uses; 0.15.2 when nothing is loaded. system/entry are 0.20.x-only regardless of this flag.',
       },
     },
     required: ['kind'],
   },
 };
 
-export async function specEntitySchemaHandler({ kind, spec }) {
+export async function specEntitySchemaHandler({ kind, spec }, getSystems = null, format = 'markdown') {
+  // Default to the model the loaded corpus is written in. Defaulting to
+  // legacy 0.15.2 meant the common call — no `spec` argument, against a
+  // 0.20.1 document — described `identifier`, `documentBlocks` and
+  // `agentDocumentBlocks`, none of which appear in the files being read.
+  const effective = spec ?? corpusSpec(getSystems);
   // A namespaced custom kind (e.g. "sanity.guide") can't exist under legacy
   // 0.15.2 at all, so it always routes to the 0.20.0 path regardless of spec.
   const is20Only = kind === 'system' || kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
-  if (is20x(spec) || is20Only) return render20(kind);
+  if (is20x(effective) || is20Only) return render20(kind, format);
 
   const def = ENTITY_DESCRIPTIONS[kind];
   if (!def) {
@@ -99,7 +107,38 @@ export async function specEntitySchemaHandler({ kind, spec }) {
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
-function render20(kind) {
+
+function fieldTable(fields, format) {
+  return renderTable(
+    fields.map(f => ({
+      field: `\`${f.name}\``,
+      type: f.type ? `\`${f.type}\`` : null,
+      description: f.description,
+    })),
+    [
+      { key: 'field', header: 'Field' },
+      { key: 'type', header: 'Type' },
+      { key: 'description', header: 'Description' },
+    ],
+    { format, name: 'fields' }
+  ).split('\n');
+}
+
+// Section-kind descriptions in the schema run to a paragraph. The table wants
+// the gist. One sentence is often too little — `guidelines` opens with "Rules
+// for an entry.", which drops the half that says what distinguishes it — so
+// keep taking sentences until there is enough to be useful.
+function firstSentence(text, min = 60) {
+  const trimmed = String(text ?? '').trim();
+  let out = '';
+  for (const part of trimmed.split(/(?<=\.)\s+/)) {
+    out = out ? `${out} ${part}` : part;
+    if (out.length >= min) break;
+  }
+  return out;
+}
+
+function render20(kind, format = 'markdown') {
   const isNamespacedCustomKind = !ENTITY_DESCRIPTIONS_0_20_0[kind] && isValidKind20(kind);
   const def = ENTITY_DESCRIPTIONS_0_20_0[isNamespacedCustomKind ? 'entry' : kind];
   if (!def) {
@@ -122,20 +161,43 @@ function render20(kind) {
       ''
     );
   }
+  // Fields, their types and their meanings come from the vendored schema
+  // rather than a table here — see spec/schema-describe.js. The previous
+  // version printed the names alone, out of a hand-kept list, and sent the
+  // reader to a skill to find out what any of them held.
+  const fields = describeEntryFields(isNamespacedCustomKind ? 'entry' : kind);
+  const required = fields.filter(f => f.required);
+  const optional = fields.filter(f => !f.required);
+
+  lines.push(def.summary, '');
+
+  if (required.length) {
+    lines.push('## Required Fields', '', ...fieldTable(required, format), '');
+  }
+  if (optional.length) {
+    lines.push('## Optional Fields', '', ...fieldTable(optional, format), '');
+  }
+
+  const sectionKinds = describeSectionKinds();
+  if (sectionKinds.length) {
+    lines.push(
+      '## Section Kinds',
+      '',
+      'Every item in `sections` carries a `kind`. These are the four it can take:',
+      '',
+      ...renderTable(
+        sectionKinds.map(s => ({ kind: `\`${s.kind}\``, holds: firstSentence(s.description) })),
+        [{ key: 'kind', header: 'Kind' }, { key: 'holds', header: 'Holds' }],
+        { format, name: 'sectionKinds' }
+      ).split('\n'),
+      ''
+    );
+  }
+
   lines.push(
-    def.summary,
-    '',
-    '## Required Fields',
-    '',
-    ...def.required.map(f => `- \`${f}\``),
-    '',
-    '## Optional Top-Level Fields',
-    '',
-    ...def.optionalTop.map(f => `- \`${f}\``),
-    '',
     `> **Note:** ${def.notes}`,
     '',
-    'Prefer `dsds_get_skill({ id: "dsds-specs" })` for the full model (section kinds, refs, metadata) — this tool covers only this one kind\'s own top-level shape.',
+    'For the rest of the model — how refs resolve, what metadata carries, how a section is shaped — read `dsds_get_skill({ id: "dsds-specs" })`.',
   );
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);

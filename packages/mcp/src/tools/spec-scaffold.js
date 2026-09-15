@@ -1,6 +1,7 @@
 import { ENTITY_KINDS, ENTITY_KINDS_0_20_0, SCAFFOLDS, SCAFFOLDS_0_20_0 } from '../spec/knowledge.js';
 import { isValidKind20 } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
+import { corpusSpec } from '../spec/corpus-spec.js';
 
 // 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
 // ORDER and added advisory rules, not the shape an author writes. Accept
@@ -29,7 +30,9 @@ export const specScaffoldDef = {
   },
 };
 
-export async function specScaffoldHandler({ kind, spec }) {
+export async function specScaffoldHandler({ kind, spec }, getSystems = null) {
+  // Defaults to the loaded corpus's model — see spec/corpus-spec.js.
+  spec = spec ?? corpusSpec(getSystems);
   const is20Only = kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
   if (is20x(spec) || is20Only) {
     const isNamespacedCustomKind = !SCAFFOLDS_0_20_0[kind] && isValidKind20(kind);

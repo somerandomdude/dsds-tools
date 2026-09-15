@@ -42,13 +42,46 @@ export function resolveFileRef20(entityFilePath, ref) {
 // example shape. Any other namespace still renders — as raw tool data in a
 // collapsed <details> block — rather than vanishing.
 
+// Two shapes, both real. The original is flat — implemented/availableIn/
+// tracking/context directly under the namespace. The corpus now also nests one
+// object per extension, each with its own `context`, so a namespace can carry
+// more than one unrelated thing (implementation status *and* a migration
+// guide) without the keys of one being read as the keys of the other.
+//
+// Flat support is not legacy politeness: extensions.schema.yaml puts no shape
+// on a namespace at all, so another corpus may well use the flat form. Both
+// render, and an unrecognized sub-object still prints rather than vanishing —
+// the same rule as the namespace allowlist above.
 function renderSanityUiExtension(data, lines) {
+  renderSanityUiFacts(data, lines);
+
+  for (const [key, value] of Object.entries(data)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    lines.push('', `**${titleCase20(key)}**`, '');
+    renderSanityUiFacts(value, lines);
+    for (const [k, v] of Object.entries(value)) {
+      if (SANITY_UI_FACTS.has(k) || typeof v !== 'string') continue;
+      lines.push('', asText20(v));
+    }
+  }
+}
+
+const SANITY_UI_FACTS = new Set(['implemented', 'availableIn', 'tracking', 'context']);
+
+/** The known implementation-status keys, wherever they sit. */
+function renderSanityUiFacts(data, lines) {
   if (typeof data.implemented === 'boolean') {
     lines.push(`- Implemented: ${data.implemented ? 'yes' : 'no'}`);
   }
   if (data.availableIn?.length) lines.push(`- Available in: ${data.availableIn.join(', ')}`);
   if (data.tracking) lines.push(`- Tracking: ${data.tracking}`);
   if (data.context) lines.push(`- ${asText20(data.context)}`);
+}
+
+/** `migrationGuide` → "Migration guide". */
+function titleCase20(key) {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function renderFigmaExtension(data, lines) {

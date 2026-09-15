@@ -1,5 +1,6 @@
 import { ENTITY_KINDS, DOCUMENT_BLOCK_DESCRIPTIONS, VALID_BLOCKS_BY_KIND, SECTION_KIND_DESCRIPTIONS_0_20_0, SECTION_FREEFORM_NOTE } from '../spec/knowledge.js';
 import { getUpdateNotice } from '../spec/version.js';
+import { corpusSpec } from '../spec/corpus-spec.js';
 
 // 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
 // ORDER and added advisory rules, not the shape an author writes. Accept
@@ -31,7 +32,9 @@ export const specDocumentBlocksDef = {
   },
 };
 
-export async function specDocumentBlocksHandler({ kind, spec }) {
+export async function specDocumentBlocksHandler({ kind, spec }, getSystems = null) {
+  // Defaults to the loaded corpus's model — see spec/corpus-spec.js.
+  spec = spec ?? corpusSpec(getSystems);
   if (is20x(spec)) {
     const lines = [
       '# Section kinds (real 0.20.0)',
