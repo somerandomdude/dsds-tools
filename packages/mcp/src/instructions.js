@@ -13,11 +13,11 @@ export const BASE_INSTRUCTIONS = `
 DSDS MCP — Design System Documentation Spec v${BUNDLED_VERSION}
 
 HARD RULE — before using ANY component from this design system in code, you MUST call
-dsds_get_agent_context(identifier) for it, or at minimum dsds_get_document_block(identifier, "api").
-This applies even if you already called dsds_context_brief this session, even for a component
-you are confident about, and even for one you already used earlier in the same file or a chunk.
-Skipping this check for even one component is the single most common cause of avoidable build
-failures — do not rely on general training knowledge for this design system's API surface.
+dsds_get_agent_context(identifier) for it. This applies even if you already called
+dsds_context_brief this session, even for a component you are confident about, and even
+for one you already used earlier in the same file or a chunk. Skipping this check for
+even one component is the single most common cause of avoidable build failures — do not
+rely on general training knowledge for this design system's API surface.
 
 SET THE PROJECT UP BEFORE YOU USE COMPONENTS — most design systems need one-time
 setup before ANY component renders correctly: a stylesheet import, a theme provider,
@@ -44,7 +44,7 @@ START HERE: Call dsds_context_brief first to get a full briefing before any work
 
 SPEC TOOLS — for authoring DSDS-compliant documentation (always available, no configuration needed):
 - dsds_spec_overview → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate
-- dsds_style_check — after a document validates, check it against the authoring style guide (STYLE_GUIDE.md, spec 0.20.1): the DSDS-17..23 rules covering the ORDER of an entry's fields, its sections, its guideline items by level, and its combos. Advisory only — ordering never affects validity, so this never changes what dsds_validate says. Reach for it when authoring or editing a document, not when reading one.
+- dsds_style_check — after a document validates, check it against the authoring style guide (STYLE_GUIDE.md, spec 0.21.0): the DSDS-17..23 rules covering the ORDER of an entry's fields, its sections, its guideline items by level, and its combos. Advisory only — ordering never affects validity, so this never changes what dsds_validate says. Reach for it when authoring or editing a document, not when reading one.
 - AUTHORING (writing new DSDS docs) is distinct from IMPLEMENTING (building UI from a component that already exists). These spec tools produce DSDS documentation JSON, never UI/React code. To implement an existing component, use dsds_build_component (DESIGN SYSTEM TOOLS below) instead.
 - Authoring a COMPONENT document? Two paths: dsds_author_component_doc is a guided, step-by-step wizard (start with step:"start", no data) that produces a DSDS component-documentation *document* (a JSON entity) from scratch — it supplies valid field values at each step and needs no schema knowledge. dsds_spec_scaffold(kind:"component") gives a blank template to fill in yourself when you already know the schema. For any other entity kind (token, theme, foundation, pattern, guide, chunk) or a multi-entity system, use dsds_spec_scaffold.
 
@@ -57,6 +57,7 @@ DESIGN SYSTEM TOOLS — for querying an existing DSDS document (requires DSDS_PA
 RELATIONSHIP GRAPH — typed dependency edges between entities (composes, depends-on, part-of, alternative-to, replaces, extends), with inverse edges derived automatically:
 - dsds_impact(identifier) — blast radius: what breaks if you change/remove this entity (direct + transitive dependents, required edges flagged). Start here before changing a shared token or component.
 - dsds_get_examples(identifier) — the worked examples that USE this entity, as an index: each one's name, what it demonstrates, and the call that fetches it. Browse here first, then pull the single chunk you want with dsds_get_chunk — reading every chunk for a component to find the relevant one costs far more than this listing.
+- dsds_get_variants — a component's configurable dimensions and their allowed values, read from its traits. Call it before setting a prop like tone/size/level: the value set is closed, so anything outside it is invalid. Returns variants by default; include:"states" for runtime conditions, include:"all" for both.
 - dsds_get_dependents(identifier, { relation?, transitive? }) — what points AT this entity.
 - dsds_get_dependencies(identifier, { relation?, transitive? }) — what this entity needs / is built from.
 - dsds_get_alternatives(identifier) — interchangeable options and replacements; surfaces deprecations.

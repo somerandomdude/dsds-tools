@@ -2,10 +2,12 @@ import { ENTITY_KINDS, DOCUMENT_BLOCK_DESCRIPTIONS, VALID_BLOCKS_BY_KIND, SECTIO
 import { getUpdateNotice } from '../spec/version.js';
 import { corpusSpec } from '../spec/corpus-spec.js';
 
-// 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
-// ORDER and added advisory rules, not the shape an author writes. Accept
-// either so a caller naming the currently bundled release still routes here.
-const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1';
+// 0.20.0, 0.20.1 and 0.21.0 are one document model: 0.20.1 changed field
+// ORDER and added advisory rules, and 0.21.0 added `traitType` to a trait and
+// `tags` to a section. An author writes the same shape either way, so all
+// three route here and the described field tables come from the vendored
+// schema, which is pinned to the bundled release.
+const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1' || spec === '0.21.0';
 
 // Chunks don't use documentBlocks — their guidelines/useCases are top-level.
 const DOCUMENT_BLOCK_KINDS = ENTITY_KINDS.filter(k => k !== 'chunk');
@@ -24,7 +26,7 @@ export const specDocumentBlocksDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0', '0.20.1'],
+        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0'],
         description: 'Which DSDS model to describe. Defaults to 0.15.2 (legacy), which requires "kind"; 0.20.0 ignores "kind" entirely.',
       },
     },

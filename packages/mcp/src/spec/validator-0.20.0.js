@@ -1,5 +1,5 @@
 // Validates a real DSDS 0.20.0 document (YAML or its parsed object form)
-// against the split schema files under ./schema-0.20.1/, using the same
+// against the split schema files under ./schema-0.21.0/, using the same
 // dispatch and semantic-rule logic as the real spec repo's own
 // scripts/validate.js (0.20.0 branch) — ported here so this server's
 // dsds_validate tool checks 0.20.0 documents against real ground truth
@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { entriesIn20, findRefs20, isValidKind20, loadYaml20, statusEntriesOf20, walkSchemaYamlFiles } from './dsds20-lib.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.20.1');
+const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.21.0');
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -617,7 +617,7 @@ function validateItemRefs(doc, errors, warnings, { alwaysWarn = false } = {}) {
 // answer "is this document allowed/internally consistent?" These answer
 // "is this documentation good?" — they never block a document (they land
 // in `advisories`, not `errors` or `warnings`), and every rule here is
-// looked up by name against schema-0.20.1/conformance-rules.yaml's own
+// looked up by name against schema-0.21.0/conformance-rules.yaml's own
 // `enforcement: advisory` entries via RULES, so a rule removed from the
 // catalog silently stops firing here too, with no code change needed.
 function normalizeProse(s) {

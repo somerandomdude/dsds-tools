@@ -1,5 +1,5 @@
 # expect: DSDS-02
-schemaVersion: "0.20.0"
+schemaVersion: "0.21.0"
 name: Bad Platform Vocabulary
 entries:
   - id: acme-design-system

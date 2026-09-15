@@ -14,6 +14,14 @@ import { validateDoc20 } from '../../src/spec/validator-0.20.0.js';
 // The manifest and fixtures are vendored verbatim from tag v0.20.1 alongside
 // the schema itself. Re-copy both together when bumping the spec.
 //
+// Kept after the 0.21.0 bump, but read it for what it now proves. The
+// validator loads schema-0.21.0/, so these 26 fixtures are still all
+// rejected, each still tagged with the rule it is named after — that much is
+// a real regression guard. What it no longer shows is that a *valid* 0.20.1
+// document passes: one with traits does not, because `traitType` is required
+// now. That is the release's intended break, and conformance-0.21.0.test.js
+// is the suite that speaks for the current schema.
+//
 // Two details of our validator that the contract accommodates:
 //
 //   1. Findings are plain strings, not objects. A rule id appears as a

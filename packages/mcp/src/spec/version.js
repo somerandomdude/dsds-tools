@@ -1,17 +1,26 @@
-// schema-0.20.1/ is vendored verbatim from the upstream tag `v0.20.1` of
-// somerandomdude/design-system-documentation-schema (2026-09-09), replacing
-// the earlier hand-mirror of the untagged `0.20.0-fixes` branch. Because
-// v0.20.1 is a real tag, the tag-based update check below can see it and
-// future releases, which it could not do for the branch mirror.
+// schema-0.21.0/ is vendored verbatim from the upstream repo's 0.21.0 release
+// of somerandomdude/design-system-documentation-schema, replacing the v0.20.1
+// vendor. schema-0.20.0/ and schema-0.20.1/ stay for the tools that still
+// describe those models on request.
 //
-// 0.20.1 is a patch on the same 0.20.x model: no field was added or removed
-// from the document shape an author writes. What changed is (a) property
-// order across every schema file, now normative and read by the style-guide
-// rules, (b) reworded descriptions, and (c) eight new advisory rules,
-// DSDS-16 through DSDS-23. Sibling modules keep their -0.20.0 filenames
-// because they implement the 0.20.x *model*, which this release did not
-// change; only the vendored schema is version-pinned.
-export const BUNDLED_VERSION = '0.20.1';
+// 0.21.0 is a minor with exactly one shape change an author feels: every
+// component trait now requires `traitType` (`variant` or `state`), a
+// different axis from the optional `setBy` — `disabled` and `loading` are
+// states the *consumer* sets, so neither field derives from the other. A
+// 0.20.x document with traits is therefore not a valid 0.21.0 document until
+// each trait gains the field; upstream ships scripts/tools/migrate-to-0.21.js
+// for that.
+//
+// Also new and worth knowing here: `tags` on a section, which DSDS-18 now
+// reads instead of inferring a section's topic from its items. The old
+// inference needed two or more items all naming the same tag, so a section's
+// required position depended on how many rules it held and whether their tags
+// intersected. style-guide-0.20.1.js implements the declared form.
+//
+// Sibling modules keep their -0.20.0/-0.20.1 filenames: they implement the
+// 0.20.x *model*, which 0.21.0 extends rather than replaces. Only the
+// vendored schema and this constant are version-pinned.
+export const BUNDLED_VERSION = '0.21.0';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

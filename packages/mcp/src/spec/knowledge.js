@@ -377,6 +377,26 @@ export const SCAFFOLDS_0_20_0 = {
     // least one real element, so a truly empty starting point has neither.
     metadata: { status: { status: 'draft' } },
     sourceFiles: [{ platform: 'react', file: './src/MyComponent.tsx' }],
+    // `traitType` is required on every trait as of 0.21.0, and it is the one
+    // field a 0.20.x author does not expect. Both values appear here so the
+    // scaffold teaches the distinction rather than leaving it to a validation
+    // error: `size` is a dimension the caller configures, `loading` a
+    // condition the component is in.
+    traits: [
+      {
+        kind: 'enum',
+        traitType: 'variant',
+        id: 'size',
+        description: 'Controls the overall scale.',
+        values: [{ id: 'medium', description: 'The default size.' }],
+      },
+      {
+        kind: 'boolean',
+        traitType: 'state',
+        id: 'loading',
+        description: 'Shows a pending action and blocks interaction.',
+      },
+    ],
   },
   token: {
     id: 'color.action.primary',

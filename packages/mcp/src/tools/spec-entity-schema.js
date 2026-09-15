@@ -5,10 +5,12 @@ import { describeEntryFields, describeSectionKinds } from '../spec/schema-descri
 import { corpusSpec } from '../spec/corpus-spec.js';
 import { renderTable } from '../render/table.js';
 
-// 0.20.0 and 0.20.1 are the same document model — 0.20.1 changed field
-// ORDER and added advisory rules, not the shape an author writes. Accept
-// either so a caller naming the currently bundled release still routes here.
-const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1';
+// 0.20.0, 0.20.1 and 0.21.0 are one document model: 0.20.1 changed field
+// ORDER and added advisory rules, and 0.21.0 added `traitType` to a trait and
+// `tags` to a section. An author writes the same shape either way, so all
+// three route here and the described field tables come from the vendored
+// schema, which is pinned to the bundled release.
+const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1' || spec === '0.21.0';
 
 export const specEntitySchemaDef = {
   name: 'dsds_spec_entity_schema',
@@ -25,7 +27,7 @@ export const specEntitySchemaDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0', '0.20.1'],
+        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0'],
         description: 'Which DSDS model to describe this kind under. Defaults to the schemaVersion of the loaded document, so it describes the model the corpus actually uses; 0.15.2 when nothing is loaded. system/entry are 0.20.x-only regardless of this flag.',
       },
     },

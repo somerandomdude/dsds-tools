@@ -2,12 +2,12 @@
 name: dsds-validate
 description: Validate DSDS specs against the bundled schema and check for consistency issues. Triggers on "validate specs", "check specs", "spec errors", "run validation".
 metadata:
-  version: 0.20.1
+  version: 0.21.0
 ---
 
 # Validate DSDS Specs
 
-Run schema and semantic validation on your `.dsds.yaml` spec files.
+Run schema and semantic validation on your `.dsds.yaml` documents.
 
 ## Quick Command
 
@@ -15,7 +15,7 @@ Run schema and semantic validation on your `.dsds.yaml` spec files.
 npx dsds-validate <files-or-globs>
 ```
 
-This validates every file given against the DSDS v0.20.1 bundled schema using Ajv2020, plus a set of semantic rules JSON Schema alone can't express — the `DSDS-01`–`DSDS-11` catalog (resolution, uniqueness, platform vocabulary, `composes`/`depends-on` cycles, and file-existence checks), each tagged `structural` or `semantic`. Pass `--strict` to promote the warning-only rules (`DSDS-05`, `DSDS-08`, `DSDS-09`, `DSDS-11`) to hard failures.
+This validates every file given against the DSDS v0.21.0 bundled schema using Ajv2020, plus a set of semantic rules JSON Schema alone can't express — the `DSDS-01`–`DSDS-11` catalog (resolution, uniqueness, platform vocabulary, `composes`/`depends-on` cycles, and file-existence checks), each tagged `structural` or `semantic`. Pass `--strict` to promote the warning-only rules (`DSDS-05`, `DSDS-08`, `DSDS-09`, `DSDS-11`) to hard failures.
 
 ## Documentation-Quality Checks (advisory)
 
@@ -51,15 +51,17 @@ A second, separate tier (`DSDS-12`–`DSDS-23`) that answers "is this documentat
 
 The validation schema comes from the [DSDS project](https://github.com/somerandomdude/design-system-documentation-schema):
 
-- **Bundled schema** (used by `dsds-validate`): `https://designsystemdocspec.org/v0.20.1/dsds.bundled.schema.json`, or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if installed as a dependency
+- **Bundled schema** (used by `dsds-validate`): `https://designsystemdocspec.org/v0.21.0/dsds.bundled.schema.json`, or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if installed as a dependency
 - This is a single-file version with every schema file's own `$id` still present, so `$ref`s resolve without needing to be inlined
 
 If validation fails on a field you're unsure about, consult the relevant docs page:
 
 - https://designsystemdocspec.org/schema#how-the-schema-is-organized (how the schema is organized)
 - https://designsystemdocspec.org/conformance (full rule catalog and conformance classes)
-- `https://designsystemdocspec.org/sections-{kind}` (per-section constraints)
-- `https://designsystemdocspec.org/entries-{kind}` (per-entry constraints)
+- `/schema/sections-<kind>.md` on this site (per-section constraints) — for example
+  [sections-guidelines.md](https://designsystemdocspec.org/schema/sections-guidelines.md)
+- `/schema/entries-<kind>.md` (per-entry constraints) — for example
+  [entries-component.md](https://designsystemdocspec.org/schema/entries-component.md)
 
 ## When to Validate
 

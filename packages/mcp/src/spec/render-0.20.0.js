@@ -316,20 +316,49 @@ export function renderSections20(sections, lines, { audience = null, depth = 2, 
   }
 }
 
-/** Renders `traits` (variants/states) as the closed-value-set constraints agents most often get wrong. */
+/** Renders `traits` (variants/states) as the closed-value-set constraints agents most often get wrong.
+ *
+ * Grouped by `traitType`, required since 0.21.0. Before it there was no field
+ * that told the two apart — `kind` is `boolean`/`enum`, the form the value
+ * takes, and a boolean trait can be either sort (`outlined` is a variant,
+ * `hover` a state). So a flat list was the honest rendering; now it isn't.
+ *
+ * The grouping is what a reader is usually after: which of these do I set, and
+ * which does the component put itself into. A trait with no `traitType` (a
+ * 0.20.x document, still loadable here) falls into a third group rather than
+ * being silently filed under one of the two.
+ */
 export function renderTraits20(traits, lines) {
   if (!traits?.length) return;
   lines.push('## Traits (variants & states)', '');
-  for (const trait of traits) {
-    if (trait.kind === 'enum') {
-      const values = (trait.values ?? []).map((v) => `\`${v.id}\``).join(' | ');
-      lines.push(`- \`${trait.id}\` — enum: ${values}`);
-    } else {
-      lines.push(`- \`${trait.id}\` — boolean`);
-    }
-    if (trait.description) lines.push(`  - ${asText20(trait.description)}`);
+
+  const groups = [
+    ['Variants', traits.filter((t) => t?.traitType === 'variant')],
+    ['States', traits.filter((t) => t?.traitType === 'state')],
+    ['Unclassified', traits.filter((t) => t?.traitType !== 'variant' && t?.traitType !== 'state')],
+  ].filter(([, list]) => list.length);
+
+  // One group and nothing to contrast it with: a heading would be noise.
+  const labelled = groups.length > 1;
+  for (const [label, list] of groups) {
+    if (labelled) lines.push(`**${label}**`, '');
+    for (const trait of list) renderTrait20(trait, lines);
+    if (labelled) lines.push('');
   }
-  lines.push('');
+  if (!labelled) lines.push('');
+}
+
+function renderTrait20(trait, lines) {
+  if (trait.kind === 'enum') {
+    const values = (trait.values ?? []).map((v) => `\`${v.id}\``).join(' | ');
+    lines.push(`- \`${trait.id}\` — enum: ${values}`);
+  } else {
+    lines.push(`- \`${trait.id}\` — boolean`);
+  }
+  // `setBy` is a different question from `traitType` and worth stating when
+  // present: a `state` the consumer sets still becomes a prop.
+  if (trait.setBy) lines.push(`  - set by: ${trait.setBy}`);
+  if (trait.description) lines.push(`  - ${asText20(trait.description)}`);
 }
 
 /** Renders `combos` (must/must-not pairing rules between traits) — hard constraints. */

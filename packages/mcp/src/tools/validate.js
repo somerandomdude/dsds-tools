@@ -39,6 +39,32 @@ function renderLegacy(document) {
   return { content: [{ type: 'text', text }] };
 }
 
+/**
+ * The one error every 0.20.x corpus hits on the way to 0.21.0.
+ *
+ * `traitType` became required on every component trait, so a document that
+ * was valid yesterday now fails once per trait. The schema error names the
+ * missing property correctly but says nothing about which of the two values
+ * to write, and an author reading "must have required property" has no way to
+ * know a mechanical migration exists. Both facts belong next to the error.
+ *
+ * Nothing else in the release needs this: `tags` on a section is optional, so
+ * no existing document fails for it.
+ */
+function migrationHint(errors) {
+  const missing = errors.filter((e) => /required property 'traitType'/.test(String(e))).length;
+  if (!missing) return [];
+  return [
+    '',
+    `### Migrating to ${BUNDLED_VERSION}`,
+    '',
+    `\`traitType\` is required on every component trait as of 0.21.0 — ${missing} trait${missing !== 1 ? 's' : ''} here ${missing !== 1 ? 'are' : 'is'} missing it.`,
+    'Use `variant` for a dimension the caller configures (`size`, `tone`), and `state` for a condition the component can be in (`hover`, `loading`, `disabled`).',
+    'It is a different question from the optional `setBy`: `disabled` and `loading` are states the *consumer* sets, so neither field can be derived from the other.',
+    'The spec repo ships `scripts/tools/migrate-to-0.21.js`, which adds the field in place and prints every trait whose value it had to guess.',
+  ];
+}
+
 function render20(doc, filePath) {
   const { errors, warnings, advisories } = validateDoc20(doc, { filePath });
   const lines = [];
@@ -46,6 +72,7 @@ function render20(doc, filePath) {
     lines.push(`## Valid DSDS ${BUNDLED_VERSION} Document`, '', 'The document passes schema and semantic validation.');
   } else {
     lines.push(`## Validation Failed — ${errors.length} error${errors.length !== 1 ? 's' : ''}`, '', ...errors.map(e => `- ${e}`));
+    lines.push(...migrationHint(errors));
   }
   if (warnings.length) {
     lines.push('', `### ${warnings.length} warning${warnings.length !== 1 ? 's' : ''}`, '', ...warnings.map(w => `- ${w}`));

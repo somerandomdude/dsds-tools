@@ -1,5 +1,5 @@
 # expect: DSDS-08
-schemaVersion: "0.20.0"
+schemaVersion: "0.21.0"
 name: Bad Entry Ref
 entries:
   - id: dark

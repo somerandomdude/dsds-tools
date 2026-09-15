@@ -1,5 +1,5 @@
 # expect: DSDS-10
-schemaVersion: "0.20.0"
+schemaVersion: "0.21.0"
 name: Bad Same-As Level
 entries:
   - id: consumer

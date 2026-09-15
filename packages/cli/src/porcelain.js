@@ -135,6 +135,20 @@ export const PORCELAIN = {
     }),
   },
 
+  variants: {
+    summary: "A component's configurable dimensions and their allowed values",
+    usage: 'dsds variants <component> [--include variants|states|all]',
+    options: {
+      include: { type: 'string', description: 'Which traits to list: variants (default), states, or all' },
+    },
+    schemaKeys: ['identifier'],
+    positionals: { min: 1, max: 1, label: '<component>' },
+    build: ([identifier], values) => ({
+      tool: 'dsds_get_variants',
+      args: { identifier, ...(values.include ? { include: values.include } : {}) },
+    }),
+  },
+
   build: {
     summary: 'Compose a documented component into valid JSX — list its props, then finalize with answers',
     usage: "dsds build <component> [--answers '<json>']",

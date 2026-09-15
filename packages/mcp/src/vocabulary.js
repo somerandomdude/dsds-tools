@@ -19,6 +19,7 @@ import { MCP_GUIDANCE, CLI_GUIDANCE, MCP_BRIEF, CLI_BRIEF, MCP_SCHEMA_POINTER, C
 // Canonical tool name → the CLI command that does the same job. A tool with
 // no porcelain maps to its `dsds tool` invocation, which is still accurate.
 export const CLI_EQUIVALENTS = {
+  dsds_get_variants: 'dsds variants',
   dsds_list_entities: 'dsds list',
   dsds_search_entities: 'dsds search',
   dsds_get_entity: 'dsds get',

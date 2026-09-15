@@ -1,5 +1,5 @@
 # expect: DSDS-09
-schemaVersion: "0.20.0"
+schemaVersion: "0.21.0"
 name: Bad Combo Target
 entries:
   - id: button
@@ -9,6 +9,7 @@ entries:
     traits:
       - id: size
         kind: enum
+        traitType: variant
         description: Controls scale.
         values:
           - id: small

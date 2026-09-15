@@ -39,10 +39,12 @@ refs:
 # boolean - `description` says which).
 traits:
   - kind: boolean
+    traitType: state
     id: loading
     description: Shows a spinner in place of the label and blocks interaction while active.
     purpose: Prevents duplicate submissions while an action is in flight.
   - kind: enum
+    traitType: variant
     id: size
     description: Controls the button's overall scale.
     values:
@@ -53,6 +55,7 @@ traits:
       - id: large
         description: Larger touch target for primary calls-to-action.
   - kind: enum
+    traitType: variant
     id: variant
     description: Which visual style to render.
     values:
@@ -63,9 +66,11 @@ traits:
       - id: danger
         description: Destructive actions only (delete, revoke access, etc.).
   - kind: boolean
+    traitType: state
     id: hover
     description: Background darkens slightly when the pointer is over the button.
   - kind: boolean
+    traitType: state
     id: disabled
     description: Dimmed and non-interactive; triggered by the `disabled` prop.
 combos:

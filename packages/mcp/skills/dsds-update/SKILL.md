@@ -2,7 +2,7 @@
 name: dsds-update
 description: Update an existing DSDS spec based on implementation changes, Figma updates, or written instructions. Triggers on "update spec", "modify spec", "add prop to spec", "sync spec", "spec drift".
 metadata:
-  version: 0.20.1
+  version: 0.21.0
 ---
 
 # Update a DSDS Spec
@@ -11,27 +11,27 @@ Modify an existing `.dsds.yaml` file.
 
 ## Procedure
 
-1. Read the existing spec file.
+1. Read the existing document.
 2. Identify what changed — compare against the source (code diff, Figma update, user instructions).
-3. Apply edits to the spec, preserving structure and existing content.
+3. Apply edits to the document, preserving structure and existing content.
 4. Run `npx dsds-validate <the-file>.dsds.yaml` — fix errors until it passes.
-5. If your project generates its own index or catalog from spec files, regenerate it now.
+5. If your project generates its own index or catalog from these documents, regenerate it now.
 
 ## Common Updates
 
-| Change | Location in spec |
+| Change | Location in the document |
 | --- | --- |
-| New prop | `sourceFiles` already points at the real file — no spec edit needed, unless there's no source file, in which case update the `definitions` section titled "Props" |
-| New variant value | Top-level `traits` item with `kind: enum`, in its `values` array |
-| New state | Top-level `traits` item with `kind: boolean` |
+| New prop | `sourceFiles` already points at the real file — no edit needed, unless there's no source file, in which case update the `definitions` section titled "Props" |
+| New variant value | Top-level `traits` item with `traitType: variant` and `kind: enum`, in its `values` array |
+| New state | Top-level `traits` item with `traitType: state` |
 | Anatomy change | The `definitions` section titled "Anatomy" |
-| New accessibility requirement | A `guidelines` item (`context: how-to-use`), or a `definitions` section titled "Keyboard interactions" |
+| New accessibility requirement | A `guidelines` item in a `framing: how-to-use` section, or a `definitions` section titled "Keyboard interactions" |
 | Status change | `metadata.status` (always an object: `{status: "..."}`) |
 | New agent rule | A section with `for: agent` |
 
 ## Rules
 
-- Never remove existing content unless explicitly instructed — specs are additive by default.
+- Never remove existing content unless explicitly instructed — documents are additive by default.
 - Preserve the existing order of `sections` and `traits` items.
 - When you add a *new* top-level field, insert it at its
   [STYLE_GUIDE.md](https://github.com/somerandomdude/design-system-documentation-schema/blob/main/STYLE_GUIDE.md)
@@ -45,15 +45,17 @@ Modify an existing `.dsds.yaml` file.
   into an unreviewable diff.
 - When adding trait values, place them in logical order (not necessarily alphabetical) — the first value is implied as the default.
 - Update `metadata.status` if the change constitutes a breaking API modification.
-- If adding a new relationship, use `common/ref`'s one shape: `{to: "<id>", rel: "<depends-on|extends|alternative-to|composes|...>"}` for something in this document's own graph, or `{href: "<url>", rel: "..."}` for something outside it.
+- If adding a new relationship, use `common/ref`'s one form: `{to: "<id>", rel: "<depends-on|extends|alternative-to|composes|...>"}` for something in this document's own graph, or `{href: "<url>", rel: "..."}` for something outside it.
 
 ## Schema References
 
-When adding new sections or fields, verify the exact shape:
+When adding new sections or fields, verify the exact fields:
 
-- **Bundled schema**: `https://designsystemdocspec.org/v0.20.1/dsds.bundled.schema.json` (or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if DSDS is installed as a dependency)
-- **Section reference**: `https://designsystemdocspec.org/sections-{kind}`
-- **Entry reference**: `https://designsystemdocspec.org/entries-{kind}`
+- **Bundled schema**: `https://designsystemdocspec.org/v0.21.0/dsds.bundled.schema.json` (or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if DSDS is installed as a dependency)
+- **Section reference**: `/schema/sections-<kind>.md` on this site — for example
+  [sections-guidelines.md](https://designsystemdocspec.org/schema/sections-guidelines.md)
+- **Entry reference**: `/schema/entries-<kind>.md` — for example
+  [entries-component.md](https://designsystemdocspec.org/schema/entries-component.md)
 - **Full architecture**: https://designsystemdocspec.org/schema#how-the-schema-is-organized
 
 ## Gotchas

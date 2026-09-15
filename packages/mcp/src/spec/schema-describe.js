@@ -8,7 +8,7 @@
 // field table with a gloss on every entry.
 //
 // The meanings were in the repository the whole time: 150 of the 173
-// properties declared across schema-0.20.1/ carry a `description`, and
+// properties declared across schema-0.21.0/ carry a `description`, and
 // schema-order.js already parses those exact files for field order and throws
 // the text away. This reads it instead.
 //

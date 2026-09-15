@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { loadYamlFile20 } from './dsds20-lib.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const SCHEMA_DIR = resolve(__dirname, 'schema-0.20.1');
+export const SCHEMA_DIR = resolve(__dirname, 'schema-0.21.0');
 
 export const EXTENSIONS_KEY = '$extensions';
 
@@ -42,7 +42,7 @@ export function declaredProps(relPath) {
     const keys = Object.keys(doc.properties || (inline && inline.properties) || {});
     if (keys.length === 0) {
       throw new Error(
-        `schema-0.20.1/${relPath} declares no properties of its own, so no field order can be derived from it. Either the file was restructured, or the caller asked for the wrong one.`,
+        `schema-0.21.0/${relPath} declares no properties of its own, so no field order can be derived from it. Either the file was restructured, or the caller asked for the wrong one.`,
       );
     }
     declaredPropsCache.set(relPath, keys);
@@ -94,7 +94,7 @@ export function declaredEnum(relPath, locate) {
   const values = field && field.enum;
   if (!Array.isArray(values) || values.length === 0) {
     throw new Error(
-      `schema-0.20.1/${relPath} declares no enum where one was expected, so no order can be derived from it. Either the file was restructured, or the caller looked in the wrong place.`,
+      `schema-0.21.0/${relPath} declares no enum where one was expected, so no order can be derived from it. Either the file was restructured, or the caller looked in the wrong place.`,
     );
   }
   return { values, fallback: field.default };

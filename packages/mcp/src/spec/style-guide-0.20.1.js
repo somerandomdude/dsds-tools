@@ -2,7 +2,7 @@
 // how to order things inside a document so every document reads the same way.
 //
 // Seven warning-only rules, DSDS-17 through DSDS-23, all `enforcement: advisory`
-// in schema-0.20.1/conformance-rules.yaml. None of this changes whether a
+// in schema-0.21.0/conformance-rules.yaml. None of this changes whether a
 // document is *valid* — the schema accepts any order — so nothing here ever
 // produces an error, and `dsds_validate`'s verdict is unaffected.
 //
@@ -46,37 +46,40 @@ const LEVEL = declaredEnum('common/requirement-level.schema.yaml', (d) => d);
 const levelRank = enumRanker('common/requirement-level.schema.yaml', (d) => d);
 
 // §4's breadth scale has three tiers, not two: when-to-use, then how-to-use,
-// then "a section really about one tag". The third isn't a field — it's true
-// when every item names the same tag — so it's read from the items.
+// then "a section about one topic". The third isn't a framing value — it's a
+// section that declares `tags`.
 const TAG_TIER = FRAMING.values.length;
 
 /**
- * The single tag a section is entirely about, or null.
+ * The topic a section declares, or null. The first tag is the scope, matching
+ * `metadata.tags`' own first-tag-is-primary convention.
  *
- * Two items minimum: a one-item section shares a tag with itself no matter
- * what, and treating that as "about one tag" would sort every lone tagged item
- * to the end for a reason no reader would recognize.
+ * 0.21.0 added `tags` to a section and pointed DSDS-18's third tier at it.
+ * Before that the tier was inferred from the items — two or more, every one
+ * tagged, with a tag common to all of them — which made a section's required
+ * position depend on how many rules it happened to hold and on whether their
+ * tags intersected. Adding a rule could move a section; a section with ten
+ * tagged items could miss the tier because no single tag ran through all of
+ * them. A declared field cannot do either.
+ *
+ * Item-level `tags` are untouched by this: they relate one rule across
+ * categories, which is a different job from saying what a section covers.
  */
-function sharedTag(section) {
-  const items = section.items;
-  if (!Array.isArray(items) || items.length < 2) return null;
-  if (!items.every((it) => it && Array.isArray(it.tags) && it.tags.length)) return null;
-  const shared = items
-    .map((it) => new Set(it.tags))
-    .reduce((a, b) => new Set([...a].filter((tag) => b.has(tag))));
-  return shared.size ? [...shared].sort()[0] : null;
+function sectionScope(section) {
+  const tags = section?.tags;
+  return Array.isArray(tags) && tags.length && typeof tags[0] === 'string' ? tags[0] : null;
 }
 
 // A tag-scoped section is the narrowest tier whatever its `framing`, so this
 // replaces the framing rank rather than composing with it.
-const breadthRank = (section) => (sharedTag(section) ? TAG_TIER : framingRank(section.framing));
+const breadthRank = (section) => (sectionScope(section) ? TAG_TIER : framingRank(section.framing));
 
 function describeBreadth(section) {
-  const tag = sharedTag(section);
-  return tag ? `a section about one tag (\`${tag}\`)` : `a \`framing: ${section.framing || FRAMING.fallback}\` section`;
+  const tag = sectionScope(section);
+  return tag ? `a section tagged \`${tag}\`` : `a \`framing: ${section.framing || FRAMING.fallback}\` section`;
 }
 
-const describeTier = (tier) => (tier === TAG_TIER ? 'both about one tag' : `both ${FRAMING.values[tier]}`);
+const describeTier = (tier) => (tier === TAG_TIER ? 'both tag-scoped' : `both ${FRAMING.values[tier]}`);
 
 // A section that leaves `for` out is ranked as the schema's default, so it has
 // to be *named* as the default too — printing "for: undefined" would describe
@@ -176,7 +179,7 @@ const ENTITY_RULES = {
     if (breadthInversion) {
       emit(
         '/sections',
-        `"${entry.id}" has ${describeBreadth(breadthInversion[0])} before ${describeBreadth(breadthInversion[1])} — STYLE_GUIDE.md §4 orders guidelines sections ${FRAMING.values.join(', ')}, then sections about one tag.`,
+        `"${entry.id}" has ${describeBreadth(breadthInversion[0])} before ${describeBreadth(breadthInversion[1])} — STYLE_GUIDE.md §4 orders guidelines sections ${FRAMING.values.join(', ')}, then tag-scoped sections.`,
       );
       return; // fix breadth first — the audience sort only orders sections that TIE on breadth
     }
@@ -361,7 +364,7 @@ export function styleRules() {
     const parts = [];
     if (missing.length) parts.push(`catalog rules with no implementation: ${missing.join(', ')}`);
     if (orphan.length) parts.push(`implementations with no catalog entry: ${orphan.join(', ')}`);
-    throw new Error(`style-guide rule drift against schema-0.20.1/conformance-rules.yaml — ${parts.join('; ')}`);
+    throw new Error(`style-guide rule drift against schema-0.21.0/conformance-rules.yaml — ${parts.join('; ')}`);
   }
 
   cachedRules = rules.map((r) => ({

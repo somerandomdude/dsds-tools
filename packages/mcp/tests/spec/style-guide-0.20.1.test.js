@@ -71,9 +71,22 @@ describe('DSDS-18 section order', () => {
     expect(ids(doc)).toContain('DSDS-18');
   });
 
-  it('treats a section whose every item shares one tag as the narrowest tier', () => {
-    // Two how-to-use sections; the tagged one must come last. Here it comes
-    // first, so it is an inversion even though both are how-to-use.
+  it('treats a section that declares `tags` as the narrowest tier', () => {
+    // Two how-to-use sections; the tag-scoped one must come last. Here it
+    // comes first, so it is an inversion even though both are how-to-use.
+    const doc = [
+      'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
+      '  - kind: guidelines', '    tags: [accessibility]',
+      '    items: [{level: must, statement: A}]',
+      '  - kind: guidelines', '    items: [{level: must, statement: C}]',
+    ].join('\n');
+    expect(ids(doc)).toContain('DSDS-18');
+  });
+
+  // 0.21.0 moved this tier from inference to declaration. Item tags relate one
+  // rule across categories; they no longer say anything about the section's
+  // own position, however many of them agree.
+  it('does not infer the tier from item tags', () => {
     const doc = [
       'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
       '  - kind: guidelines', '    items:',
@@ -81,15 +94,27 @@ describe('DSDS-18 section order', () => {
       '      - {level: must, statement: B, tags: [accessibility]}',
       '  - kind: guidelines', '    items: [{level: must, statement: C}]',
     ].join('\n');
+    expect(ids(doc)).not.toContain('DSDS-18');
+  });
+
+  // The old rule needed two items before a section counted. A declared tag
+  // needs no items at all beyond the one the schema requires.
+  it('counts a one-item section that declares a tag', () => {
+    const doc = [
+      'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
+      '  - kind: guidelines', '    tags: [accessibility]',
+      '    items: [{level: must, statement: A}]',
+      '  - kind: guidelines', '    items: [{level: must, statement: C}]',
+    ].join('\n');
     expect(ids(doc)).toContain('DSDS-18');
   });
 
-  it('does not treat a single tagged item as a tag-scoped section', () => {
-    // One item always shares a tag with itself; the rule needs two.
+  it('is clean when the tag-scoped section comes last', () => {
     const doc = [
       'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
-      '  - kind: guidelines', '    items: [{level: must, statement: A, tags: [accessibility]}]',
       '  - kind: guidelines', '    items: [{level: must, statement: C}]',
+      '  - kind: guidelines', '    tags: [accessibility]',
+      '    items: [{level: must, statement: A}]',
     ].join('\n');
     expect(ids(doc)).not.toContain('DSDS-18');
   });

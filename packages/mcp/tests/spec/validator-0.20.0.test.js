@@ -71,6 +71,8 @@ describe('validateDoc20', () => {
     expect(errors).toEqual([]);
   });
 
+  // `checked` is the case 0.21.0 added `traitType` for: a state the consumer
+  // sets, so `setBy: consumer` says nothing about which kind of trait it is.
   it('accepts a trait\'s `setBy` field (consumer vs component)', () => {
     const doc = {
       id: 'switch',
@@ -78,8 +80,8 @@ describe('validateDoc20', () => {
       name: 'Switch',
       description: 'A toggle control.',
       traits: [
-        { id: 'checked', kind: 'boolean', description: 'Whether the switch is on.', setBy: 'consumer' },
-        { id: 'loading', kind: 'boolean', description: 'Whether a pending action is in flight.', setBy: 'component' },
+        { id: 'checked', kind: 'boolean', traitType: 'state', description: 'Whether the switch is on.', setBy: 'consumer' },
+        { id: 'loading', kind: 'boolean', traitType: 'state', description: 'Whether a pending action is in flight.', setBy: 'component' },
       ],
     };
     const { errors } = validateDoc20(doc);
@@ -92,7 +94,7 @@ describe('validateDoc20', () => {
       kind: 'component',
       name: 'Switch',
       description: 'A toggle control.',
-      traits: [{ id: 'checked', kind: 'boolean', description: 'Whether the switch is on.', setBy: 'somebody-else' }],
+      traits: [{ id: 'checked', kind: 'boolean', traitType: 'state', description: 'Whether the switch is on.', setBy: 'somebody-else' }],
     };
     const { errors } = validateDoc20(doc);
     expect(errors.length).toBeGreaterThan(0);

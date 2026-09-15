@@ -1,4 +1,4 @@
-schemaVersion: "0.20.0"
+schemaVersion: "0.21.0"
 name: Golden Fixture System
 
 entries:
@@ -8,6 +8,7 @@ entries:
     description: Exercises extensions, examples, and same-as resolution together.
     traits:
       - kind: boolean
+        traitType: state
         id: loading
         description: Shows a spinner.
     $extensions:
