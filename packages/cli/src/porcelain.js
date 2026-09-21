@@ -272,7 +272,7 @@ export const PORCELAIN = {
     usage: 'dsds scaffold <kind> [--spec <version>]',
     schemaKeys: ['kind'],
     options: {
-      spec: { type: 'string', description: 'Which DSDS model to scaffold (0.15.2, 0.20.0, 0.20.1)' },
+      spec: { type: 'string', description: 'Which DSDS model to scaffold (0.15.2, 0.20.0, 0.20.1, 0.21.0)' },
     },
     positionals: { min: 1, max: 1, label: '<kind>' },
     build: ([kind], values) => ({
@@ -288,7 +288,7 @@ export const PORCELAIN = {
       // Reachable only through `dsds tool` before this. The default follows
       // the loaded document's own schemaVersion, so the flag is for reading
       // a model the corpus is not written in — usually the legacy one.
-      spec: { type: 'string', description: 'Which DSDS model to describe (0.15.2, 0.20.0, 0.20.1). Defaults to the loaded document\'s schemaVersion' },
+      spec: { type: 'string', description: 'Which DSDS model to describe (0.15.2, 0.20.0, 0.20.1, 0.21.0). Defaults to the loaded document\'s schemaVersion' },
     },
     positionals: { min: 1, max: 2, label: 'overview | schema <kind> | blocks <kind>' },
     build([sub, kind], values) {

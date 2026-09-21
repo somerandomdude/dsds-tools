@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { describeEntryFields, describeSectionKinds } from '../../src/spec/schema-describe.js';
+import { BUNDLED_VERSION } from '../../src/spec/version.js';
 import { corpusSpec } from '../../src/spec/corpus-spec.js';
 import { specEntitySchemaHandler } from '../../src/tools/spec-entity-schema.js';
 
@@ -87,8 +88,12 @@ describe('corpusSpec', () => {
     expect(corpusSpec(() => [{ document: { schemaVersion: '0.20.1' } }])).toBe('0.20.1');
   });
 
-  it('falls back to the 0.20.x marker when the document omits the field', () => {
-    expect(corpusSpec(() => [{ entities: [{ __dsds20: true }] }])).toBe('0.20.1');
+  // Which release to name is a guess when the document doesn't say. Name the
+  // one this server validates against, so the described model matches the one
+  // an error message would cite. Asserted against the constant, not a
+  // literal, so the next bump doesn't need this test edited.
+  it('falls back to the bundled version when the document omits the field', () => {
+    expect(corpusSpec(() => [{ entities: [{ __dsds20: true }] }])).toBe(BUNDLED_VERSION);
   });
 
   // An unconfigured server must behave exactly as it did before.

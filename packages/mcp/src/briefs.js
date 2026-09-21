@@ -17,140 +17,127 @@
 // Shown to agents before they write any code that uses the design system.
 // Edit this to reflect what engineers most commonly get wrong, what tokens
 // or patterns are easy to miss, and what non-obvious rules must be followed.
+//
+// This is a tool RESULT, not part of the cached prefix: every token here is
+// paid at full rate, once per iteration, in 76% of runs. That is why it was
+// cut from 1,718 tokens to ~1,250 — the three changes, from the prompt-size
+// review:
+//
+//   2. Old steps 1, 2, 3, 5 and 6 were five ways of saying "find what exists
+//      first", and between them they instructed `dsds_list_entities` four
+//      separate times. Measured across 1,565 ui5 iterations, that produced
+//      0.46 calls to it per iteration — the repetition bought nothing. They
+//      are now one step that names the tool once and keeps all four rules
+//      (deprecated, patterns, chunks, tokens), since those are distinct even
+//      when the calls collapse.
+//
+//   3. The lookup rule and the setup fact were each stated here AND in
+//      BASE_INSTRUCTIONS. The setup *procedure* stays here, where it is
+//      actionable; the lookup rule keeps its full weight here because this is
+//      the document an agent reads immediately before writing JSX.
+//
+//   4. Two corrections. The old step 4 sent agents to
+//      `dsds_get_document_block(identifier, "variants")` and `"states"` —
+//      0.15.2 block names that return "has no variants section or block" on a
+//      0.20.x corpus, so the instruction bought a failed call and a retry.
+//      They are now `dsds_get_variants` and "api". And the wizard is an
+//      option rather than "ALWAYS USE… the required way of adding
+//      components": at 0.02 calls per iteration no agent believed that, and a
+//      false "required" costs credibility for the rules that are obeyed.
+//
+// Step 5's validate-and-repair loop is unchanged — the review flagged it as
+// long, but shortening it was not part of what was approved.
 // -----------------------------------------------------------------------------
 
 export const BUILD_BRIEF = `
-## Before you build: Design System Context Briefing
+## Before you build
 
-Do not write implementation code until you have completed every step below.
-Each step uses a tool from this MCP server — call them in order.
-
----
-
-### Before any of it — project setup
-
-A design system almost always needs one-time project setup before ANY component
-renders correctly: a stylesheet import, a theme provider, required polyfills, a
-build plugin. None of this appears in an individual component's documentation,
-and getting it wrong is silent — the page renders, nothing throws, nothing is
-logged, and the result is an unstyled app that looks like a success.
-
-Find this system's setup documentation and read it before you write code:
-
-1. Call \`dsds_search_entities\` for this system's guide category (a legacy system
-   names it plain "guide"; a 0.20.0 system typically uses a namespaced kind such
-   as "sanity.guide").
-2. Read any getting-started, installation or quick-start entry it returns with
-   \`dsds_get_agent_context\`.
-3. Do every setup step it lists, in your entry file, before the first component.
-
-Do not skip this because you recognise the library. Setup requirements differ
-between major versions of the same design system.
+Five steps, in order. The first four happen before you write any implementation
+code; the fifth is how you finish.
 
 ---
 
-### Step 1 — Inventory what exists
+### 1 — Set the project up
 
-Call \`dsds_list_entities\` to see every documented entity grouped by kind.
+This design system needs one-time setup before ANY component renders correctly: a
+stylesheet import, a theme provider, a polyfill, a build plugin. It is in no
+component's documentation, and missing it fails silently — the page renders, nothing
+throws, and the result is an unstyled app that looks like a success.
 
-Before continuing, note:
-- Any entity marked **deprecated** must not be used. Check for alternatives.
-- Any entity marked **experimental** or **draft** should be used with caution.
+1. Search for this system's guide category with \`dsds_search_entities\` (a legacy system
+   names the kind plain "guide"; a 0.20.x system typically namespaces it, e.g.
+   "sanity.guide").
+2. Read its getting-started, installation or quick-start entry with \`dsds_get_agent_context\`.
+3. Do every step it lists, in your entry file, before the first component.
 
----
-
-### Step 2 — Find what you need
-
-Call \`dsds_search_entities\` to narrow to the entities relevant to your task.
-Filter by \`kind\`, \`status\`, \`tags\`, or a keyword \`query\`.
-
-If you are unsure what exists, search broadly first, then narrow.
-
----
-
-### Step 3 — Check for applicable patterns
-
-Call \`dsds_list_entities\` to see what's loaded, then \`dsds_search_entities\` for this system's pattern category (a legacy system names it plain "pattern"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.pattern") to find patterns that may already document the layout or interaction flow you are about to build.
-
-If a pattern matches your task, read it with \`dsds_get_entity\` before composing anything from primitives. A documented pattern tells you the correct component combinations, required props, and rules the design system team has already worked out.
+Do not skip this because you recognise the library. Setup differs between major versions
+of the same design system.
 
 ---
 
-### Step 4 — Read the documentation for every entity you plan to use (required, no exceptions)
+### 2 — Find what already exists
 
-MUST: before writing a single JSX usage of any component, call at least one of the lookups
-below for it — including a component you are confident about, have used earlier in this same
-session, or already saw inside a chunk. There is no "I already know this one" exception.
-Skipping this for even one component is the single most common cause of otherwise-avoidable
-build failures (missing required props, renamed/removed props, props typed \`never\`). Do not
-rely on general training knowledge of similar libraries — this design system's API frequently
-differs from the conventional pattern.
+Call \`dsds_list_entities\` once to see everything documented, grouped by kind, then
+\`dsds_search_entities\` to narrow to your task. Four rules follow from what you find:
 
-Use the following lookup order — stop as soon as you have what you need:
-
-1. **\`dsds_get_agent_context(identifier)\`** — start here for every component.
-   Returns the agent-optimized view: generation rules, anti-patterns, prop table, use-case
-   disambiguation, and all guidelines. This is the primary lookup for building.
-
-2. **\`dsds_get_document_block(identifier, blockType)\`** — use when you need one specific
-   section that \`dsds_get_agent_context\` did not cover (e.g. \`accessibility\` for WCAG
-   details, \`variants\` for the full option matrix, \`states\` for interaction behaviour).
-   Faster and cheaper than fetching the whole entity.
-
-3. **\`dsds_build_component(step:"start", identifier)\`** — ALWAYS USE when you're ready to
-add a component to code. This is the required way of adding components.
-
-4. **\`dsds_get_entity(identifier)\`** — use only when you need the raw, complete entity
-   including all blocks in their original JSON structure. Prefer the two calls above.
+- **A deprecated entity must not be used.** Call \`dsds_get_alternatives\` for the
+  replacement. Treat experimental or draft as usable with caution.
+- **A pattern beats primitives.** If a documented pattern covers your layout or flow,
+  read it with \`dsds_get_entity\` before composing anything yourself — it carries the
+  component combinations and rules the design system team already settled.
+- **A chunk beats writing it again.** If a chunk covers your use case, fetch it with
+  \`dsds_get_chunk\` and use its code directly. \`dsds_get_examples\` lists a component's
+  chunks as an index, so you can pick one instead of reading all of them.
+- **Never hardcode a colour, spacing value or type size.** Reference the token.
 
 ---
 
-### Step 5 — Use tokens, not hardcoded values
+### 3 — Look up every component you are about to use (no exceptions)
 
-Call \`dsds_list_entities\` to find the design token scales that apply to your
-work (spacing, radius, typography, and the rest) — a legacy system groups them
-under the kind named "token-group"; a real 0.20.0 system lists tokens flat
-with a \`metadata.group\` instead. Open a group or token with \`dsds_get_entity\`.
+MUST: call \`dsds_get_agent_context(identifier)\` for a component before you write a single
+JSX usage of it — including one you are confident about, used earlier this session, or saw
+inside a chunk. There is no "I already know this one" exception. Skipping it for even one
+component is the single most common cause of otherwise-avoidable build failures: missing
+required props, renamed or removed props, props typed \`never\`. This system's API often
+differs from the conventional pattern, so training knowledge of similar libraries is not a
+substitute.
 
-Never hardcode color values, spacing, or type sizes. Always reference the
-token identifier from the design system.
+That one call returns the generation rules, anti-patterns, prop table and guidelines. Two
+narrower calls when you need less:
+
+- \`dsds_get_variants(identifier)\` — the configurable dimensions and their allowed values.
+  The value set is closed, so anything outside it is invalid.
+- \`dsds_get_document_block(identifier, blockType)\` — one section only, e.g. "api" for props
+  or "accessibility" for WCAG detail.
+
+\`dsds_build_component(step:"start", identifier)\` is available if you would rather answer a
+prop-by-prop wizard than write the JSX yourself. It is an option, not a requirement.
 
 ---
 
-### Step 6 — Check for an applicable chunk
+### 4 — Verify every import before you write it
 
-Call \`dsds_list_entities\` to find pre-assembled code that may cover your use case — a legacy system names the kind plain "chunk"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.chunk".
+If \`dsds_check_exports\` is available, make ONE call listing **every** component and icon
+name you intend to import, across all packages, before emitting any code. It is the
+cheapest check that catches the most common build-breakers.
 
-If a chunk matches, call \`dsds_get_chunk(identifier)\` to retrieve the full code and its guidelines. Chunks are production-ready compositions — copy the code directly rather than assembling the same pattern from scratch.
-
----
-
-### Step 7 — Verify every import before you write it (required)
-
-If \`dsds_check_exports\` is available, make ONE call with **every** component and icon
-name you intend to import — across all packages — in a single \`components\` array,
-BEFORE emitting any code. This is not optional: it is the one cheap check that
-catches the most common build-breakers.
-
-- It catches hallucinated names before they become \`TS2305\`/\`TS2724\` errors —
-  e.g. \`ThemeProvider\`, \`RootTheme\`, or \`createTheme\` imported from the design
-  system package when they are not exported, or \`SettingsIcon\` instead of \`CogIcon\`.
+- It catches hallucinated names before they become \`TS2305\`/\`TS2724\` — \`ThemeProvider\`,
+  \`RootTheme\` or \`createTheme\` imported when the package exports none of them, or
+  \`SettingsIcon\` instead of \`CogIcon\`.
 - Include every icon name; icons are the top hallucination risk.
 - One call covers all configured packages — there is no \`package\` argument.
-- Do NOT import a name the check reports as missing. Find the real export (search
-  the docs) or drop it.
+- Do NOT import a name it reports missing. Find the real export or drop it.
 
-Note: this verifies export **names**, not package **versions**. Write the
-dependency versions exactly as instructed — do not invent a package or a version
-range (e.g. a non-existent \`@sanity/ui@^4.0.0\`).
+It verifies export **names**, not package **versions**. Write dependency versions exactly as
+instructed; do not invent a package or a version range.
 
 ---
 
-Only after completing these steps should you write code.
+Only now write code.
 
 ---
 
-### Step 8 — Validate and repair before you finish (required)
+### 5 — Validate and repair before you finish (required)
 
 Writing the code is not the end. Before you consider the work done, run an
 ordered, repeating check and fix what it finds — do not skip a stage and do not

@@ -2,6 +2,7 @@ import { getUpdateNotice } from '../spec/version.js';
 import { notFoundMessage } from '../suggest.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { accessRecord } from '../logger.js';
 import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 import { ERROR_CODES, notFoundError, toolError } from '../errors.js';
 
@@ -126,15 +127,24 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     lines.push('');
   }
 
+  // get_entity serves everything, so the served set is the declared set.
+  const served = [];
+  const parts = [];
+
   if (found.__dsds20) {
     // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields,
     // not sections — render those first, then the sections array itself.
-    renderTraits20(found.traits, lines);
-    renderCombos20(found.combos, lines);
-    renderSourceAndImports20(found, lines);
-    renderApi20(found, lines, propsConfig, format);
+    let at = lines.length;
+    renderTraits20(found.traits, lines); if (lines.length > at) parts.push('traits');
+    at = lines.length;
+    renderCombos20(found.combos, lines); if (lines.length > at) parts.push('combos');
+    at = lines.length;
+    renderSourceAndImports20(found, lines); if (lines.length > at) parts.push('imports');
+    at = lines.length;
+    renderApi20(found, lines, propsConfig, format); if (lines.length > at) parts.push('api');
     if (found.sections?.length) {
       renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
+      served.push(...found.sections);
     } else {
       lines.push('*No sections defined for this entry.*');
     }
@@ -143,12 +153,14 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     lines.push(`## Documentation (${found.documentBlocks.length} block${found.documentBlocks.length !== 1 ? 's' : ''})`, '');
     for (const block of found.documentBlocks) {
       lines.push(`### ${block.kind}`, '', '```json', JSON.stringify(block, null, 2), '```', '');
+      served.push({ kind: block.kind });
     }
   } else {
     lines.push('*No document blocks defined for this entity.*');
   }
 
   if (found.agentDocumentBlocks?.length) {
+    served.push(...found.agentDocumentBlocks.map(b => ({ kind: b.kind, for: 'agent' })));
     lines.push(
       `## Agent Document Blocks (${found.agentDocumentBlocks.length} block${found.agentDocumentBlocks.length !== 1 ? 's' : ''} — agent consumption only)`,
       ''
@@ -161,7 +173,19 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
 
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: found.kind,
+      sections: served,
+      parts,
+      requested: identifier,
+      chars: text.length,
+    }),
+  };
 }
 
 function resolveText(value) {

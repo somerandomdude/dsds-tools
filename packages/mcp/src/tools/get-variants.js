@@ -25,6 +25,7 @@ import { notFoundMessage, didYouMean } from '../suggest.js';
 import { renderTable } from '../render/table.js';
 import { ERROR_CODES, describeSuggestions, toolError } from '../errors.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
+import { accessRecord } from '../logger.js';
 
 const INCLUDE = ['variants', 'states', 'all'];
 
@@ -164,7 +165,14 @@ export async function getVariantsHandler(
       '',
       'That is not the same as taking no props: a component\'s API surface comes from its `sourceFiles`, which a props extractor reads. `traits` documents the axes of variation a designer chose to name.',
     );
-    return { content: [{ type: 'text', text: lines.join('\n') + (getUpdateNotice() ?? '') }] };
+    const text = lines.join('\n') + (getUpdateNotice() ?? '');
+    return {
+      content: [{ type: 'text', text }],
+      access: accessRecord({
+        identifier: found.identifier, name: found.name, entityKind: found.kind,
+        mode, requested: identifier, chars: text.length,
+      }),
+    };
   }
 
   const sections = [];
@@ -224,11 +232,21 @@ export async function getVariantsHandler(
     );
   }
 
+  const text = lines.join('\n').trimEnd() + (getUpdateNotice() ?? '');
   return {
-    content: [{ type: 'text', text: lines.join('\n').trimEnd() + (getUpdateNotice() ?? '') }],
+    content: [{ type: 'text', text }],
     structuredContent: {
       identifier: found.identifier,
       counts: { variants: variants.length, states: states.length, unclassified: unclassified.length },
     },
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: found.kind,
+      parts: ['traits', ...(combos.length ? ['combos'] : [])],
+      mode,
+      requested: identifier,
+      chars: text.length,
+    }),
   };
 }

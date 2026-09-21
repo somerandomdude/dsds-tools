@@ -79,9 +79,19 @@ function renderToon(rows, cols, name) {
   // rather than trusted to each caller. The encoder only ever sees the
   // rendered columns, under their rendered names.
   const projected = rows.map(row =>
-    Object.fromEntries(cols.map(c => [toonField(c.header), cellOf(row, c.key)]))
+    Object.fromEntries(cols.map(c => [toonField(c.header), unescapePipes(cellOf(row, c.key))]))
   );
   return toonEncode({ [name]: projected }).trimEnd();
+}
+
+// Several callers escape pipes on the way in so their cells survive a
+// Markdown table — `cell20` in render-0.20.0.js is one. TOON does not escape,
+// it quotes, so that backslash is not a separator here: it reaches the model
+// as a literal `\\|` inside an already-quoted value. Wrong to read and two
+// characters of noise on every union type, which in this corpus is most of
+// the `type` column.
+function unescapePipes(value) {
+  return value.replace(/\\\|/g, '|');
 }
 
 // TOON field names sit in a comma-separated header, and the encoder quotes

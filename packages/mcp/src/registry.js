@@ -5,6 +5,7 @@
 // (src/server.js) and the dsds CLI (the dsds-cli package) both consume
 // createToolRuntime, so the tool catalog cannot drift between them.
 
+import { writeLog } from './logger.js';
 import { specOverviewDef, specOverviewHandler } from './tools/spec-overview.js';
 import { specEntitySchemaDef, specEntitySchemaHandler } from './tools/spec-entity-schema.js';
 import { specDocumentBlocksDef, specDocumentBlocksHandler } from './tools/spec-document-blocks.js';
@@ -177,6 +178,23 @@ export function createToolRuntime({
 
   // Resolve and run a tool call, returning its result (never throws).
   async function dispatch(name, args = {}) {
+    const result = await run(name, args);
+
+    // Content-access telemetry. A handler that served an entry's content
+    // attaches an `access` descriptor (see logger.js accessRecord); this is the
+    // one place it gets written, so both the MCP server and the CLI record it
+    // identically. The key is stripped before the result leaves the runtime —
+    // it is telemetry, not part of the tool's response contract.
+    if (result?.access) {
+      const access = result.access;
+      delete result.access;
+      if (logsDir) writeLog(logsDir, { type: 'access', tool: name, ...access });
+    }
+
+    return result;
+  }
+
+  async function run(name, args = {}) {
     const toolDef = toolMap.get(name);
     if (!toolDef) return errorResponse(`Unknown tool: "${name}"`);
 

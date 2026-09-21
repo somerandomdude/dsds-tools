@@ -97,7 +97,11 @@ function writeCacheEntry(propsExtractorDir, entryId, fingerprint, props) {
  * Returns one of:
  *   { status: 'unconfigured' }               — no propsExtractorDir configured; feature is off
  *   { status: 'no-source' }                  — entity has no sourceFiles; nothing to extract
- *   { status: 'missing' }                    — never extracted, and couldn't extract now
+ *   { status: 'missing', extractedFrom }     — never extracted, and couldn't extract now.
+ *                                                `extractedFrom` is set when the extractor DID
+ *                                                run and had no entry for this component: it is
+ *                                                the source checkout it read, which is the thing
+ *                                                to check.
  *   { status: 'unverified', props }           — served from cache; freshness can't be checked
  *                                                (no uiSourceRoot configured)
  *   { status: 'fresh', props }                — cache fingerprint matches current source
@@ -124,9 +128,21 @@ export function getApiForEntry(entity, config) {
   }
 
   // Missing or stale — try to regenerate before giving up.
+  let extractedFrom = null;
   if (toolchainAvailable()) {
     const extracted = regenerate(propsExtractorDir);
     const freshProps = extracted?.[entryId]?.['com.sanity.ui'];
+    // The extractor ran and produced entries, just not this one. That is a
+    // configuration answer, not an absence: the extractor reads whichever
+    // checkout SANITY_UI_ROOT points at, this server spawns it with the
+    // inherited environment, and a checkout that predates the component
+    // yields no entry for it. Carrying the checkout path out of here is the
+    // difference between "not documented yet" and "you pointed it at the
+    // wrong tree" — which cost an afternoon to tell apart by hand.
+    if (!freshProps && extracted && Object.keys(extracted).length) {
+      extractedFrom =
+        readJsonSafe(join(propsExtractorDir, 'out', 'props.json'))?.generatedFrom ?? '(unknown)';
+    }
     if (freshProps && current != null) {
       const fingerprint = computeFingerprint(current);
       writeCacheEntry(propsExtractorDir, entryId, fingerprint, freshProps);
@@ -138,5 +154,5 @@ export function getApiForEntry(entity, config) {
     }
   }
 
-  return cached ? { status: 'stale' } : { status: 'missing' };
+  return cached ? { status: 'stale' } : { status: 'missing', extractedFrom };
 }

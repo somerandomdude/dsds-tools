@@ -446,6 +446,101 @@ function renderAlsoAccepts(entries) {
   return out;
 }
 
+const EVENT_COLUMNS = [
+  { key: 'event', header: 'Event' },
+  { key: 'signature', header: 'Signature' },
+  { key: 'specific', header: 'Element-specific' },
+];
+
+/**
+ * The native event surface, from the extractor's `events` block.
+ *
+ * Why this is separate from the prop table rather than more rows in it: an
+ * event has no default, is never required, and has no value set, so three of
+ * the six prop columns are empty for every row — and the handlers would
+ * outnumber the real props on most form controls, burying the part a caller
+ * has to choose. The extractor's own markdown makes the same split.
+ *
+ * `specialized` is the column worth reading. React declares every handler on
+ * every element, so `onClick` on a `<select>` is true of the type and not
+ * interesting; `onChange` narrowed to `ChangeEvent<HTMLSelectElement>` is the
+ * element's own declaration, and that is the one to wire.
+ */
+/**
+ * Tags whose whole point is being operated. A caller wiring one of these is
+ * doing the expected thing, and the handler list is the API.
+ *
+ * Hand-written, and it holds tag NAMES only — never a handler or a type. Same
+ * discipline as the extractor's FORM/UNIVERSAL lists: a name here can make the
+ * output shorter or longer, never wrong, because nothing is rendered that
+ * @types/react did not declare.
+ *
+ * The design system draws the same line for itself — `INTERACTIVE_TAG =
+ * ['button', 'a']` in types/Interactive.ts constrains what `as` accepts on
+ * Button and PressArea — and this is that idea widened to the focusable
+ * form and command elements.
+ */
+const INTERACTIVE_TAGS = new Set([
+  'a', 'button', 'details', 'dialog', 'input', 'option', 'select', 'summary', 'textarea',
+]);
+
+export function renderEvents20(events, format = 'markdown', polymorphic = null) {
+  const handlers = events?.handlers ?? [];
+  if (!handlers.length) return [];
+
+  // Two ways to earn the table, because neither alone is the question.
+  //
+  // `specialized` means React narrowed a handler for this element — `<select>`
+  // gets `ChangeEvent<HTMLSelectElement>`. It catches the form controls and
+  // `<dialog>`, and it misses every clickable thing: React declares `onClick`
+  // once on DOMAttributes, so `<button>` and `<a>` specialize nothing at all.
+  // Gating on it alone hid Button, IconButton, PressArea, ListButtonItem,
+  // Link and SkipToContent — the components whose main prop is a handler.
+  //
+  // Interactivity catches those. Neither catches `<hr>`, `<svg>` or a bare
+  // `<div>`, which is the point: a documented `onClick` on Divider or Spinner
+  // is the precise thing the no-onclick-on-non-interactive lint rule exists to
+  // catch, and publishing it as an API table would be the design system
+  // teaching the violation it elsewhere forbids.
+  const interactive = INTERACTIVE_TAGS.has(events.tag);
+  if (!interactive && !handlers.some(h => h.specialized)) return [];
+
+  const rows = handlers.map(h => ({
+    event: `\`${cell20(h.name)}\``,
+    signature: h.signature ? `\`${cell20(h.signature)}\`` : null,
+    specific: h.specialized ? 'yes' : 'no',
+  }));
+
+  const out = ['### Events', ''];
+  if (events.source) {
+    out.push(
+      `Native \`<${events.tag}>\` handlers, forwarded to the underlying element. Read from \`${events.source}\`.`,
+      ''
+    );
+  }
+  // A polymorphic component's element is a default, not a fact — and the
+  // event TYPES move with it, so a reader who changes `as` cannot copy the
+  // signatures below unchanged.
+  if (polymorphic?.defaultTag) {
+    out.push(
+      `\`<${polymorphic.defaultTag}>\` is the default element. \`${polymorphic.prop ?? 'as'}\` changes it, and the event types change with it.`,
+      ''
+    );
+  }
+  out.push(...renderTable(rows, EVENT_COLUMNS, { format, name: 'events' }).split('\n'), '');
+
+  // The table is a subset by design (DOMAttributes declares 84 events). Say
+  // how big the rest is, so "not listed" never reads as "not accepted".
+  const remaining = (events.nativeHandlerCount ?? 0) - handlers.length;
+  if (remaining > 0) {
+    out.push(
+      `\`<${events.tag}>\` accepts ${remaining} further React handlers; these are the ones a component of this kind is normally wired to.`,
+      ''
+    );
+  }
+  return out;
+}
+
 export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
   const result = getApiForEntry(entity, propsConfig);
 
@@ -457,7 +552,9 @@ export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
       lines.push(
         '## API',
         '',
-        `*No extracted prop data yet for this entry. See [Source files](#source-files).*`,
+        result.extractedFrom
+          ? `*The props extractor ran but produced no entry for this component. It read \`${result.extractedFrom}\` — if the component is newer than that checkout, point \`SANITY_UI_ROOT\` at one that has it.*`
+          : `*No extracted prop data yet for this entry. See [Source files](#source-files).*`,
         ''
       );
       return;
@@ -475,6 +572,7 @@ export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
     case 'fresh': {
       const props = result.props?.props ?? [];
       const alsoAccepts = result.props?.alsoAccepts ?? [];
+      const events = result.props?.events ?? null;
       // Extraction succeeded. A component with no props of its own is a real
       // answer, not a gap — List.ItemImage forwards everything to a native
       // <img>. Returning silently here used to leave the caller with an empty
@@ -482,7 +580,7 @@ export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
       // same wording it uses when extraction genuinely failed. An agent then
       // read a documented component as undocumented and went looking for
       // props that do not exist.
-      if (!props.length && !alsoAccepts.length) return;
+      if (!props.length && !alsoAccepts.length && !events?.handlers?.length) return;
       lines.push('## API', '');
       if (result.status === 'unverified') {
         lines.push('> *Freshness not verified against source (`uiSourceRoot` not configured).*', '');
@@ -495,6 +593,7 @@ export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
       if (alsoAccepts.length) {
         lines.push(...renderAlsoAccepts(alsoAccepts));
       }
+      lines.push(...renderEvents20(events, format, result.props?.polymorphic));
       return;
     }
   }

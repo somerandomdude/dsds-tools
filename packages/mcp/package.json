@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "check:integrity": "node scripts/check-integrity.js",
     "update-schema": "node scripts/update-schema.js",
-    "logs": "node scripts/view-logs.js"
+    "logs": "node scripts/view-logs.js",
+    "logs:top": "node scripts/log-stats.js"
   },
   "keywords": [
     "mcp",

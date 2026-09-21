@@ -15,9 +15,21 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadYamlFile20 } from './dsds20-lib.js';
+import { BUNDLED_VERSION } from './version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const SCHEMA_DIR = resolve(__dirname, 'schema-0.21.0');
+
+// Derived from BUNDLED_VERSION rather than written out, so bumping the
+// constant and vendoring the new schema-<version>/ directory is one change
+// instead of three that can disagree. A missing directory fails here, at
+// load, rather than as a confusing per-file miss later.
+export const SCHEMA_DIR = resolve(__dirname, `schema-${BUNDLED_VERSION}`);
+if (!existsSync(SCHEMA_DIR)) {
+  throw new Error(
+    `No vendored schema at src/spec/schema-${BUNDLED_VERSION}/. BUNDLED_VERSION in ` +
+    `src/spec/version.js was bumped without vendoring that release's schema directory.`,
+  );
+}
 
 export const EXTENSIONS_KEY = '$extensions';
 

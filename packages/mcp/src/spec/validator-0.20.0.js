@@ -22,9 +22,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { entriesIn20, findRefs20, isValidKind20, loadYaml20, statusEntriesOf20, walkSchemaYamlFiles } from './dsds20-lib.js';
+import { SCHEMA_DIR } from './schema-order.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_DIR = resolvePath(__dirname, 'schema-0.21.0');
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -249,6 +249,16 @@ function validateShared(entry, errors, warnings, opts) {
   validateFileRefs20(entry, warnings, opts);
 }
 
+// What DSDS-03 accepts as evidence that `checkedBy: automated` points at
+// something that actually runs. 0.21.0 added `agent-test` alongside the
+// original two; a document using it was rejected until this set grew.
+//
+// The spec's own note is worth carrying: this only checks that a ref exists,
+// not what it proves. An `agent-test` fixture usually yields a pass rate or a
+// judged rubric rather than a boolean, so `checkedBy: assisted` is the more
+// honest label unless the assertion really is deterministic.
+const CHECK_RELS = new Set(['test', 'lint-rule', 'agent-test']);
+
 // Checks that need to see across an entry's sections/fields at once.
 function validateSemanticRules(entry, errors) {
   const sections = entry.sections ?? [];
@@ -257,10 +267,10 @@ function validateSemanticRules(entry, errors) {
     if (section.kind !== 'guidelines') continue;
     for (const [i, item] of (section.items ?? []).entries()) {
       if (item.checkedBy !== 'automated') continue;
-      const hasCheckRef = [...(item.refs ?? []), ...(item.checks ?? [])].some((r) => r.rel === 'test' || r.rel === 'lint-rule');
+      const hasCheckRef = [...(item.refs ?? []), ...(item.checks ?? [])].some((r) => CHECK_RELS.has(r.rel));
       if (!hasCheckRef) {
         errors.push(
-          err(RULES.CHECKED_BY_NEEDS_REF, `entry "${entry.id}" ${section.kind} item[${i}] declares checkedBy: automated but has no refs/checks entry (rel: test, lint-rule) pointing at what actually runs the check`),
+          err(RULES.CHECKED_BY_NEEDS_REF, `entry "${entry.id}" ${section.kind} item[${i}] declares checkedBy: automated but has no refs/checks entry (rel: ${[...CHECK_RELS].join(', ')}) pointing at what actually runs the check`),
         );
       }
     }

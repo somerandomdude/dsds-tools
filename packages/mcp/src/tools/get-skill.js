@@ -1,5 +1,6 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { loadSkills } from './list-skills.js';
+import { accessRecord } from '../logger.js';
 
 export const getSkillDef = {
   name: 'dsds_get_skill',
@@ -58,5 +59,8 @@ export async function getSkillHandler({ id }) {
   const styleNote = STYLE_RULES_PATTERN.test(skill.text) ? STYLE_RULES_NOTE : '';
   const text = skill.text + ADAPTER_NOTE + styleNote + (notice ?? '');
 
-  return { content: [{ type: 'text', text }] };
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({ identifier: skill.id, name: skill.title, entityKind: 'skill', chars: text.length }),
+  };
 }

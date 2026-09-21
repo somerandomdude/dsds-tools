@@ -12,9 +12,11 @@
 // choice: `spec` still accepts any of the three, which is what a reader
 // working on a legacy document needs.
 
+import { BUNDLED_VERSION } from './version.js';
+
 /**
  * @param {(() => Array)|null} getSystems
- * @returns {'0.15.2'|'0.20.0'|'0.20.1'|string} the loaded schemaVersion, or
+ * @returns {'0.15.2'|'0.20.0'|'0.20.1'|'0.21.0'|string} the loaded schemaVersion, or
  *   '0.15.2' when nothing is loaded — a server with no DSDS_PATHS behaves
  *   exactly as it did before.
  */
@@ -26,8 +28,12 @@ export function corpusSpec(getSystems) {
     const declared = system?.document?.schemaVersion;
     if (typeof declared === 'string' && declared.trim()) return declared.trim();
     // A document that omits schemaVersion still gets the 0.20.x marker
-    // stamped on every entry the loader parses under that model.
-    if (system?.entities?.some(e => e?.__dsds20)) return '0.20.1';
+    // stamped on every entry the loader parses under that model. Which
+    // release to name is a guess either way, so name the one this server
+    // actually validates against rather than a fixed older number — pinning
+    // it meant an undeclared corpus was described under 0.20.1 after the
+    // 0.21.0 bump, missing required `traitType` and section `tags`.
+    if (system?.entities?.some(e => e?.__dsds20)) return BUNDLED_VERSION;
   }
   return '0.15.2';
 }

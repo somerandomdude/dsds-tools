@@ -73,8 +73,11 @@ async function getLogFiles() {
 
 function classify(entry) {
   // Prefer the explicit discriminator; fall back to shape inference for log
-  // files written before entries carried a `type` field.
+  // files written before entries carried a `type` field. 'chunk' is the pre-0.5
+  // name for 'access', which now covers every content-serving tool.
+  if (entry.type === 'access') return 'chunk';
   if (entry.type === 'tool' || entry.type === 'chunk' || entry.type === 'lint') return entry.type;
+  if (entry.identifier) return 'chunk';
   if (entry.tool === 'dsds_get_chunk') return 'chunk';
   if (typeof entry.filesLinted === 'number') return 'lint';
   if (entry.tool) return 'tool';
@@ -151,7 +154,10 @@ function printLintEntry(entry) {
 
 function printChunkEntry(entry) {
   const time = formatTime(entry.timestamp);
-  console.log(`  ${c.dim(time)}  ${c.magenta(pad(entry.identifier, 30))}  ${entry.name}`);
+  const sections = entry.sections?.length ? c.dim(` [${entry.sections.join(', ')}]`) : '';
+  const size = typeof entry.chars === 'number' ? c.dim(` ${entry.chars}c`) : '';
+  console.log(`  ${c.dim(time)}  ${c.magenta(pad(entry.identifier, 30))}  ${entry.name ?? ''}${size}`);
+  if (!opts.summary && sections) console.log(`      ${sections}`);
 }
 
 function printToolEntry(entry) {
@@ -165,6 +171,89 @@ function printToolEntry(entry) {
 }
 
 // ─── Summary totals ───────────────────────────────────────────────────────────
+
+// Entries written before 0.5 carry no `entityKind`, but only dsds_get_chunk
+// wrote an identifier back then — so the kind is recoverable, and marked with
+// a dagger rather than silently asserted.
+const INFERRED = 'chunk †';
+function entityKindOf(entry) {
+  if (entry.entityKind) return entry.entityKind;
+  if (entry.tool === 'dsds_get_chunk') return INFERRED;
+  return '(kind not recorded)';
+}
+
+/**
+ * Accesses grouped by entity kind, then by entry within each kind.
+ *
+ * The old "Chunk summary" ranked chunks because chunks were the only thing the
+ * log named. Access records cover every content tool now, so the ranking has to
+ * separate a component from a chunk from a guide before the numbers mean
+ * anything.
+ */
+function printAccessSummary(accessEntries) {
+  const kinds = new Map();
+  const sections = new Map();
+  let withSections = 0;
+
+  for (const { entry } of accessEntries) {
+    const kind = entityKindOf(entry);
+    if (!kinds.has(kind)) kinds.set(kind, { count: 0, entries: new Map(), chars: 0 });
+    const k = kinds.get(kind);
+    k.count++;
+    if (typeof entry.chars === 'number') k.chars += entry.chars;
+
+    const cur = k.entries.get(entry.identifier) || { name: entry.name, count: 0 };
+    cur.count++;
+    cur.name ||= entry.name;
+    k.entries.set(entry.identifier, cur);
+
+    for (const label of entry.sections || []) {
+      sections.set(label, (sections.get(label) || 0) + 1);
+      withSections++;
+    }
+    for (const part of entry.parts || []) {
+      const key = `:${part}`;
+      sections.set(key, (sections.get(key) || 0) + 1);
+      withSections++;
+    }
+  }
+
+  const total = accessEntries.length;
+  const distinct = new Set(accessEntries.map(e => e.entry.identifier)).size;
+  const ranked = [...kinds].sort((a, b) => b[1].count - a[1].count);
+
+  console.log(`\n${c.bold('── Content access ────────────────────────────────────')}`);
+  console.log(`  Total accesses: ${total}  across ${distinct} entries, ${ranked.length} kind${ranked.length === 1 ? '' : 's'}`);
+
+  for (const [kind, k] of ranked) {
+    const pct = ((100 * k.count) / total).toFixed(1);
+    const avg = k.chars ? c.dim(`  ~${Math.round(k.chars / k.count).toLocaleString()} chars/call`) : '';
+    console.log(`\n  ${c.bold(c.green(pad(kind, 22)))} ${String(k.count).padStart(6)}  ${String(pct + '%').padStart(6)}  ${c.dim(`(${k.entries.size} entr${k.entries.size === 1 ? 'y' : 'ies'})`)}${avg}`);
+    const top = [...k.entries].sort((a, b) => b[1].count - a[1].count).slice(0, 10);
+    for (const [id, { name, count }] of top) {
+      console.log(`    ${c.magenta(pad(id, 30))}  ×${count}  ${c.dim(name ?? '')}`);
+    }
+    if (k.entries.size > top.length) {
+      console.log(c.dim(`    … ${k.entries.size - top.length} more`));
+    }
+  }
+
+  if (withSections) {
+    const top = [...sections].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    console.log(`\n  ${c.bold('Sections served')} ${c.dim(`(${withSections} reads)`)}`);
+    for (const [label, n] of top) {
+      const shown = label.startsWith(':') ? c.cyan(`${label.slice(1)} (generated)`) : c.yellow(label);
+      console.log(`    ${String(n).padStart(6)}  ${shown}`);
+    }
+  } else {
+    console.log(c.dim('\n  No section detail in range — pre-0.5 records name the entry only.'));
+  }
+
+  if (kinds.has(INFERRED)) {
+    console.log(c.dim('\n  † kind inferred: before 0.5 only dsds_get_chunk recorded an identifier.'));
+  }
+}
+
 
 function printSummary(entries) {
   const lintEntries  = entries.filter(e => e.type === 'lint');
@@ -200,23 +289,7 @@ function printSummary(entries) {
   }
 
   if ((opts.type === 'all' || opts.type === 'chunk') && chunkEntries.length) {
-    const totalAccesses = chunkEntries.length;
-    const chunkCounts = {};
-    for (const { entry } of chunkEntries) {
-      const key = entry.identifier;
-      if (!chunkCounts[key]) chunkCounts[key] = { name: entry.name, count: 0 };
-      chunkCounts[key].count++;
-    }
-    const topChunks = Object.entries(chunkCounts)
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 10);
-
-    console.log(`\n${c.bold('── Chunk summary ─────────────────────────────────────')}`);
-    console.log(`  Total accesses: ${totalAccesses}`);
-    console.log(`  Top chunks:`);
-    for (const [id, { name, count }] of topChunks) {
-      console.log(`    ${c.magenta(pad(id, 30))}  ×${count}  ${c.dim(name)}`);
-    }
+    printAccessSummary(chunkEntries);
   }
 
   const toolEntries = entries.filter(e => e.type === 'tool');

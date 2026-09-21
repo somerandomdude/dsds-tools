@@ -9,6 +9,31 @@ import { BUNDLED_VERSION } from './spec/version.js';
 import { renderIntroBlock } from './intro.js';
 import { MCP_SCHEMA_POINTER } from './setup-guidance.js';
 
+// Recommendations 1, 3 and 4 of the prompt-size review, applied:
+//
+//   1. The tool catalog is gone. It listed all 29 tools in prose — 1,264 of
+//      this block's 1,855 tokens, 68% — while the MCP client already receives
+//      every tool's name, description and inputSchema separately (6,101
+//      tokens of it). It was a second copy of a payload the reader has, and
+//      the copy went stale independently: it still routed authoring through
+//      `dsds_spec_document_blocks` and named the legacy `variants`/`states`
+//      blocks. Anything a tool needs to say about itself belongs in its own
+//      `description`, where it cannot drift from the schema beside it.
+//
+//   3. Rules stated here AND in BUILD_BRIEF now live in one place each. The
+//      lookup rule stays here, in the cached prefix, because it is the
+//      most-obeyed instruction measured (7.31 lookups/iteration) and 24% of
+//      runs never call the brief. The setup *procedure* moves to the brief;
+//      what stays here is the fact that makes it urgent.
+//
+//   4. Corrections: the wizard is an option, not "the required way" (0.02
+//      calls/iteration says the corpus never believed it), and nothing here
+//      points at a block name that no longer resolves.
+//
+// Kept deliberately: the HARD RULE's length. At 109 tokens it drives the
+// 7.31 lookups; shortening it is cheap, weakening it is not, and the
+// difference is easy to confuse.
+
 export const BASE_INSTRUCTIONS = `
 DSDS MCP — Design System Documentation Spec v${BUNDLED_VERSION}
 
@@ -19,67 +44,41 @@ for one you already used earlier in the same file or a chunk. Skipping this chec
 even one component is the single most common cause of avoidable build failures — do not
 rely on general training knowledge for this design system's API surface.
 
-SET THE PROJECT UP BEFORE YOU USE COMPONENTS — most design systems need one-time
-setup before ANY component renders correctly: a stylesheet import, a theme provider,
-polyfills, a build plugin. It is not described in any individual component's docs, and
-missing it fails silently — the page renders, nothing throws, nothing is logged, and you
-ship an unstyled app that looks fine to every check. Before writing code, search this
-system's guide category (often a namespaced kind such as "sanity.guide") and read its
-getting-started / installation / quick-start entry. Recognising the library is not a
-substitute: setup differs between major versions of the same design system.
+SETUP FIRST — this design system needs one-time project setup before ANY component renders
+correctly: a stylesheet import, a theme provider, a polyfill, a build plugin. It is in no
+component's documentation, and missing it fails silently — the page renders, nothing throws,
+and you ship an unstyled app that passes every check. Read this system's getting-started or
+installation entry before your first component. Recognising the library is not a substitute:
+setup differs between major versions of the same one.
 
-WORK WITHIN THE SYSTEM'S OPINIONS — this design system is opinionated on purpose, and your job
-is to build inside its constraints rather than around them. Use the prop a component gives you
-even when it is coarser than the control you had in mind: Card takes a density prop (compact,
-regular or loose) and has no padding, gap or radius prop — that is the whole of its spacing surface.
-A missing knob is a decision, not a gap. Never restyle a component with style={{ … }}, a
-className, or a CSS custom property override to reach a particular look — reach for a different
-component, or accept the nearest value the system offers. Match the brief's content and
-structure; do not reproduce a visual treatment the system does not support.
+WORK WITHIN THE SYSTEM'S OPINIONS — build inside the constraints, not around them. Use the prop
+a component gives you even when it is coarser than what you had in mind: Card takes density
+(compact, regular, loose) and has no padding, gap or radius prop — that is the whole of its
+spacing surface. A missing knob is a decision, not a gap. Never restyle a component with
+style={{ … }}, a className, or a CSS variable override to reach a particular look; reach for a
+different component or accept the nearest value the system offers.
 
-START HERE: Call dsds_context_brief first to get a full briefing before any work begins.
-- dsds_context_brief(useCase="build") — before implementing UI with the design system. To implement an existing component interactively, use dsds_build_component (a prop-by-prop wizard, listed under DESIGN SYSTEM TOOLS); for one-shot context use dsds_get_chunk / dsds_get_entity / dsds_get_agent_context.
-- dsds_context_brief(useCase="author") — before documenting a design system in DSDS format
-- dsds_context_brief(useCase="ask") — before answering a question about how to use the design system (a retrieval-and-answer loop: search → get_agent_context → grounded, cited answer; produces an answer, not code)
+START HERE — call dsds_context_brief before any work begins:
+- useCase="build" — implementing UI with the design system.
+- useCase="author" — documenting a design system in DSDS format.
+- useCase="ask" — answering a question about using it (search → dsds_get_agent_context →
+  a grounded, cited answer; produces an answer, not code).
 
-SPEC TOOLS — for authoring DSDS-compliant documentation (always available, no configuration needed):
-- dsds_spec_overview → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate
-- dsds_style_check — after a document validates, check it against the authoring style guide (STYLE_GUIDE.md, spec 0.21.0): the DSDS-17..23 rules covering the ORDER of an entry's fields, its sections, its guideline items by level, and its combos. Advisory only — ordering never affects validity, so this never changes what dsds_validate says. Reach for it when authoring or editing a document, not when reading one.
-- AUTHORING (writing new DSDS docs) is distinct from IMPLEMENTING (building UI from a component that already exists). These spec tools produce DSDS documentation JSON, never UI/React code. To implement an existing component, use dsds_build_component (DESIGN SYSTEM TOOLS below) instead.
-- Authoring a COMPONENT document? Two paths: dsds_author_component_doc is a guided, step-by-step wizard (start with step:"start", no data) that produces a DSDS component-documentation *document* (a JSON entity) from scratch — it supplies valid field values at each step and needs no schema knowledge. dsds_spec_scaffold(kind:"component") gives a blank template to fill in yourself when you already know the schema. For any other entity kind (token, theme, foundation, pattern, guide, chunk) or a multi-entity system, use dsds_spec_scaffold.
+FINDING THE TOOLS — every tool publishes its own description and arguments; read those rather
+than expecting a catalog here (in a shell, \`dsds --help\` lists the same surface as commands).
+Three things a tool cannot tell you about itself:
+- Spec tools (dsds_spec_overview, dsds_spec_entity_schema, dsds_spec_scaffold, dsds_validate,
+  dsds_style_check) always work, with no configuration. Design system tools need DSDS_PATHS,
+  lint tools need LINT_PLUGINS, and dsds_check_exports needs PACKAGE_EXPORT_PATHS. A tool whose
+  configuration is missing returns setup instructions instead of failing.
+- AUTHORING a DSDS document is not IMPLEMENTING a component. The spec tools produce
+  documentation, never UI code. To build with a component that already exists, look it up with
+  dsds_get_agent_context and write the JSX yourself; dsds_build_component is available if you
+  want a prop-by-prop wizard instead.
+- dsds_list_skills and dsds_get_skill carry the real authoring skills, bundled verbatim from the
+  spec repo at v${BUNDLED_VERSION}. Read one before authoring a .dsds.yaml document.
 
-DESIGN SYSTEM TOOLS — for querying an existing DSDS document (requires DSDS_PATHS to be configured):
-- dsds_list_entities → dsds_search_entities → dsds_get_entity or dsds_get_document_block
-- dsds_get_agent_context(identifier) — get LLM-optimized rules and constraints for a specific entity
-- dsds_get_chunk(identifier) — get a pre-assembled code chunk for a common use case, along with its guidelines and use cases rendered for agent use
-- dsds_build_component(step:"start", identifier:"button") — interactive wizard that walks an existing component's props one at a time, offering only each prop's valid options as Q&A, then returns the composed JSX in result.code
-
-RELATIONSHIP GRAPH — typed dependency edges between entities (composes, depends-on, part-of, alternative-to, replaces, extends), with inverse edges derived automatically:
-- dsds_impact(identifier) — blast radius: what breaks if you change/remove this entity (direct + transitive dependents, required edges flagged). Start here before changing a shared token or component.
-- dsds_get_examples(identifier) — the worked examples that USE this entity, as an index: each one's name, what it demonstrates, and the call that fetches it. Browse here first, then pull the single chunk you want with dsds_get_chunk — reading every chunk for a component to find the relevant one costs far more than this listing.
-- dsds_get_variants — a component's configurable dimensions and their allowed values, read from its traits. Call it before setting a prop like tone/size/level: the value set is closed, so anything outside it is invalid. Returns variants by default; include:"states" for runtime conditions, include:"all" for both.
-- dsds_get_dependents(identifier, { relation?, transitive? }) — what points AT this entity.
-- dsds_get_dependencies(identifier, { relation?, transitive? }) — what this entity needs / is built from.
-- dsds_get_alternatives(identifier) — interchangeable options and replacements; surfaces deprecations.
-
-RESOURCES: Each design system entity is also available as a resource at dsds://entity/{identifier}.
-
-Note: If DSDS_PATHS is not set, design system tools will return setup instructions. Spec tools always work.
-
-LINT TOOLS — for linting code against configured ESLint plugins (requires LINT_PLUGINS to be configured). Neither tool saves, creates, or modifies files:
-- dsds_lint_by_path(files=[{path}]) — PREFERRED. Lint files already written to disk, by path. Reads from disk; a missing path errors (it never creates the file). Lint every .tsx/.ts file you wrote in one call.
-- dsds_lint_inline(code, filename?) — lint a source string in memory (read-only, nothing persisted). Use only when the file is not yet on disk; prefer dsds_lint_by_path once it is.
-- Passing source to a lint tool does NOT save it. A "clean" lint result never means a file was written.
-
-EXPORT CHECK — before importing a component, confirm it exists in the package (requires PACKAGE_EXPORT_PATHS):
-- dsds_check_exports(components=["Box", "TextInput"]) — verify each name is actually exported. Read-only: does NOT modify packages or install anything.
-
-ERROR EXPLAINER — always available, no configuration needed:
-- dsds_explain_error(error) — paste a raw TypeScript/build error and get an actionable fix hint instead of re-guessing from the raw compiler output. Call this reactively the moment a build or typecheck fails. Matches generic patterns (invalid prop, missing required prop, boolean given a string, number given where a CSS string is expected, implicit any, editing scaffold config files) — it does not know this project's specific components, so still cross-check dsds_get_agent_context for the actual fix.
-
-SKILLS — real DSDS authoring skills, bundled verbatim from the spec repo at tag v${BUNDLED_VERSION} (not generated from this server's own knowledge):
-- dsds_list_skills() — see what's available (dsds-specs, dsds-add, dsds-update, dsds-validate) before authoring or editing a .dsds.yaml document.
-- dsds_get_skill(id) — read one in full. Start here before authoring against the real 0.20.x model, instead of dsds_context_brief(useCase="author")'s legacy 0.15.2 guidance.
+Each entity is also available as a resource at dsds://entity/{identifier}.
 `.trim();
 
 // Appended to the instructions only when the feedback tool is enabled.

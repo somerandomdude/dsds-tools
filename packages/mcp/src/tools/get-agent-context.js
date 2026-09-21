@@ -5,6 +5,10 @@ import { resolvePropValues, isBooleanProp } from '../prop-types.js';
 import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
 import { notFoundError } from '../errors.js';
 import { renderTable } from '../render/table.js';
+import { accessRecord } from '../logger.js';
+
+/** Entry kind for telemetry — 0.20+ entries carry `kind`, older ones do not. */
+const entityKindOf = e => e.kind ?? e.entityKind ?? undefined;
 
 export const getAgentContextDef = {
   name: 'dsds_get_agent_context',
@@ -147,10 +151,19 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'm
   const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
   if (found.description) lines.push(asText(found.description), '');
 
-  renderTraits20(found.traits, lines);
-  renderCombos20(found.combos, lines);
-  renderSourceAndImports20(found, lines);
-  renderApi20(found, lines, propsConfig, format);
+  // `parts` tracks the generated views this response actually carried, so the
+  // log distinguishes "read Card's props" from "read Card's guidelines".
+  const parts = [];
+  const mark = (name, before) => { if (lines.length > before) parts.push(name); };
+
+  let at = lines.length;
+  renderTraits20(found.traits, lines); mark('traits', at);
+  at = lines.length;
+  renderCombos20(found.combos, lines); mark('combos', at);
+  at = lines.length;
+  renderSourceAndImports20(found, lines); mark('imports', at);
+  at = lines.length;
+  renderApi20(found, lines, propsConfig, format); mark('api', at);
 
   const graph = getGraph ? getGraph() : null;
   if (graph) {
@@ -167,18 +180,23 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'm
         for (const r of dependents) lines.push(`- ${r.via} ← \`${r.target}\`${r.required ? ' **(breaking)**' : ''}`);
       }
       lines.push('');
+      parts.push('relationships');
     }
   }
 
   const sections = found.sections ?? [];
   const sectionCtx = { filePath: found.__filePath, sharedEntries: found.__sharedEntries };
+  // Mirrors renderSections20's own audience filter — the served set, not the
+  // declared set, is what the access log records.
+  const served = verbose ? sections : sections.filter((s) => s.for === 'agent' || s.for === 'all');
+  let omitted = 0;
   if (sections.length === 0) {
     lines.push('*No sections defined for this entry.*');
   } else if (verbose) {
     renderSections20(sections, lines, sectionCtx);
   } else {
     renderSections20(sections, lines, { ...sectionCtx, audience: 'agent' });
-    const omitted = sections.filter((s) => s.for === 'human').length;
+    omitted = sections.filter((s) => s.for === 'human').length;
     if (omitted > 0) {
       lines.push(`> ${omitted} human-only section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you need them.`, '');
     }
@@ -187,7 +205,20 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'm
 
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: entityKindOf(found),
+      sections: served,
+      parts,
+      omitted,
+      mode: verbose ? 'verbose' : 'compact',
+      chars: text.length,
+    }),
+  };
 }
 
 export async function getAgentContextHandler({ identifier, verbose = false }, getSystems, getGraph = null, propsConfig = null, format = 'markdown') {
@@ -279,24 +310,35 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
     lines.push('');
   }
 
+  // agentDocumentBlocks are agent-only by definition, so they carry the
+  // `@agent` audience suffix that a 0.20 section would get from `for: agent`.
+  const served = [];
   if (agentBlocks.length > 0) {
     lines.push('## Agent-optimized context', '');
-    for (const block of agentBlocks) renderBlock(block, lines, format);
+    for (const block of agentBlocks) {
+      renderBlock(block, lines, format);
+      served.push({ kind: block.kind, for: 'agent' });
+    }
   }
 
   // Compact (default): only the props table from documentBlocks — props are
   // essential for correct code, the rest (use-case prose, sections, examples)
   // is verbose and accumulates in context. Verbose: render everything.
   const docBlocksToRender = docBlocks.filter(b => b.kind !== 'imports' && b.kind !== 'accessibility');
+  let omittedCount = 0;
   if (verbose) {
     if (docBlocksToRender.length > 0) {
       lines.push('## Full component documentation', '');
-      for (const block of docBlocksToRender) renderBlock(block, lines, format);
+      for (const block of docBlocksToRender) {
+        renderBlock(block, lines, format);
+        served.push({ kind: block.kind });
+      }
     }
   } else {
     const apiBlock = docBlocksToRender.find(b => b.kind === 'api');
-    if (apiBlock) renderBlock(apiBlock, lines, format);
+    if (apiBlock) { renderBlock(apiBlock, lines, format); served.push({ kind: 'api' }); }
     const omitted = docBlocksToRender.filter(b => b.kind !== 'api').map(b => b.kind);
+    omittedCount = omitted.length;
     if (omitted.length > 0) {
       lines.push(`> ${omitted.length} more documentation block(s) omitted for brevity (${omitted.join(', ')}). Call dsds_get_agent_context with verbose:true, or dsds_get_document_block, if you need them.`, '');
     }
@@ -305,5 +347,17 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
 
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: entityKindOf(found),
+      sections: served,
+      omitted: omittedCount,
+      mode: verbose ? 'verbose' : 'compact',
+      chars: text.length,
+    }),
+  };
 }

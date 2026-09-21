@@ -226,24 +226,54 @@ export function checkExampleProps(entities) {
   return [...new Set(errors)];
 }
 
-/** Flag any version source that does not match the bundled spec version. */
+/**
+ * Flag any version source that does not match what it should track.
+ *
+ * Most sources track the bundled spec version. A source may override that
+ * with its own `expected` — the legacy 0.15.2 examples do, because they
+ * document a model that does not move when the current spec does. Without
+ * that, every spec bump reported four false positives against README prose
+ * that was correct.
+ */
 export function checkVersions(bundled, sources) {
   const errors = [];
-  for (const { label, version } of sources) {
-    if (version !== bundled) {
-      errors.push(`Version drift: ${label} is "${version}", expected "${bundled}".`);
+  for (const { label, version, expected } of sources) {
+    const want = expected ?? bundled;
+    if (version !== want) {
+      errors.push(`Version drift: ${label} is "${version}", expected "${want}".`);
     }
   }
   return errors;
 }
 
-/** Extract spec-version strings from the README (for the version check). */
-export function readmeVersions(readme) {
+/**
+ * Extract spec-version strings from the README (for the version check).
+ *
+ * Two populations, and conflating them is a bug. The prose that names the
+ * bundled spec tracks BUNDLED_VERSION. The JSON document examples are legacy
+ * 0.15.2 — `dsdsVersion` is a legacy-only field, renamed `schemaVersion` in
+ * 0.20.0 — and they track whatever `src/spec/dsds.bundled.schema.json`
+ * actually is, which has stayed at 0.15.2 while the 0.20.x/0.21.0 model moved
+ * into the vendored schema-<version>/ directories.
+ *
+ * @param {string} readme
+ * @param {string|null} legacyVersion - version of the bundled legacy schema,
+ *   read from its own `$id`. Omit to hold the examples to the bundled spec
+ *   version, which is what the caller wants only if the two ever merge again.
+ */
+export function readmeVersions(readme, legacyVersion = null) {
   const out = [];
   const push = (re, label) => { const m = (readme ?? '').match(re); if (m) out.push({ label, version: m[1] }); };
   push(/Bundled spec version:\*\*\s*([0-9][0-9.]*)/, 'README "Bundled spec version"');
   push(/Defaults to `([0-9][0-9.]*)`/, 'README "DSDS_SCHEMA_VERSION default"');
-  for (const m of (readme ?? '').matchAll(/designsystemdocspec\.org\/v([0-9][0-9.]*)\//g)) out.push({ label: 'README schema URL', version: m[1] });
-  for (const m of (readme ?? '').matchAll(/"dsdsVersion":\s*"([0-9][0-9.]*)"/g)) out.push({ label: 'README dsdsVersion example', version: m[1] });
+  const legacy = legacyVersion ? { expected: legacyVersion } : {};
+  for (const m of (readme ?? '').matchAll(/designsystemdocspec\.org\/v([0-9][0-9.]*)\//g)) out.push({ label: 'README legacy schema URL', version: m[1], ...legacy });
+  for (const m of (readme ?? '').matchAll(/"dsdsVersion":\s*"([0-9][0-9.]*)"/g)) out.push({ label: 'README legacy dsdsVersion example', version: m[1], ...legacy });
   return out;
+}
+
+/** The version of the bundled legacy schema, from its own `$id`. */
+export function legacySchemaVersion(schema) {
+  const m = /\/v([0-9][0-9.]*)\//.exec(schema?.$id ?? '');
+  return m ? m[1] : null;
 }

@@ -1,6 +1,6 @@
 import { getApiForEntry } from '../spec/prop-extractor-0.20.0.js';
 import { notFoundMessage, entityIdentifiers } from '../suggest.js';
-import { renderCombos20, renderExtensions20, renderGuidelineItem, renderSections20 } from '../spec/render-0.20.0.js';
+import { renderCombos20, renderEvents20, renderExtensions20, renderGuidelineItem, renderSections20 } from '../spec/render-0.20.0.js';
 import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 
 const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
@@ -324,10 +324,16 @@ function apiPropsBlock(entity, propsConfig) {
   const result = getApiForEntry(entity, propsConfig);
   if (result.status !== 'fresh' && result.status !== 'unverified') return null;
   const props = result.props?.props ?? [];
-  if (!props.length) return null;
+  const events = result.props?.events ?? null;
+  // Events alone are enough to render the block: a component that forwards
+  // everything to a native element has no props of its own and still has an
+  // event surface worth documenting.
+  if (!props.length && !events?.handlers?.length) return null;
   return {
     unverified: result.status === 'unverified',
     alsoAccepts: result.props?.alsoAccepts ?? [],
+    events,
+    polymorphic: result.props?.polymorphic ?? null,
     properties: props.map(p => ({
       identifier: p.name,
       description: p.description,
@@ -343,7 +349,14 @@ function renderApi20Rich(entity, lines, propsConfig) {
   const result = getApiForEntry(entity, propsConfig);
   if (result.status === 'unconfigured' || result.status === 'no-source') return;
   if (result.status === 'missing') {
-    lines.push('## API documentation', '', '*No extracted prop data yet for this entry. See `sourceFiles` on the entity.*', '');
+    lines.push(
+      '## API documentation',
+      '',
+      result.extractedFrom
+        ? `*The props extractor ran but produced no entry for this component. It read \`${result.extractedFrom}\` — if the component is newer than that checkout, point \`SANITY_UI_ROOT\` at one that has it.*`
+        : '*No extracted prop data yet for this entry. See `sourceFiles` on the entity.*',
+      ''
+    );
     return;
   }
   if (result.status === 'stale') {
@@ -359,14 +372,21 @@ function renderApi20Rich(entity, lines, propsConfig) {
   const block = apiPropsBlock(entity, propsConfig);
   if (!block) return;
   if (block.unverified) lines.push('*Freshness not verified against source (`uiSourceRoot` not configured).*', '');
-  renderApi({ properties: block.properties }, lines);
+  // renderApi owns the heading, and bails on an empty prop list — so an
+  // events-only component has to write its own, or the event table lands
+  // under whatever section preceded it.
+  if (block.properties.length) renderApi({ properties: block.properties }, lines);
+  else lines.push('## API documentation', '', 'This component has no props of its own.', '');
   if (block.alsoAccepts.length) {
     lines.push(`Native HTML attributes (\`${block.alsoAccepts.join('`, `')}\`, etc.) pass through to the base element.`, '');
   }
+  lines.push(...renderEvents20(block.events, 'markdown', block.polymorphic));
 }
 
-function hasA11yTag(item) {
-  return (item.tags ?? []).includes('accessibility');
+/** Item-level `tags` relate one rule across categories — see section.tags' own
+ *  $comment for the distinction from the section-level field. */
+function hasTag(item, tag) {
+  return (item.tags ?? []).includes(tag);
 }
 
 const isRecommended = (item) => item.level === 'should' || item.level === 'must';
@@ -419,6 +439,18 @@ function entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent = 
     collectMatches(sections.filter((s) => keep(s) && s.kind === 'definitions' && (s.title === title || (context && s.context === context))));
   const collectByGuidelinesTitle = (title) =>
     collectMatches(sections.filter((s) => keep(s) && s.kind === 'guidelines' && s.title === title));
+  // Spec 0.21.0 added `tags` to a section, and DSDS-18 reads it to decide a
+  // section's scope. That makes the tag — not the human-written title — the
+  // machine-readable answer to "what is this section about", so the buckets
+  // below collect on it. Title matching stays for the corpora that predate
+  // the field: in this one, 41 sections carry `tags: [accessibility]` and 39
+  // are titled "Accessibility", so neither rule alone finds all of them.
+  const collectByGuidelinesTag = (tag) =>
+    collectMatches(
+      sections.filter(
+        (s) => keep(s) && s.kind === 'guidelines' && (s.tags ?? []).includes(tag) && !consumed.has(s),
+      ),
+    );
   const renderSectionExtensions = (matches) => {
     for (const s of matches) renderExtensions20(s.$extensions, lines);
   };
@@ -440,7 +472,10 @@ function entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent = 
   }
 
   const howToUse = collectByFraming('how-to-use');
-  const bestPracticeItems = howToUse.items.filter((i) => !hasA11yTag(i));
+  // An item tagged `accessibility` or `content` inside a how-to-use section
+  // is surfaced under its own heading below, where a reader looks for it,
+  // rather than mixed into Do/Don't.
+  const bestPracticeItems = howToUse.items.filter((i) => !hasTag(i, 'accessibility') && !hasTag(i, 'content'));
   if (bestPracticeItems.length) {
     lines.push('## Best practices', '');
     renderSplitGuidelines20(bestPracticeItems, lines, ctx, { yesHeading: '### Do', noHeading: "### Don't", showChecklistExample: false });
@@ -468,8 +503,13 @@ function entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent = 
 
   renderCombos20(entity.combos, lines);
 
-  const a11ySection = collectByGuidelinesTitle('Accessibility');
-  const a11yTaggedItems = howToUse.items.filter(hasA11yTag);
+  const a11yTitled = collectByGuidelinesTitle('Accessibility');
+  const a11yTagged = collectByGuidelinesTag('accessibility');
+  const a11ySection = {
+    items: [...a11yTitled.items, ...a11yTagged.items],
+    sections: [...a11yTitled.sections, ...a11yTagged.sections],
+  };
+  const a11yTaggedItems = howToUse.items.filter((i) => hasTag(i, 'accessibility'));
   const a11yItems = [...a11ySection.items, ...a11yTaggedItems];
   const keyboardSection = collectByTitleOrContext('Keyboard interactions', 'keyboard');
   if (a11yItems.length || keyboardSection.items.length) {
@@ -487,10 +527,28 @@ function entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent = 
     renderSectionExtensions(keyboardSection.sections);
   }
 
-  const contentSection = collectByTitleOrContext('Content', 'terms');
-  if (contentSection.items.length) {
-    renderContent({ labels: contentSection.items.map(i => ({ term: i.term, definition: i.definition })) }, lines);
-    renderSectionExtensions(contentSection.sections);
+  // Content arrives in two shapes. The older one is a `definitions` section
+  // of term/definition labels. The newer one — after the corpus moved its
+  // freeform "Content" blocks into real guidelines — is a `guidelines`
+  // section tagged `content`, whose items are statements with a level. Both
+  // render under one heading, statements first, because a rule outranks a
+  // glossary entry for a reader writing copy.
+  const contentLabels = collectByTitleOrContext('Content', 'terms');
+  const contentTagged = collectByGuidelinesTag('content');
+  const contentTaggedItems = howToUse.items.filter((i) => hasTag(i, 'content'));
+  const contentStatements = [...contentTagged.items, ...contentTaggedItems];
+  if (contentStatements.length || contentLabels.items.length) {
+    lines.push('## Content', '');
+    for (const item of contentStatements) {
+      renderGuidelineItem(item, lines, ctx, { showLevel: false, showCheckedBy: false });
+    }
+    if (contentStatements.length) lines.push('');
+    for (const label of contentLabels.items) {
+      lines.push(`- **${cell(label.term)}:** ${asText(label.definition ?? '')}`);
+    }
+    if (contentLabels.items.length) lines.push('');
+    renderSectionExtensions(contentTagged.sections);
+    renderSectionExtensions(contentLabels.sections);
   }
 
   // Anything not claimed above (custom section kinds, freeform-only notes

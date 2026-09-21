@@ -9,7 +9,7 @@ Three use cases:
 
 The DSDS spec is bundled at the version listed below. The server checks for updates on startup and surfaces a notice in tool responses when a newer version is available.
 
-**Bundled spec version:** 0.20.1
+**Bundled spec version:** 0.21.0
 
 ---
 
@@ -629,19 +629,61 @@ npm test             # run tests once
 npm run test:watch   # watch mode
 npm run dev          # run the server directly (reads env vars from shell)
 npm run update-schema  # fetch the latest published DSDS schema from designsystemdocspec.org
-npm run logs         # view usage logs (lint + chunk activity) in a readable format
+npm run logs         # view usage logs chronologically
+npm run logs:top     # rank entries, sections, tools, errors and lint rules
 ```
 
 The server records usage to `logs/YYYY-MM-DD.jsonl`:
 
 - **Every tool call** — `{ type: "tool", tool, ok, durationMs }`
-- **Chunk access** — `dsds_get_chunk` writes a detailed `{ type: "chunk", identifier, name }` entry
+- **Content access** — any tool that serves an entry's content writes a
+  `{ type: "access", tool, identifier, name, entityKind, sections, parts, … }` entry
 - **Lint runs** — the lint tools write a detailed `{ type: "lint", … }` entry with per-file violations
+
+### Content-access records
+
+A `tool` record says a tool ran. An `access` record says what came back — which
+entry, and which parts of it:
+
+```json
+{
+  "type": "access", "tool": "dsds_get_agent_context",
+  "identifier": "card", "name": "Card", "entityKind": "component",
+  "mode": "compact",
+  "sections": ["guidelines#When to use", "guidelines@agent"],
+  "sectionCount": 2, "omitted": 2,
+  "parts": ["traits", "api", "relationships"],
+  "chars": 15651
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `identifier` / `name` | The resolved entry. `requested` appears only when the caller's input differed. |
+| `sections` | Sections the response **carried**, labelled `kind`, `kind#Title`, `kind@audience`. `for: all` gets no `@` suffix, so an `@agent` always means something. |
+| `parts` | Generated views the entry does not declare — `traits`, `combos`, `api`, `imports`, `relationships`, `code`. |
+| `omitted` | Sections deliberately withheld, ex: human-only sections in a compact call. |
+| `mode` | The view served, ex: `compact` / `verbose`. |
+| `chars` | Response size — the cheapest proxy for context spend. |
+
+Handlers never write logs. A handler attaches an `access` descriptor
+(`accessRecord` in `src/logger.js`) to its result and `dispatch` writes it, then
+strips the key before the result reaches the transport. One write site, both
+the MCP server and the CLI, no I/O in a render path.
+
+Instrumented: `dsds_get_agent_context`, `dsds_get_entity`,
+`dsds_get_document_block`, `dsds_get_chunk`, `dsds_get_variants`,
+`dsds_get_examples`, `dsds_get_skill`, `dsds_build_component` (`start` only).
+A failed lookup writes nothing — no
+content was served.
+
+`type: "chunk"` is the pre-0.5 name for what `access` now covers; both readers
+still accept it.
 
 Read them back with `npm run logs`. Pass options after `--`:
 
 ```bash
-npm run logs                      # last 7 days: lint + chunk detail, plus a tool-usage summary
+npm run logs                      # last 7 days: lint + access detail, plus summaries
 npm run logs -- --summary         # totals only, no per-entry detail
 npm run logs -- --type tool       # per-call tool log + tool-usage breakdown
 npm run logs -- --type lint       # only lint entries (or --type chunk)
@@ -650,6 +692,25 @@ npm run logs -- --date 2026-06-18 # a single day
 ```
 
 Tool calls always feed the **Tool usage** summary (counts and error totals per tool). They're omitted from the per-entry view in the combined `--type all` mode — where they'd duplicate the chunk/lint detail — but shown per call under `--type tool`.
+
+For rankings rather than a timeline, use `npm run logs:top`. It reads the MCP
+log dir, the pre-0.4 repo-root `logs/`, and `$DSDS_LOGS_DIR` together:
+
+```bash
+npm run logs:top                                # all six rankings
+npm run logs:top -- --section kinds             # access grouped by entity kind
+npm run logs:top -- --section sections          # which parts of which entries
+npm run logs:top -- --section sections --entry card
+npm run logs:top -- --section entries --kind component
+npm run logs:top -- --section entries --top 0   # every entry, no cutoff
+npm run logs:top -- --days 30 --json            # machine-readable
+```
+
+Both readers group content access by `entityKind` first, because a component,
+a chunk and a guide are not comparable as a single ranked list. Records written
+before 0.5 carry no `entityKind`; only `dsds_get_chunk` recorded an identifier
+then, so those are shown as `chunk †` with the inference marked rather than
+asserted.
 
 The spec schema is bundled at `src/spec/dsds.bundled.schema.json`. Run `npm run update-schema` to pull the latest published version automatically. It fetches the schema from `https://designsystemdocspec.org/v{version}/dsds.bundled.schema.json` and updates `BUNDLED_VERSION` in `src/spec/version.js`. The MCP server loads the schema once at startup via `require()`, so restart the server after updating.
 

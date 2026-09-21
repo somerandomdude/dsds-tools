@@ -2,6 +2,7 @@ import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { notFoundMessage, entityIdentifiers, didYouMean } from '../suggest.js';
 import { renderApi20 } from '../spec/render-0.20.0.js';
+import { accessRecord } from '../logger.js';
 
 export const getDocumentBlockDef = {
   name: 'dsds_get_document_block',
@@ -133,7 +134,18 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
     if (lines.length === 2) lines.push('*No API data available for this entry.*', '');
     const notice = getUpdateNotice();
     if (notice) lines.push(notice);
-    return { content: [{ type: 'text', text: lines.join('\n') }] };
+    const text = lines.join('\n');
+    return {
+      content: [{ type: 'text', text }],
+      access: accessRecord({
+        identifier: found.identifier,
+        name: found.name,
+        entityKind: found.kind,
+        sections: ['api'],
+        requested: identifier,
+        chars: text.length,
+      }),
+    };
   }
 
   let block;
@@ -196,7 +208,19 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
 
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: found.kind,
+      // The resolved block, so `--block props` logs as the `api` it served.
+      sections: [{ kind: block.kind ?? blockType, title: block.title, for: block.for }],
+      requested: identifier,
+      chars: text.length,
+    }),
+  };
 }
 
 function unique(values) {

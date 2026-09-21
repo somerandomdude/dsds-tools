@@ -1,6 +1,7 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
+import { accessRecord } from '../logger.js';
 
 /**
  * dsds_build_component — a stateless, step-by-step wizard that walks an agent
@@ -336,15 +337,27 @@ function handleStart({ identifier }, getSystems) {
   const data = { identifier: entity.identifier, choices: {}, cursor: 0 };
   const overview = buildOverview(entity, questions.length);
 
+  // Only `start` serves the entity's documentation; `answer` and `finalize`
+  // work from the caller's own data, so logging them would inflate the count
+  // without a content read behind it.
+  const access = accessRecord({
+    identifier: entity.identifier,
+    name: entity.name,
+    entityKind: entity.kind,
+    parts: ['overview', 'traits'],
+    mode: 'start',
+    requested: identifier,
+  });
+
   if (questions.length === 0) {
-    return respond({
+    return { ...respond({
       overview,
       nextStep: 'This component exposes no configurable props. Call step:"finalize" to get the composed element.',
       nextStepId: 'finalize',
       data,
-    });
+    }), access };
   }
-  return respond({
+  return { ...respond({
     overview,
     validated: `Loaded "${entity.name ?? entity.identifier}" — ${questions.length} prop${questions.length === 1 ? '' : 's'}.`,
     nextStep:
@@ -353,7 +366,7 @@ function handleStart({ identifier }, getSystems) {
     nextStepId: 'finalize',
     questions: questions.map((q, i) => presentQuestion(q, i + 1, questions.length)),
     data,
-  });
+  }), access };
 }
 
 function buildOverview(entity, questionCount) {

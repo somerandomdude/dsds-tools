@@ -1,4 +1,4 @@
-import { writeLog } from '../logger.js';
+import { accessRecord } from '../logger.js';
 import { renderSections20, resolveFileRef20 } from '../spec/render-0.20.0.js';
 import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
 import { ERROR_CODES, notFoundError } from '../errors.js';
@@ -99,6 +99,8 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     // file named via `related`/`refs` (`rel: file`). Guidance lives in
     // `sections`, not the legacy `useCases`/`guidelines` top-level fields.
     const resolved = resolveChunkCode20(chunk);
+    const parts = [];
+    if (resolved) parts.push('code');
     lines.push(
       '## Code',
       '',
@@ -109,6 +111,7 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     );
 
     if (chunk.relationships?.length) {
+      parts.push('relationships');
       lines.push('## Relationships', '');
       for (const r of chunk.relationships) {
         const req = r.required ? ' *(required)*' : '';
@@ -124,8 +127,19 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
       lines.push('*No sections defined for this chunk.*');
     }
 
-    await writeLog(logsDir, { type: 'chunk', tool: 'dsds_get_chunk', identifier: chunk.identifier, name: chunk.name });
-    return { content: [{ type: 'text', text: lines.join('\n') }] };
+    const text = lines.join('\n');
+    return {
+      content: [{ type: 'text', text }],
+      access: accessRecord({
+        identifier: chunk.identifier,
+        name: chunk.name,
+        entityKind: chunk.kind ?? 'chunk',
+        sections: chunk.sections ?? [],
+        parts,
+        requested: identifier,
+        chars: text.length,
+      }),
+    };
   }
 
   const meta = chunk.metadata;
@@ -145,8 +159,14 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     '',
   );
 
+  // Legacy chunks have no `sections` array; their content is a fixed set of
+  // top-level fields, so the served set is assembled as they render.
+  const legacySections = [];
+  if (codeStr) legacySections.push('code');
+
   const relationships = resolveRelationships(chunk);
   if (relationships.length > 0) {
+    legacySections.push('relationships');
     lines.push('## Relationships', '');
     for (const r of relationships) {
       const req = r.required ? ' *(required)*' : '';
@@ -162,11 +182,13 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     const discouraged = useCases.filter(u => u.stance === 'discouraged');
 
     if (recommended.length > 0) {
+      legacySections.push('useCases#When to use');
       lines.push('## When to use', '');
       for (const u of recommended) lines.push(`- ${u.description}`);
       lines.push('');
     }
     if (discouraged.length > 0) {
+      legacySections.push('useCases#When not to use');
       lines.push('## When not to use', '');
       for (const u of discouraged) {
         lines.push(`- ${u.description}`);
@@ -180,6 +202,7 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
 
   const guidelines = chunk.guidelines ?? [];
   if (guidelines.length > 0) {
+    legacySections.push('guidelines');
     lines.push('## Guidelines', '');
     for (const g of guidelines) {
       const level = formatLevel(g.level);
@@ -189,8 +212,18 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     lines.push('');
   }
 
-  await writeLog(logsDir, { type: 'chunk', tool: 'dsds_get_chunk', identifier: chunk.identifier, name: chunk.name });
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: chunk.identifier,
+      name: chunk.name,
+      entityKind: 'chunk',
+      sections: legacySections,
+      requested: identifier,
+      chars: text.length,
+    }),
+  };
 }
 
 function resolveStatus(metadata) {

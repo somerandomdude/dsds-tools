@@ -22,6 +22,7 @@ import { notFoundMessage } from '../suggest.js';
 import { didYouMean } from '../suggest.js';
 import { nextCommandFor } from '../next-command.js';
 import { renderTable } from '../render/table.js';
+import { accessRecord } from '../logger.js';
 import { ERROR_CODES, describeSuggestions, toolError } from '../errors.js';
 
 // `composes` is the authored relation for "this chunk is built out of that
@@ -134,14 +135,22 @@ export async function getExamplesHandler({ identifier, nextCommands }, getGraph,
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
 
+  const text = lines.join('\n');
   return {
-    content: [{ type: 'text', text: lines.join('\n') }],
+    content: [{ type: 'text', text }],
     structuredContent: {
       identifier,
       name: node?.name ?? identifier,
       total: examples.length,
       examples,
     },
+    access: accessRecord({
+      identifier,
+      name: node?.name,
+      entityKind: node?.kind,
+      parts: ['examples'],
+      chars: text.length,
+    }),
   };
 }
 

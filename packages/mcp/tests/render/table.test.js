@@ -108,3 +108,28 @@ describe('renderTable — guards', () => {
     expect(renderTable(ROWS, COLS, { format: 'yaml' })).toContain('| Prop | Type |');
   });
 });
+
+// Callers escape pipes so their cells survive a Markdown table. TOON quotes
+// rather than escaping, so the backslash is not a separator there — it reached
+// the model as a literal `\|` inside an already-quoted value, which is both
+// wrong to read and two wasted characters on every union type.
+describe('renderTable — Markdown pipe escapes do not leak into TOON', () => {
+  const cols = [{ key: 't', header: 'type' }];
+  const rows = [{ t: '`React.ElementType \\| React.ReactNode`' }];
+
+  it('keeps the escape in Markdown, where it is load-bearing', () => {
+    const md = renderTable(rows, cols, { format: 'markdown' });
+    expect(md).toContain('\\|');
+  });
+
+  it('strips it in TOON, which quotes instead of escaping', () => {
+    const toon = renderTable(rows, cols, { format: 'toon', name: 'r' });
+    expect(toon).not.toContain('\\|');
+    expect(toon).toContain('React.ElementType | React.ReactNode');
+  });
+
+  it('still quotes a value containing the TOON delimiter', () => {
+    const toon = renderTable([{ t: 'a, b' }], cols, { format: 'toon', name: 'r' });
+    expect(toon).toContain('"a, b"');
+  });
+});
