@@ -2,24 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lintInlineHandler, lintByPathHandler } from '../../src/tools/lint-code.js';
+import { lintHandler } from '../../src/tools/lint-code.js';
 
 const noPlugins = () => ({ plugins: [], resolveDir: process.cwd() });
 const fixturePlugin = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd() });
-const uiCodemodsConfig = (overrides = {}) => ({
-  enabled: true,
-  codemodPackage: '@sanity/ui-codemod',
-  transformNames: ['box', 'stack'],
-  transformPath: '<pkg>/transforms/latest/<name>',
-  todoMarker: 'UI-CODEMOD TODO:',
-  fromPackage: '@sanity/ui',
-  toPackage: '@sanity/ui-v5',
-  ...overrides,
-});
 
-describe('lintInlineHandler', () => {
+describe('dsds_lint — source strings', () => {
   it('returns isError when no plugins configured', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;' }, noPlugins);
+    const result = await lintHandler({ code: 'const x = 1;' }, noPlugins);
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('LINT_PLUGINS');
     expect(result.content[0].text).toContain('LINT_RESOLVE_DIR');
@@ -30,24 +20,24 @@ describe('lintInlineHandler', () => {
       plugins: ['eslint-plugin-does-not-exist-xyz'],
       resolveDir: process.cwd(),
     });
-    const result = await lintInlineHandler({ code: 'const x = 1;' }, getLintConfig);
+    const result = await lintHandler({ code: 'const x = 1;' }, getLintConfig);
     expect(result.isError).toBe(true);
   });
 
-  it('requires code or files, not a path', async () => {
-    const result = await lintInlineHandler({ path: 'App.tsx' }, fixturePlugin);
+  it('requires code, a path, or files', async () => {
+    const result = await lintHandler({}, fixturePlugin);
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('dsds_lint_by_path');
+    expect(result.content[0].text).toContain('Provide `path`');
   });
 
   it('reports that nothing was persisted (read-only contract)', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
+    const result = await lintHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
     expect(result.content[0].text).toContain('No file was read or written');
     expect(result.content[0].text).toMatch(/Checked \d+ character/);
   });
 
   it('returns structuredContent with a remaining count and per-file entries', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
+    const result = await lintHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
     expect(result.structuredContent).toBeDefined();
     expect(typeof result.structuredContent.remaining).toBe('number');
     expect(Array.isArray(result.structuredContent.files)).toBe(true);
@@ -55,11 +45,12 @@ describe('lintInlineHandler', () => {
   });
 });
 
-describe('lintByPathHandler (harness gate)', () => {
-  it('requires a path, not code', async () => {
-    const result = await lintByPathHandler({ code: 'const x = 1;' }, fixturePlugin);
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('dsds_lint_inline');
+describe('dsds_lint — files on disk (harness gate)', () => {
+  // One tool takes both shapes now, so a source string is valid here too —
+  // it just runs in memory rather than reading from disk.
+  it('accepts a source string in place of a path', async () => {
+    const result = await lintHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
+    expect(result.isError).toBeFalsy();
   });
 
   it('apply mode lints a file on disk via path and leaves a clean file unchanged', async () => {
@@ -67,7 +58,7 @@ describe('lintByPathHandler (harness gate)', () => {
     try {
       writeFileSync(join(dir, 'App.tsx'), 'const x = 1;\n');
       const cfg = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd(), sourceDir: dir });
-      const result = await lintByPathHandler({ apply: true, files: [{ path: 'App.tsx' }] }, cfg);
+      const result = await lintHandler({ apply: true, files: [{ path: 'App.tsx' }] }, cfg);
       expect(result.structuredContent.files[0].filename).toBe('App.tsx');
       expect(readFileSync(join(dir, 'App.tsx'), 'utf8')).toBe('const x = 1;\n');
     } finally {
@@ -79,7 +70,7 @@ describe('lintByPathHandler (harness gate)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lint-missing-'));
     try {
       const cfg = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd(), sourceDir: dir });
-      const result = await lintByPathHandler({ files: [{ path: 'Nope.tsx' }] }, cfg);
+      const result = await lintHandler({ files: [{ path: 'Nope.tsx' }] }, cfg);
       const text = result.content[0].text;
       expect(text).toContain('was not found');
       expect(text).toContain('does not create them');
@@ -90,61 +81,3 @@ describe('lintByPathHandler (harness gate)', () => {
   });
 });
 
-describe('lintInlineHandler — UI codemods', () => {
-  it('applies a configured codemod before ESLint runs, with no plugins configured at all', async () => {
-    const getLintConfig = () => ({ plugins: [], resolveDir: process.cwd(), uiCodemods: uiCodemodsConfig() });
-    const code = "import { Box } from '@sanity/ui'\n\nexport function X() { return <Box /> }";
-    const result = await lintInlineHandler({ code, filename: 'X.tsx' }, getLintConfig);
-    expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain('UI codemod');
-    expect(result.content[0].text).toContain('box');
-    expect(result.content[0].text).toContain('@sanity/ui-v5');
-    expect(result.structuredContent.files[0].codemodsApplied).toEqual(['box']);
-    expect(result.structuredContent.files[0].fixed).toBe(true);
-  });
-
-  it('does not error "no plugins configured" when codemods alone are enabled', async () => {
-    const getLintConfig = () => ({ plugins: [], resolveDir: process.cwd(), uiCodemods: uiCodemodsConfig() });
-    const result = await lintInlineHandler({ code: "import { Box } from '@sanity/ui'\nconst x = <Box />", filename: 'X.tsx' }, getLintConfig);
-    expect(result.content[0].text).not.toContain('No ESLint plugins configured');
-  });
-
-  it('still errors when neither plugins nor codemods are configured', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;' }, noPlugins);
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('LINT_PLUGINS');
-  });
-
-  it('runs codemods AND the configured ESLint plugin together, on the codemod output', async () => {
-    const getLintConfig = () => ({
-      plugins: ['eslint-plugin-fixture'],
-      resolveDir: process.cwd(),
-      uiCodemods: uiCodemodsConfig(),
-    });
-    const code = "import { Box } from '@sanity/ui'\n\nexport function X() { return <Box /> }";
-    const result = await lintInlineHandler({ code, filename: 'X.tsx' }, getLintConfig);
-    expect(result.structuredContent.files[0].codemodsApplied).toEqual(['box']);
-  });
-
-  it('reports no codemodsApplied when the file imports nothing from fromPackage', async () => {
-    const getLintConfig = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd(), uiCodemods: uiCodemodsConfig() });
-    const result = await lintInlineHandler({ code: 'const x = 1;', filename: 'App.tsx' }, getLintConfig);
-    expect(result.structuredContent.files[0].codemodsApplied).toEqual([]);
-  });
-
-  // The lint path runs exactly the transforms it is configured with. Which
-  // ones are safe is decided when the config is built (a preset's vetted list,
-  // or an explicit LINT_UI_CODEMOD_TRANSFORMS), not re-decided here — before
-  // 0.20.1 an allowlist inside the runner silently dropped anything it didn't
-  // recognize, including every transform of any non-Sanity design system.
-  it('runs exactly the transforms it is configured with, including one a preset would exclude', async () => {
-    const getLintConfig = () => ({
-      plugins: [],
-      resolveDir: process.cwd(),
-      uiCodemods: uiCodemodsConfig({ transformNames: ['card'] }),
-    });
-    const code = "import { Card } from '@sanity/ui'\n\nexport function X() { return <Card /> }";
-    const result = await lintInlineHandler({ code, filename: 'X.tsx' }, getLintConfig);
-    expect(result.structuredContent.files[0].codemodsApplied).toEqual(['card']);
-  });
-});

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BIN = fileURLToPath(new URL('../src/index.js', import.meta.url));
-const FIXTURE = fileURLToPath(new URL('./fixtures/button.dsds.json', import.meta.url));
+const FIXTURE = fileURLToPath(new URL('./fixtures/button.dsds.yaml', import.meta.url));
 
 function runCli(args, { env = {}, cwd } = {}) {
   const cleaned = { ...process.env };
@@ -54,25 +54,25 @@ describe('basics', () => {
   });
 
   it('unknown flag exits 1', async () => {
-    const { code, stderr } = await runCli(['tool', 'dsds_spec_overview', '--nope']);
+    const { code, stderr } = await runCli(['tool', 'dsds_spec_entity_schema', '--nope']);
     expect(code).toBe(1);
     expect(stderr).toContain('dsds:');
   });
 });
 
 describe('spec tools (no configuration)', () => {
-  it('dsds_spec_overview works with no env', async () => {
-    const { code, stdout } = await runCli(['tool', 'dsds_spec_overview']);
+  it('dsds_spec_entity_schema works with no env', async () => {
+    const { code, stdout } = await runCli(['tool', 'dsds_spec_entity_schema', '--kind', 'component']);
     expect(code).toBe(0);
-    expect(stdout).toContain('Design System Documentation Spec');
+    expect(stdout).toContain('Entity Schema');
   });
 
   it('--json wraps the payload in an envelope', async () => {
-    const { code, stdout } = await runCli(['tool', 'dsds_spec_overview', '--json']);
+    const { code, stdout } = await runCli(['tool', 'dsds_spec_entity_schema', '--json', '--kind', 'component']);
     expect(code).toBe(0);
     const envelope = JSON.parse(stdout);
     expect(envelope.ok).toBe(true);
-    expect(envelope.tool).toBe('dsds_spec_overview');
+    expect(envelope.tool).toBe('dsds_spec_entity_schema');
     expect(typeof envelope.data).toBe('string');
   });
 });
@@ -141,7 +141,7 @@ describe('manifest', () => {
     expect(manifest.name).toBe('dsds');
     expect(manifest.specVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.output.exitCodes['0']).toBeDefined();
-    expect(manifest.tools.length).toBeGreaterThanOrEqual(22);
+    expect(manifest.tools.length).toBeGreaterThanOrEqual(15);
     expect(manifest.tools.map(t => t.name)).toContain('dsds_get_entity');
   });
 });
@@ -149,24 +149,24 @@ describe('manifest', () => {
 describe('usage logging', () => {
   it('writes a JSONL entry with a cli surface marker when DSDS_LOGS_DIR is set', async () => {
     const logsDir = mkdtempSync(join(tmpdir(), 'dsds-cli-logs-'));
-    const { code } = await runCli(['tool', 'dsds_spec_overview'], { env: { DSDS_LOGS_DIR: logsDir } });
+    const { code } = await runCli(['tool', 'dsds_spec_entity_schema', '--kind', 'component'], { env: { DSDS_LOGS_DIR: logsDir } });
     expect(code).toBe(0);
     const files = readdirSync(logsDir).filter(f => f.endsWith('.jsonl'));
     expect(files.length).toBe(1);
     const entry = JSON.parse(readFileSync(join(logsDir, files[0]), 'utf-8').trim().split('\n')[0]);
-    expect(entry).toMatchObject({ type: 'tool', tool: 'dsds_spec_overview', ok: true, surface: 'cli' });
+    expect(entry).toMatchObject({ type: 'tool', tool: 'dsds_spec_entity_schema', ok: true, surface: 'cli' });
   });
 
   it('creates no logs directory when DSDS_LOGS_DIR is not set', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'dsds-cli-cwd-'));
-    const { code } = await runCli(['tool', 'dsds_spec_overview'], { cwd });
+    const { code } = await runCli(['tool', 'dsds_spec_entity_schema', '--kind', 'component'], { cwd });
     expect(code).toBe(0);
     expect(existsSync(join(cwd, 'logs'))).toBe(false);
   });
 
   it('--no-log skips logging even with DSDS_LOGS_DIR set', async () => {
     const logsDir = mkdtempSync(join(tmpdir(), 'dsds-cli-nolog-'));
-    const { code } = await runCli(['tool', 'dsds_spec_overview', '--no-log'], { env: { DSDS_LOGS_DIR: logsDir } });
+    const { code } = await runCli(['tool', 'dsds_spec_entity_schema', '--kind', 'component', '--no-log'], { env: { DSDS_LOGS_DIR: logsDir } });
     expect(code).toBe(0);
     expect(readdirSync(logsDir)).toEqual([]);
   });

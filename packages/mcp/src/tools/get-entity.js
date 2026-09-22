@@ -1,9 +1,9 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { notFoundMessage } from '../suggest.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
-import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render.js';
 import { accessRecord } from '../logger.js';
-import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
+import { resolveStatusDisplay20 } from '../spec/dsds-lib.js';
 import { ERROR_CODES, notFoundError, toolError } from '../errors.js';
 
 export const getEntityDef = {
@@ -22,6 +22,7 @@ export const getEntityDef = {
   },
 };
 
+/** An entry's full documentation in document order. */
 export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
@@ -131,44 +132,23 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   const served = [];
   const parts = [];
 
-  if (found.__dsds20) {
-    // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields,
-    // not sections — render those first, then the sections array itself.
-    let at = lines.length;
-    renderTraits20(found.traits, lines); if (lines.length > at) parts.push('traits');
-    at = lines.length;
-    renderCombos20(found.combos, lines); if (lines.length > at) parts.push('combos');
-    at = lines.length;
-    renderSourceAndImports20(found, lines); if (lines.length > at) parts.push('imports');
-    at = lines.length;
-    renderApi20(found, lines, propsConfig); if (lines.length > at) parts.push('api');
-    if (found.sections?.length) {
-      renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
-      served.push(...found.sections);
-    } else {
-      lines.push('*No sections defined for this entry.*');
-    }
-    renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
-  } else if (found.documentBlocks?.length) {
-    lines.push(`## Documentation (${found.documentBlocks.length} block${found.documentBlocks.length !== 1 ? 's' : ''})`, '');
-    for (const block of found.documentBlocks) {
-      lines.push(`### ${block.kind}`, '', '```json', JSON.stringify(block, null, 2), '```', '');
-      served.push({ kind: block.kind });
-    }
+  // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields,
+  // not sections — render those first, then the sections array itself.
+  let at = lines.length;
+  renderTraits20(found.traits, lines); if (lines.length > at) parts.push('traits');
+  at = lines.length;
+  renderCombos20(found.combos, lines); if (lines.length > at) parts.push('combos');
+  at = lines.length;
+  renderSourceAndImports20(found, lines); if (lines.length > at) parts.push('imports');
+  at = lines.length;
+  renderApi20(found, lines, propsConfig); if (lines.length > at) parts.push('api');
+  if (found.sections?.length) {
+    renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
+    served.push(...found.sections);
   } else {
-    lines.push('*No document blocks defined for this entity.*');
+    lines.push('*No sections defined for this entry.*');
   }
-
-  if (found.agentDocumentBlocks?.length) {
-    served.push(...found.agentDocumentBlocks.map(b => ({ kind: b.kind, for: 'agent' })));
-    lines.push(
-      `## Agent Document Blocks (${found.agentDocumentBlocks.length} block${found.agentDocumentBlocks.length !== 1 ? 's' : ''} — agent consumption only)`,
-      ''
-    );
-    for (const block of found.agentDocumentBlocks) {
-      lines.push(`### ${block.kind} (agent-only)`, '', '```json', JSON.stringify(block, null, 2), '```', '');
-    }
-  }
+  renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
 
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);

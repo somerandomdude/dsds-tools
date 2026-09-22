@@ -7,9 +7,8 @@ import { accessRecord } from '../logger.js';
  * dsds_build_component — a stateless, step-by-step wizard that walks an agent
  * through IMPLEMENTING an *existing* component from the loaded design system.
  *
- * It is the mirror image of dsds_author_component_doc: that tool authors a new
- * documentation document; this tool reads an already-documented component and
- * presents each of its props/options as a question, one at a time. For every
+ * Reads an already-documented component and presents each of its props and
+ * options as a question, one at a time. For every
  * question the agent decides whether and how to use the prop, choosing only
  * from the options that prop actually offers. At the end (`finalize`) the
  * wizard returns the composed component as a JSX usage snippet.
@@ -43,7 +42,7 @@ export const buildComponentDef = {
     '"answers" map { propId: value } returns ready-to-use JSX in "result.code", guaranteed valid (result.lintSafe ' +
     '= true — do not lint it). The start response explains the exact fields. Returns reference JSX for you to adapt; ' +
     'does NOT emit, save, or create files in any project — you copy the code into your own files. Reads existing ' +
-    'components; does NOT author documentation (use dsds_author_component_doc for that). Requires DSDS_PATHS.',
+    'components; does NOT author documentation (for that). Requires DSDS_PATHS.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -138,7 +137,7 @@ function availableComponents(getSystems) {
  * since its options are richer).
  */
 // Real 0.20.0: `traits` (top-level, not a documentBlock) is the direct
-// analogue of legacy variants/api-enum questions — enum traits map to enum
+// enum traits map to enum
 // questions, boolean traits to flags. There's no `api` block to source a
 // "children"/free-text prop list from (that comes from `sourceFiles`, which
 // this server doesn't read), so this wizard is necessarily narrower for a
@@ -165,58 +164,7 @@ function buildQuestions20(entity) {
 }
 
 function buildQuestions(entity) {
-  if (entity.__dsds20) return buildQuestions20(entity);
-
-  const blocks = entity.documentBlocks ?? [];
-  const variants = blocks.find(b => b.kind === 'variants');
-  const api = blocks.find(b => b.kind === 'api');
-  const questions = [];
-  const seen = new Set();
-
-  for (const item of (variants?.items ?? [])) {
-    if (!item?.identifier || seen.has(item.identifier)) continue;
-    seen.add(item.identifier);
-    if (item.kind === 'enum') {
-      questions.push({
-        id: item.identifier, source: 'variant', kind: 'enum', required: false,
-        description: item.description,
-        options: (item.values ?? []).map(v => ({ value: v.identifier, description: v.description })),
-      });
-    } else {
-      questions.push({ id: item.identifier, source: 'variant', kind: 'flag', required: false, description: item.description });
-    }
-  }
-
-  for (const prop of (api?.properties ?? [])) {
-    if (!prop?.identifier || seen.has(prop.identifier)) continue;
-    seen.add(prop.identifier);
-    const common = { id: prop.identifier, source: 'api', required: !!prop.required, description: prop.description, typeHint: prop.type };
-    if (prop.defaultValue !== undefined) common.defaultValue = prop.defaultValue;
-
-    if (prop.identifier === 'children') {
-      questions.push({ ...common, kind: 'children' });
-      continue;
-    }
-    // Spec-authority order: schema.enum → values → type-string parse. Systems
-    // that document enums via `values` (no TS-style type string) get options too.
-    const union = resolvePropValues(prop);
-    if (union) {
-      questions.push({ ...common, kind: 'enum', options: union.map(m => ({ value: m.value, isNumber: m.isNumber })) });
-    } else if (isBooleanProp(prop)) {
-      questions.push({ ...common, kind: 'flag' });
-    } else {
-      questions.push({ ...common, kind: 'free' });
-    }
-  }
-
-  if (!seen.has('children')) {
-    questions.push({
-      id: 'children', source: 'synthetic', kind: 'children', required: false,
-      description: 'Content rendered between the component\'s tags (text or child elements). Skip for a self-closing element.',
-    });
-  }
-
-  return questions;
+  return buildQuestions20(entity);
 }
 
 function presentQuestion(q, index, total) {
@@ -373,46 +321,26 @@ function buildOverview(entity, questionCount) {
   const lines = [`# Implementing ${entity.name ?? entity.identifier}`];
   if (entity.description) lines.push('', resolveText(entity.description));
 
-  if (entity.__dsds20) {
-    // Real 0.20.0 has no useCases block — a guidelines section with
-    // `framing: when-to-use` is the direct analogue, and `combos` (pairing
-    // rules between traits) is directly relevant to a wizard walking those
-    // same traits question by question.
-    const whenToUse = (entity.sections ?? []).filter(s => s.kind === 'guidelines' && s.framing === 'when-to-use');
-    for (const section of whenToUse) {
-      for (const item of section.items ?? []) {
-        const text = item.statement ?? item.guidance;
-        if (text) lines.push('', `- **${item.level}** — ${resolveText(text)}`);
-      }
-    }
-    if (entity.combos?.length) {
-      lines.push('', '**Trait pairing rules:**');
-      for (const combo of entity.combos) {
-        lines.push(`- **${combo.level}** — \`${combo.subject}\` with ${(combo.items ?? []).map(i => `\`${i}\``).join(', ')}`);
-      }
-    }
-    lines.push('', `${questionCount} trait${questionCount === 1 ? '' : 's'} to consider — the wizard asks about each, offering only the options it allows.`);
-    return lines.join('\n');
-  }
-
-  const useCases = (entity.documentBlocks ?? []).find(b => b.kind === 'useCases');
-  const items = useCases?.items ?? [];
-  const positive = items.filter(u => u.stance === 'recommended');
-  const negative = items.filter(u => u.stance === 'discouraged');
-  if (positive.length) {
-    lines.push('', '**When to use:**');
-    for (const u of positive) lines.push(`- ${u.description}`);
-  }
-  if (negative.length) {
-    lines.push('', '**When not to use:**');
-    for (const u of negative) {
-      let line = `- ${u.description}`;
-      if (u.alternative?.identifier) line += ` → consider \`${u.alternative.identifier}\` instead`;
-      lines.push(line);
+  // Real 0.20.0 has no useCases block — a guidelines section with
+  // `framing: when-to-use` is the direct analogue, and `combos` (pairing
+  // rules between traits) is directly relevant to a wizard walking those
+  // same traits question by question.
+  const whenToUse = (entity.sections ?? []).filter(s => s.kind === 'guidelines' && s.framing === 'when-to-use');
+  for (const section of whenToUse) {
+    for (const item of section.items ?? []) {
+      const text = item.statement ?? item.guidance;
+      if (text) lines.push('', `- **${item.level}** — ${resolveText(text)}`);
     }
   }
-  lines.push('', `${questionCount} prop${questionCount === 1 ? '' : 's'} to consider — the wizard asks about each, offering only the options it allows.`);
+  if (entity.combos?.length) {
+    lines.push('', '**Trait pairing rules:**');
+    for (const combo of entity.combos) {
+      lines.push(`- **${combo.level}** — \`${combo.subject}\` with ${(combo.items ?? []).map(i => `\`${i}\``).join(', ')}`);
+    }
+  }
+  lines.push('', `${questionCount} trait${questionCount === 1 ? '' : 's'} to consider — the wizard asks about each, offering only the options it allows.`);
   return lines.join('\n');
+
 }
 
 function resolveText(value) {
@@ -565,6 +493,7 @@ function handleFinalize({ identifier, data, answers }, getSystems) {
 
 // ── Router ─────────────────────────────────────────────────────────────────────
 
+/** Walk an agent through one component's traits, returning the composed JSX at `finalize`. */
 export async function buildComponentHandler({ step: stepName, identifier, answer, answers, data = {} } = {}, getSystems, getSummaries) {
   switch (stepName) {
     case 'start':    return handleStart({ identifier: identifier ?? data.identifier }, getSystems, getSummaries);

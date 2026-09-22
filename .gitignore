@@ -8,3 +8,5 @@ logs
 docs/
 evaluations/results/
 plans/
+
+.env

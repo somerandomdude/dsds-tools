@@ -16,7 +16,6 @@ import { MCP_SCHEMA_POINTER } from './setup-guidance.js';
 //      every tool's name, description and inputSchema separately (6,101
 //      tokens of it). It was a second copy of a payload the reader has, and
 //      the copy went stale independently: it still routed authoring through
-//      `dsds_spec_document_blocks` and named the legacy `variants`/`states`
 //      blocks. Anything a tool needs to say about itself belongs in its own
 //      `description`, where it cannot drift from the schema beside it.
 //
@@ -67,8 +66,8 @@ START HERE — call dsds_context_brief before any work begins:
 FINDING THE TOOLS — every tool publishes its own description and arguments; read those rather
 than expecting a catalog here (in a shell, \`dsds --help\` lists the same surface as commands).
 Three things a tool cannot tell you about itself:
-- Spec tools (dsds_spec_overview, dsds_spec_entity_schema, dsds_spec_scaffold, dsds_validate,
-  dsds_style_check) always work, with no configuration. Design system tools need DSDS_PATHS,
+- Spec tools (dsds_spec_entity_schema, dsds_validate, dsds_style_check) always work, with no
+  configuration. Design system tools need DSDS_PATHS,
   lint tools need LINT_PLUGINS, and dsds_check_exports needs PACKAGE_EXPORT_PATHS. A tool whose
   configuration is missing returns setup instructions instead of failing.
 - AUTHORING a DSDS document is not IMPLEMENTING a component. The spec tools produce
@@ -123,6 +122,7 @@ const RESEARCH_BUDGET =
   'and start emitting files. An unwritten file is worth less than a perfectly researched one.\n' +
   '- Batch your thinking, not your calls: decide everything you need to know, then fetch it.';
 
+/** The server instruction text: base rules, feedback reminder, and any inlined intro. */
 export function buildInstructions({
   introEntities = [],
   enableFeedback = true,

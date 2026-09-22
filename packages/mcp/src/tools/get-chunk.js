@@ -1,6 +1,6 @@
 import { accessRecord } from '../logger.js';
-import { renderSections20, resolveFileRef20 } from '../spec/render-0.20.0.js';
-import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
+import { renderSections20, resolveFileRef20 } from '../spec/render.js';
+import { resolveStatusDisplay20 } from '../spec/dsds-lib.js';
 import { ERROR_CODES, notFoundError } from '../errors.js';
 
 const CHUNK_KINDS = ['chunk', 'blueprint', 'sanity.chunk'];
@@ -36,6 +36,7 @@ export const getChunkDef = {
   },
 };
 
+/** One chunk's code, read from the file its refs name, plus its guidance. */
 export async function getChunkHandler({ identifier }, getSystems, logsDir = null) {
   const systems = getSystems();
 
@@ -91,84 +92,28 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     lines.push(chunk.description, '');
   }
 
-  if (chunk.__dsds20) {
-    const status20 = chunk.metadata?.status?.status;
-    if (status20) lines.push(`**Status:** ${status20}`, '');
+  const status20 = chunk.metadata?.status?.status;
+  if (status20) lines.push(`**Status:** ${status20}`, '');
 
-    // Real 0.20.0: the code isn't inlined on the entity — it's a sibling
-    // file named via `related`/`refs` (`rel: file`). Guidance lives in
-    // `sections`, not the legacy `useCases`/`guidelines` top-level fields.
-    const resolved = resolveChunkCode20(chunk);
-    const parts = [];
-    if (resolved) parts.push('code');
-    lines.push(
-      '## Code',
-      '',
-      resolved
-        ? `\`\`\`${resolved.language}\n${resolved.code}\`\`\``
-        : '*No code file found for this chunk — check its `related`/`refs` for a `rel: file` pointer.*',
-      ''
-    );
-
-    if (chunk.relationships?.length) {
-      parts.push('relationships');
-      lines.push('## Relationships', '');
-      for (const r of chunk.relationships) {
-        const req = r.required ? ' *(required)*' : '';
-        const role = r.role ? ` — ${r.role}` : '';
-        lines.push(`- **${r.relation}** \`${r.target}\`${role}${req}`);
-      }
-      lines.push('');
-    }
-
-    if (chunk.sections?.length) {
-      renderSections20(chunk.sections, lines, { filePath: chunk.__filePath, sharedEntries: chunk.__sharedEntries });
-    } else {
-      lines.push('*No sections defined for this chunk.*');
-    }
-
-    const text = lines.join('\n');
-    return {
-      content: [{ type: 'text', text }],
-      access: accessRecord({
-        identifier: chunk.identifier,
-        name: chunk.name,
-        entityKind: chunk.kind ?? 'chunk',
-        sections: chunk.sections ?? [],
-        parts,
-        requested: identifier,
-        chars: text.length,
-      }),
-    };
-  }
-
-  const meta = chunk.metadata;
-  if (meta) {
-    const status = resolveStatus(meta);
-    if (status) lines.push(`**Status:** ${status}`, '');
-  }
-
-  // Code block — the primary payload
-  const { code: codeStr, language } = chunk.code ?? {};
+  // Real 0.20.0: the code isn't inlined on the entity — it's a sibling
+  // file named via `related`/`refs` (`rel: file`). Guidance lives in
+  // `sections`.
+  const resolved = resolveChunkCode20(chunk);
+  const parts = [];
+  if (resolved) parts.push('code');
   lines.push(
     '## Code',
     '',
-    `\`\`\`${language ?? ''}`,
-    codeStr ?? '',
-    '```',
-    '',
+    resolved
+      ? `\`\`\`${resolved.language}\n${resolved.code}\`\`\``
+      : '*No code file found for this chunk — check its `related`/`refs` for a `rel: file` pointer.*',
+    ''
   );
 
-  // Legacy chunks have no `sections` array; their content is a fixed set of
-  // top-level fields, so the served set is assembled as they render.
-  const legacySections = [];
-  if (codeStr) legacySections.push('code');
-
-  const relationships = resolveRelationships(chunk);
-  if (relationships.length > 0) {
-    legacySections.push('relationships');
+  if (chunk.relationships?.length) {
+    parts.push('relationships');
     lines.push('## Relationships', '');
-    for (const r of relationships) {
+    for (const r of chunk.relationships) {
       const req = r.required ? ' *(required)*' : '';
       const role = r.role ? ` — ${r.role}` : '';
       lines.push(`- **${r.relation}** \`${r.target}\`${role}${req}`);
@@ -176,40 +121,10 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     lines.push('');
   }
 
-  const useCases = chunk.useCases ?? [];
-  if (useCases.length > 0) {
-    const recommended = useCases.filter(u => u.stance === 'recommended');
-    const discouraged = useCases.filter(u => u.stance === 'discouraged');
-
-    if (recommended.length > 0) {
-      legacySections.push('useCases#When to use');
-      lines.push('## When to use', '');
-      for (const u of recommended) lines.push(`- ${u.description}`);
-      lines.push('');
-    }
-    if (discouraged.length > 0) {
-      legacySections.push('useCases#When not to use');
-      lines.push('## When not to use', '');
-      for (const u of discouraged) {
-        lines.push(`- ${u.description}`);
-        if (u.alternative) {
-          lines.push(`  *Alternative: \`${u.alternative.identifier}\` — ${u.alternative.rationale}*`);
-        }
-      }
-      lines.push('');
-    }
-  }
-
-  const guidelines = chunk.guidelines ?? [];
-  if (guidelines.length > 0) {
-    legacySections.push('guidelines');
-    lines.push('## Guidelines', '');
-    for (const g of guidelines) {
-      const level = formatLevel(g.level);
-      const rationale = g.rationale ? ` — ${g.rationale}` : '';
-      lines.push(`- **${level}:** ${g.guidance}${rationale}`);
-    }
-    lines.push('');
+  if (chunk.sections?.length) {
+    renderSections20(chunk.sections, lines, { filePath: chunk.__filePath, sharedEntries: chunk.__sharedEntries });
+  } else {
+    lines.push('*No sections defined for this chunk.*');
   }
 
   const text = lines.join('\n');
@@ -218,8 +133,9 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     access: accessRecord({
       identifier: chunk.identifier,
       name: chunk.name,
-      entityKind: 'chunk',
-      sections: legacySections,
+      entityKind: chunk.kind ?? 'chunk',
+      sections: chunk.sections ?? [],
+      parts,
       requested: identifier,
       chars: text.length,
     }),

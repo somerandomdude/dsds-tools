@@ -48,9 +48,17 @@ export function printResult(result, { json = false, tool, code = null }) {
   const exitCode = code ?? (result.isError ? 1 : 0);
   const text = renderText(contentText(result));
 
+  // Exit 2 means the command ran and found problems. The findings are the
+  // payload, so they go to stdout and into `data` — unlike exit 1, where the
+  // command could not run and the message is a diagnostic. Validators
+  // disagreed on this before: one reported findings without `isError` and
+  // one with, so the same failure printed to a different stream depending on
+  // which validator saw the document.
+  const isDiagnostic = result.isError && exitCode !== 2;
+
   if (json) {
     const envelope = { ok: exitCode === 0, tool, exitCode };
-    if (result.isError) {
+    if (isDiagnostic) {
       // `error` stays the rendered prose it has always been, so anything
       // reading it keeps working. A tool that also classified its failure
       // (see mcp/src/errors.js) gets that half surfaced beside it: a stable
@@ -72,7 +80,7 @@ export function printResult(result, { json = false, tool, code = null }) {
       envelope.data = parseMaybeJson(text);
     }
     process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
-  } else if (result.isError) {
+  } else if (isDiagnostic) {
     process.stderr.write(`dsds: ${text}\n`);
   } else {
     process.stdout.write(text + '\n');

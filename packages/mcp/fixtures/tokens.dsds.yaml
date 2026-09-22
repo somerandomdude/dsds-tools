@@ -1,0 +1,52 @@
+schemaVersion: "0.21.1"
+
+name: Pizza Party Tokens
+
+entries:
+  - id: color-text-primary
+    kind: token
+    name: Color Text Primary
+    description: Primary text color. Use for body copy and headings.
+    tokenType: color
+    metadata:
+      status: {status: stable}
+      tags: [color, text]
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must
+            statement: Use `color-text-primary` for body copy and headings.
+
+  - id: color-text-secondary
+    kind: token
+    name: Color Text Secondary
+    description: Secondary text color. Use for supporting copy and captions.
+    tokenType: color
+    metadata:
+      status: {status: stable}
+      tags: [color, text]
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: should
+            statement: Use `color-text-secondary` for supporting copy, never for body text.
+
+  - id: color-grey-100
+    kind: token
+    name: Color Grey 100
+    description: Legacy grey value. Replaced by semantic tokens.
+    tokenType: color
+    metadata:
+      status: {status: deprecated}
+      tags: [color, legacy]
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must-not
+            statement: Do not use `color-grey-100`. Use a semantic color token instead.

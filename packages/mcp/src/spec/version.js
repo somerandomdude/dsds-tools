@@ -1,34 +1,20 @@
-// schema-0.21.1/ is vendored verbatim from the upstream repo's 0.21.1 release
-// of somerandomdude/design-system-documentation-schema. schema-0.20.0/,
-// schema-0.20.1/ and schema-0.21.0/ stay for the tools that still describe
-// those models on request.
+// schema-0.21.1/ is vendored verbatim from the 0.21.1 release of
+// somerandomdude/design-system-documentation-schema. Exactly one version is
+// vendored at a time; schema-order.js derives its path from the constant
+// below and throws at load if the directory is missing.
 //
-// 0.21.1 is a patch with one relaxation: a section item carrying `refs` is
-// exempt from its kind's normally-required content fields — a `guidelines`
-// item no longer needs `level`, a `definitions` item no longer needs
-// `term`/`definition`, a `steps` item no longer needs `title`. Nothing valid
-// at 0.21.0 becomes invalid. The obligation lands on the consumer, and the
-// changelog says so outright: "these fields are no longer guaranteed
-// present. Resolve the same-as target to obtain them." resolveSharedItem20
-// in render-0.20.0.js is where this server does that.
+// What 0.21.x asks of a consumer, and where this server answers it:
 //
-// 0.21.0 is a minor with exactly one shape change an author feels: every
-// component trait now requires `traitType` (`variant` or `state`), a
-// different axis from the optional `setBy` — `disabled` and `loading` are
-// states the *consumer* sets, so neither field derives from the other. A
-// 0.20.x document with traits is therefore not a valid 0.21.0 document until
-// each trait gains the field; upstream ships scripts/tools/migrate-to-0.21.js
-// for that.
+//   0.21.0  every component trait requires `traitType` (`variant` or
+//           `state`), and a section may carry `tags` — DSDS-18 reads the
+//           declared tag rather than inferring a topic from the items.
+//           See style-guide.js.
+//   0.21.1  a section item carrying `refs` is exempt from its kind's
+//           required content fields, so `level`, `term`/`definition` and
+//           `title` are no longer guaranteed present. Resolving the
+//           `same-as` target is the consumer's job; resolveSharedItem20 in
+//           render.js is where this server does it.
 //
-// Also new and worth knowing here: `tags` on a section, which DSDS-18 now
-// reads instead of inferring a section's topic from its items. The old
-// inference needed two or more items all naming the same tag, so a section's
-// required position depended on how many rules it held and whether their tags
-// intersected. style-guide-0.20.1.js implements the declared form.
-//
-// Sibling modules keep their -0.20.0/-0.20.1 filenames: they implement the
-// 0.20.x *model*, which 0.21.0 extends rather than replaces. Only the
-// vendored schema and this constant are version-pinned.
 export const BUNDLED_VERSION = '0.21.1';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
@@ -37,12 +23,14 @@ const GITHUB_TAGS_URL =
 
 let cached = null;
 
+/** Begin the background check for a newer published spec. Never throws. */
 export function startUpdateCheck() {
   checkForUpdates()
     .then(result => { cached = result; })
     .catch(() => { cached = { latestVersion: null, isNewer: false }; });
 }
 
+/** A one-line notice when a newer spec exists, or null. */
 export function getUpdateNotice() {
   if (!cached?.isNewer || !cached.latestVersion) return null;
   return (

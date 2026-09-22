@@ -35,6 +35,7 @@ export const feedbackDef = {
   },
 };
 
+/** Record one session rating and note under the configured feedback directory. */
 export async function feedbackHandler(args, feedbackDir) {
   const { rating, helpful = [], confusing = [], comment = '' } = args;
 

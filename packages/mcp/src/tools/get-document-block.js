@@ -1,7 +1,7 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { notFoundMessage, entityIdentifiers, didYouMean } from '../suggest.js';
-import { renderApi20, hydrateSharedItem20 } from '../spec/render-0.20.0.js';
+import { renderApi20, hydrateSharedItem20 } from '../spec/render.js';
 import { accessRecord } from '../logger.js';
 
 export const getDocumentBlockDef = {
@@ -29,7 +29,7 @@ export const getDocumentBlockDef = {
 // is stated. Each candidate is still checked against what the entity
 // actually has, so a synonym never invents a block.
 //
-// Sourced from the 2026-09-11 ui5-cli runs, where `--block props`, `code`
+// Sourced from real runs, where `--block props`, `code`
 // and `notes` each cost a turn. `content` is absent deliberately: it
 // already resolves, case-insensitively, against a section titled "Content".
 const BLOCK_SYNONYMS = {
@@ -52,15 +52,12 @@ const TOP_LEVEL_FIELD_NAMES = ['traits', 'sourceFiles', 'combos', 'imports'];
 /** Every block name that resolves on this entity, each listed once. */
 function availableBlockNames(entity) {
   const unique = xs => [...new Set(xs.filter(Boolean))];
-  if (entity.__dsds20) {
-    return unique([
-      'api',
-      ...(entity.sections ?? []).map(b => b.kind),
-      ...(entity.sections ?? []).map(b => b.title),
-      ...TOP_LEVEL_FIELD_NAMES.filter(f => entity[f]?.length),
-    ]);
-  }
-  return unique((entity.documentBlocks ?? []).map(b => b.kind));
+  return unique([
+    'api',
+    ...(entity.sections ?? []).map(b => b.kind),
+    ...(entity.sections ?? []).map(b => b.title),
+    ...TOP_LEVEL_FIELD_NAMES.filter(f => entity[f]?.length),
+  ]);
 }
 
 /**
@@ -86,6 +83,7 @@ function canonicalBlockName(entity, requested) {
   return { name: requested, coercedFrom: null };
 }
 
+/** One named block of an entry, with borrowed content merged in. */
 export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
@@ -122,7 +120,7 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
   const { name: canonical, coercedFrom } = canonicalBlockName(found, blockType);
   blockType = canonical;
 
-  if (found.__dsds20 && blockType === 'api') {
+  if (blockType === 'api') {
     // Real 0.20.0 has no `api`-kind section — the API comes from `sourceFiles`
     // resolved through the extractor cache (DEC-2). This is the call site the
     // server's HARD RULE points agents at ("at minimum
@@ -150,35 +148,30 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
 
   let block;
   let available;
-  if (found.__dsds20) {
-    // Real 0.20.0: look up a section by kind (definitions/guidelines/steps/
-    // section) or by its own title (0.20.0's generic sections are often
-    // addressed by title rather than kind). traits/sourceFiles/combos/
-    // imports are top-level entry fields, not sections — allow those names
-    // too, since an agent has no other way to ask for just one of them.
-    const TOP_LEVEL_FIELDS = ['traits', 'sourceFiles', 'combos', 'imports'];
-    if (TOP_LEVEL_FIELDS.includes(blockType)) {
-      block = found[blockType] ? { kind: blockType, items: found[blockType] } : null;
-    } else {
-      const blockNeedle = blockType.toLowerCase();
-      block = found.sections?.find(b => b.kind === blockType) ??
-        found.sections?.find(b => b.title?.toLowerCase() === blockNeedle);
-    }
-    // Every name that actually resolves, each listed once. This used to
-    // print one entry per section — so a component with four `guidelines`
-    // sections advertised `guidelines` four times — while omitting `api`,
-    // which is handled above and is the name the instructions tell agents
-    // to ask for.
-    available = unique([
-      'api',
-      ...(found.sections ?? []).map(b => b.kind),
-      ...(found.sections ?? []).map(b => b.title).filter(Boolean),
-      ...TOP_LEVEL_FIELDS.filter(f => found[f]?.length),
-    ]);
+  // Real 0.20.0: look up a section by kind (definitions/guidelines/steps/
+  // section) or by its own title (0.20.0's generic sections are often
+  // addressed by title rather than kind). traits/sourceFiles/combos/
+  // imports are top-level entry fields, not sections — allow those names
+  // too, since an agent has no other way to ask for just one of them.
+  const TOP_LEVEL_FIELDS = ['traits', 'sourceFiles', 'combos', 'imports'];
+  if (TOP_LEVEL_FIELDS.includes(blockType)) {
+    block = found[blockType] ? { kind: blockType, items: found[blockType] } : null;
   } else {
-    block = found.documentBlocks?.find(b => b.kind === blockType);
-    available = unique((found.documentBlocks ?? []).map(b => b.kind));
+    const blockNeedle = blockType.toLowerCase();
+    block = found.sections?.find(b => b.kind === blockType) ??
+      found.sections?.find(b => b.title?.toLowerCase() === blockNeedle);
   }
+  // Every name that actually resolves, each listed once. This used to
+  // print one entry per section — so a component with four `guidelines`
+  // sections advertised `guidelines` four times — while omitting `api`,
+  // which is handled above and is the name the instructions tell agents
+  // to ask for.
+  available = unique([
+    'api',
+    ...(found.sections ?? []).map(b => b.kind),
+    ...(found.sections ?? []).map(b => b.title).filter(Boolean),
+    ...TOP_LEVEL_FIELDS.filter(f => found[f]?.length),
+  ]);
 
   if (!block) {
     if (available.length === 0) {

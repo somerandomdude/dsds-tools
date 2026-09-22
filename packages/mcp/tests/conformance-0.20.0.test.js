@@ -9,13 +9,12 @@ import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadSystems } from '../src/loader.js';
-import { toMarkdownHandler } from '../src/tools/to-markdown.js';
 import { getEntityHandler } from '../src/tools/get-entity.js';
 import { getAgentContextHandler } from '../src/tools/get-agent-context.js';
 import { getDocumentBlockHandler } from '../src/tools/get-document-block.js';
 import { getChunkHandler } from '../src/tools/get-chunk.js';
-import { validateDoc20, looksLike20 } from '../src/spec/validator-0.20.0.js';
-import { loadYaml20 } from '../src/spec/dsds20-lib.js';
+import { validateDoc20, looksLike20 } from '../src/spec/validator.js';
+import { loadYaml20 } from '../src/spec/dsds-lib.js';
 import { readFileSync } from 'node:fs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -41,12 +40,6 @@ describe.each(FIXTURES)('conformance — $kind ($file)', ({ file, identifier, ki
     expect(systems[0].entities[0].__dsds20).toBe(true);
   });
 
-  it('dsds_to_markdown renders without throwing, isError, or an empty result', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/${file}`]);
-    const result = await toMarkdownHandler({ identifier }, () => systems, {});
-    expect(result.isError).toBeFalsy();
-    expect(result.content[0].text.trim().length).toBeGreaterThan(10);
-  });
 
   it('dsds_get_entity renders without throwing, isError, or an empty result', async () => {
     const { systems } = await loadSystems([`${fixturesDir}/${file}`]);

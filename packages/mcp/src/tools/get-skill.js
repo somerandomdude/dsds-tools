@@ -43,6 +43,7 @@ const STYLE_RULES_NOTE = `
 /** Skills whose vendored text says the style rules are unavailable outside the spec repo. */
 const STYLE_RULES_PATTERN = /DSDS-17|STYLE_GUIDE/;
 
+/** One bundled authoring skill, in full. */
 export async function getSkillHandler({ id }) {
   const skills = loadSkills();
   const skill = skills.find((s) => s.id === id);

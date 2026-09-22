@@ -9,6 +9,7 @@ const RESOURCE_PREFIX = 'dsds://entity/';
 // then what the author wrote, and serializing it terminates.
 const dropInternalKeys = (key, value) => (key.startsWith('__') ? undefined : value);
 
+/** One MCP resource descriptor per entity, addressed as `dsds://entity/<id>`. */
 export function listResources(getSummaries) {
   return getSummaries().map(s => ({
     uri: `${RESOURCE_PREFIX}${encodeURIComponent(s.identifier)}`,
@@ -18,6 +19,7 @@ export function listResources(getSummaries) {
   }));
 }
 
+/** The entity behind a `dsds://entity/<id>` uri as JSON, or null if the uri is unknown. */
 export function readResource(uri, getSystems) {
   if (!uri.startsWith(RESOURCE_PREFIX)) return null;
 

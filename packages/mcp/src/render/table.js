@@ -7,7 +7,7 @@
 // no longer disagree with its header.
 //
 // This module briefly also emitted TOON (plan 007). That was measured and
-// rejected on 2026-09-21: -3.7% of payload against a pinned dependency
+// rejected after measurement: a few percent of payload against a pinned dependency
 // upstream calls "an idea in progress", a format argument threaded through
 // 26 signatures, and a legend the model has to be taught. The seam is worth
 // keeping on its own; the second format was not. See plan 007's rejection
@@ -41,7 +41,7 @@ export function renderTable(rows, columns) {
     // A literal pipe inside a cell would end the cell early and shift every
     // column after it. Escaping is idempotent — only pipes that are not
     // already escaped get a backslash — because several callers (cell20 in
-    // render-0.20.0.js, for one) escape on the way in, and escaping twice
+    // render.js, for one) escape on the way in, and escaping twice
     // renders a visible `\|` to the reader.
     lines.push(`| ${cols.map(c => cellOf(row, c.key).replace(/(?<!\\)\|/g, '\\|')).join(' | ')} |`);
   }

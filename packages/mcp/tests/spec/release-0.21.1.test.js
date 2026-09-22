@@ -16,9 +16,9 @@
 //                 reader can see what it narrows.
 
 import { describe, expect, it } from 'vitest';
-import { hydrateSharedItem20, renderSections20, resolveSharedItem20 } from '../../src/spec/render-0.20.0.js';
-import { validateDoc20 } from '../../src/spec/validator-0.20.0.js';
-import { checkStyle20 } from '../../src/spec/style-guide-0.20.1.js';
+import { hydrateSharedItem20, renderSections20, resolveSharedItem20 } from '../../src/spec/render.js';
+import { validateDoc20 } from '../../src/spec/validator.js';
+import { checkStyle20 } from '../../src/spec/style-guide.js';
 import { BUNDLED_VERSION } from '../../src/spec/version.js';
 
 const SHARED = [{

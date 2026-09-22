@@ -1,6 +1,6 @@
-import { loadYaml20 } from '../spec/dsds20-lib.js';
-import { looksLike20 } from '../spec/validator-0.20.0.js';
-import { checkStyle20, styleRules } from '../spec/style-guide-0.20.1.js';
+import { loadYaml20 } from '../spec/dsds-lib.js';
+import { looksLike20 } from '../spec/validator.js';
+import { checkStyle20, styleRules } from '../spec/style-guide.js';
 import { entryFieldOrder, declaredProps } from '../spec/schema-order.js';
 
 export const styleCheckDef = {
@@ -69,7 +69,7 @@ function resolvePointer(doc, pointer) {
   return node ?? null;
 }
 
-export function renderStyleCheck(doc, { suggest = true } = {}) {
+function renderStyleCheck(doc, { suggest = true } = {}) {
   const findings = checkStyle20(doc);
   const ruleCount = styleRules().length;
 
@@ -115,6 +115,7 @@ export function renderStyleCheck(doc, { suggest = true } = {}) {
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
+/** Advisory ordering findings for a document. Never affects validity. */
 export async function styleCheckHandler({ document, suggest = true }) {
   let doc;
   try {

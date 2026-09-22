@@ -12,8 +12,8 @@ const introEntity = {
   name: 'Design System Intro',
   kind: 'guide',
   metadata: [{ kind: 'description', value: 'How this system is organized.' }],
-  documentBlocks: [
-    { kind: 'section', items: [{ title: 'Layout', body: 'Compose with Stack and Grid.' }] },
+  sections: [
+    { kind: 'section', for: 'all', freeform: [{ title: 'Layout', body: 'Compose with Stack and Grid.' }] },
   ],
 };
 

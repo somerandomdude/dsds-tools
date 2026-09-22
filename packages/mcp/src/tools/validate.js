@@ -1,12 +1,11 @@
-import { validateJsonString } from '../validator.js';
-import { validateDoc20, looksLike20 } from '../spec/validator-0.20.0.js';
-import { loadYaml20 } from '../spec/dsds20-lib.js';
+import { validateDoc20, looksLike20 } from '../spec/validator.js';
+import { loadYaml20 } from '../spec/dsds-lib.js';
 import { BUNDLED_VERSION, getUpdateNotice } from '../spec/version.js';
 
 export const validateDef = {
   name: 'dsds_validate',
   description:
-    'Validate a DSDS document against the bundled schema. Accepts either legacy 0.15.2 JSON or real 0.20.0 YAML — auto-detected from the content (JSON parses as JSON; a real 0.20.0 document parses as YAML and has entries/id+kind shaped like the real 0.20.0 model). Returns a list of validation errors, or confirms the document is valid. Use this at any point while authoring.',
+    'Validate a DSDS document against the bundled schema. Accepts real 0.20.0 YAML — auto-detected from the content (JSON parses as JSON; a real 0.20.0 document parses as YAML and has entries/id+kind shaped like the real 0.20.0 model). Returns a list of validation errors, or confirms the document is valid. Use this at any point while authoring.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -24,20 +23,6 @@ export const validateDef = {
   },
 };
 
-function renderLegacy(document) {
-  const result = validateJsonString(document);
-  if (result.parseError) {
-    return { isError: true, content: [{ type: 'text', text: `## Validation Failed — Parse Error\n\n${result.parseError}` }] };
-  }
-  const text = result.valid
-    ? '## Valid DSDS Document\n\nThe document passes schema validation.'
-    : [
-        `## Validation Failed — ${result.errors.length} error${result.errors.length !== 1 ? 's' : ''}`,
-        '',
-        ...result.errors.map(e => `- **${e.path}**: ${e.message}`),
-      ].join('\n');
-  return { content: [{ type: 'text', text }] };
-}
 
 /**
  * The one error every 0.20.x corpus hits on the way to 0.21.0.
@@ -85,31 +70,32 @@ function render20(doc, filePath) {
   return { isError: errors.length > 0, content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
+/** Validate a document against the bundled schema and the conformance rules. */
 export async function validateHandler({ document, filePath }) {
-  // A real 0.20.0 document is YAML; try that path first and use it whenever
-  // the parsed result actually looks like the real 0.20.0 shape (entries+
-  // schemaVersion, or a standalone entry with id+kind). Anything else falls
-  // back to the legacy JSON validator, which reports its own parse error if
-  // the text isn't valid JSON either — so a genuinely malformed document
-  // still gets one clear error, not two conflicting ones.
-  let parsedAsYaml;
+  let parsed;
   try {
-    parsedAsYaml = loadYaml20(document);
-  } catch {
-    parsedAsYaml = undefined;
-  }
-  if (looksLike20(parsedAsYaml)) {
-    const result = render20(parsedAsYaml, filePath);
-    const notice = getUpdateNotice();
-    if (notice) result.content[0].text += notice;
-    return result;
-  }
+    parsed = loadYaml20(document);
+  } catch (err) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `## Parse Error
 
-  const result = renderLegacy(document);
-  const isParseError = result.content[0].text.includes('Parse Error');
-  if (!isParseError) {
-    const notice = getUpdateNotice();
-    if (notice) result.content[0].text += notice;
+${err.message}` }],
+    };
   }
+  if (!looksLike20(parsed)) {
+    return {
+      isError: true,
+      content: [{
+        type: 'text',
+        text: `## Not a DSDS ${BUNDLED_VERSION} document
+
+Expected \`entries\` with a \`schemaVersion\`, or a standalone entry with \`id\` and \`kind\`.`,
+      }],
+    };
+  }
+  const result = render20(parsed, filePath);
+  const notice = getUpdateNotice();
+  if (notice) result.content[0].text += notice;
   return result;
 }

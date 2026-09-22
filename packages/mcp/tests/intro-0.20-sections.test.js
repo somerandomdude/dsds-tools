@@ -69,15 +69,6 @@ describe('renderIntroEntity — DSDS 0.20 sections', () => {
     expect(text.length).toBeGreaterThan(headerOnly.length * 2);
   });
 
-  it('still renders the older documentBlocks shape', () => {
-    const legacy = renderIntroEntity({
-      identifier: 'legacy',
-      name: 'Legacy',
-      documentBlocks: [{ kind: 'section', items: [{ title: 'Layout', body: 'Use Stack.' }] }],
-    });
-    expect(legacy).toContain('### Layout');
-    expect(legacy).toContain('Use Stack.');
-  });
 
   it('inlines full content when introInline is on, and only an index when off', () => {
     const inline = renderIntroBlock([entity020], { inline: true });

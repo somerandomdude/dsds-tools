@@ -26,6 +26,7 @@ export const contextBriefDef = {
   },
 };
 
+/** The briefing for one use case (build, author, ask), plus what is currently loaded. */
 export async function contextBriefHandler({ useCase, task }, getSystems, getSummaries) {
   const brief = useCase === 'build' ? BUILD_BRIEF : useCase === 'ask' ? ASK_BRIEF : AUTHOR_BRIEF;
   const sections = [];
@@ -59,7 +60,7 @@ function buildSystemStatus(getSystems, getSummaries) {
       '',
       '> No DSDS files are configured for this server (`DSDS_PATHS` is not set).',
       '> The steps above describe what to do once files are loaded.',
-      '> Spec tools (`dsds_spec_overview`, `dsds_spec_scaffold`, `dsds_validate`) are available without configuration.',
+      '> Spec tools (`dsds_spec_entity_schema`, `dsds_validate`, `dsds_style_check`) are available without configuration.',
     ].join('\n');
   }
 

@@ -27,7 +27,7 @@ export const MCP_GUIDANCE = [
   '',
   'Check the MCP server stderr logs for a startup message that confirms what loaded.',
   '',
-  'Spec tools (`dsds_spec_overview`, `dsds_spec_scaffold`, `dsds_validate`) are always available without configuration.',
+  'Spec tools (`dsds_spec_entity_schema`, `dsds_validate`, `dsds_style_check`) are always available without configuration.',
 ].join('\n');
 
 export const CLI_GUIDANCE = [
@@ -74,6 +74,7 @@ export function noDocumentsConfigured({ surface = 'mcp' } = {}) {
 }
 
 // The one-line form, for handlers that only have room for a sentence.
+/** What to tell a caller when no DSDS files are configured, in the surface's own idiom. */
 export function noDocumentsConfiguredBrief({ surface = 'mcp' } = {}) {
   return surface === 'cli' ? CLI_BRIEF : MCP_BRIEF;
 }

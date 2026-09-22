@@ -235,7 +235,7 @@ describe('setup guidance', () => {
   });
 
   it('stays quiet about configuration for commands that need none', async () => {
-    const { code, stderr } = await runCli(['spec', 'overview']);
+    const { code, stderr } = await runCli(['spec', 'schema', 'component']);
     expect(code).toBe(0);
     expect(stderr).toBe('');
   });

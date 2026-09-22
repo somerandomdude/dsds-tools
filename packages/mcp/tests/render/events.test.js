@@ -8,7 +8,7 @@
 // showed three props and stopped, and `onChange` appeared nowhere.
 
 import { describe, it, expect } from 'vitest';
-import { renderEvents20 } from '../../src/spec/render-0.20.0.js';
+import { renderEvents20 } from '../../src/spec/render.js';
 
 const SELECT_EVENTS = {
   source: '@types/react@19.2.17',

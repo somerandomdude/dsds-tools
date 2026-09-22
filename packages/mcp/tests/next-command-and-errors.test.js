@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { nextCommandFor } from '../src/next-command.js';
 import { ERROR_CODES, describeSuggestions, notFoundError, toolError } from '../src/errors.js';
 import { toCliVocabulary } from '../src/vocabulary.js';
-import { getExamplesHandler } from '../src/tools/get-examples.js';
 import { listEntitiesHandler } from '../src/tools/list-entities.js';
 import { searchEntitiesHandler } from '../src/tools/search-entities.js';
 import { buildGraph } from '../src/graph.js';
@@ -79,75 +78,6 @@ describe('structured errors', () => {
     });
     expect(r.content[0].text).toBe('custom prose');
     expect(r.structuredContent.error.code).toBe('ERR_UNKNOWN_CHUNK');
-  });
-});
-
-describe('dsds_get_examples', () => {
-  const entities = [
-    { identifier: 'button', name: 'Button', kind: 'component' },
-    { identifier: 'badge', name: 'Badge', kind: 'component', relationships: [{ relation: 'alternative-to', target: 'button' }] },
-    {
-      identifier: 'form-layout', name: 'Form layout', kind: 'sanity.chunk',
-      relationships: [{ relation: 'composes', target: 'button', role: 'Submit action' }],
-    },
-    {
-      identifier: 'data-table', name: 'Data table', kind: 'sanity.chunk',
-      relationships: [{ relation: 'composes', target: 'button' }],
-    },
-  ];
-  const graph = buildGraph(entities);
-  const getGraph = () => graph;
-  const getSummaries = () => [
-    { identifier: 'data-table', summary: 'A table of rows.' },
-  ];
-
-  it('lists the chunks that compose the entity', async () => {
-    const r = await getExamplesHandler({ identifier: 'button' }, getGraph, getSummaries);
-    const ids = r.structuredContent.examples.map(e => e.identifier);
-    expect(ids).toEqual(['data-table', 'form-layout']);
-  });
-
-  // An alternative-to edge is a relationship, not a worked example.
-  it('excludes non-example relations and non-chunks', async () => {
-    const r = await getExamplesHandler({ identifier: 'button' }, getGraph, getSummaries);
-    expect(r.structuredContent.examples.map(e => e.identifier)).not.toContain('badge');
-  });
-
-  it('prefers the authored role over the generic summary', async () => {
-    const r = await getExamplesHandler({ identifier: 'button' }, getGraph, getSummaries);
-    const byId = Object.fromEntries(r.structuredContent.examples.map(e => [e.identifier, e]));
-    expect(byId['form-layout'].role).toBe('Submit action');
-    expect(r.content[0].text).toContain('Submit action');
-    // data-table has no role, so its summary fills the column instead
-    expect(r.content[0].text).toContain('A table of rows.');
-  });
-
-  it('omits the fetch column by default', async () => {
-    const r = await getExamplesHandler({ identifier: 'button' }, getGraph, getSummaries);
-    expect(r.content[0].text).toContain('| Example | Demonstrates |');
-    expect(r.content[0].text).not.toContain('Fetch');
-    for (const e of r.structuredContent.examples) expect(e).not.toHaveProperty('next');
-  });
-
-  it('gives every row a fetch call on request', async () => {
-    const r = await getExamplesHandler({ identifier: 'button', nextCommands: true }, getGraph, getSummaries);
-    expect(r.content[0].text).toContain('| Example | Demonstrates | Fetch |');
-    for (const e of r.structuredContent.examples) {
-      expect(e.next).toBe(`dsds_get_chunk("${e.identifier}")`);
-    }
-  });
-
-  it('says "no example yet", not "unused", when nothing composes it', async () => {
-    const r = await getExamplesHandler({ identifier: 'badge' }, getGraph, getSummaries);
-    expect(r.structuredContent.total).toBe(0);
-    expect(r.content[0].text).toContain('not that it has no usage');
-  });
-
-  it('classifies an unknown identifier', async () => {
-    const r = await getExamplesHandler({ identifier: 'buton' }, getGraph, getSummaries);
-    expect(r.isError).toBe(true);
-    expect(r.structuredContent.error.code).toBe('ERR_UNKNOWN_ENTITY');
-    expect(r.structuredContent.error.suggestions.map(s => s.value)).toContain('button');
   });
 });
 

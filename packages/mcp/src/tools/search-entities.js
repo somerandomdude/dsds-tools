@@ -15,9 +15,8 @@ export const searchEntitiesDef = {
       kind: {
         type: 'string',
         description:
-          'Filter by entity kind. Legacy kinds: component, guide, pattern, foundation, theme, token, ' +
-          'token-group, chunk. Real 0.20.0 kinds: component, token, theme, system, entry, or a namespaced ' +
-          'custom kind (e.g. "sanity.guide", "sanity.chunk") — check dsds_list_entities for the kinds actually loaded.',
+          'Filter by entity kind: component, token, theme, system, entry, or a namespaced custom ' +
+          'kind (e.g. "sanity.guide", "sanity.chunk") — check dsds_list_entities for the kinds actually loaded.',
       },
       status: {
         type: 'string',
@@ -43,7 +42,7 @@ export const searchEntitiesDef = {
       nextCommands: {
         type: 'boolean',
         description:
-          'Append the follow-up call that reads each result in full. Default false. Measured 2026-09-10: with this on, the agent treated the listing as a worklist and made 13% more dsds_get_agent_context calls, adding ~30k characters per iteration against the ~12k the listing itself saves. Turn it on for an interactive session where the next command is a convenience, not for an agent loop.',
+          'Append the follow-up call that reads each result in full. Default false. Measured: with this on, the agent treated the listing as a worklist and made 13% more dsds_get_agent_context calls, adding ~30k characters per iteration against the ~12k the listing itself saves. Turn it on for an interactive session where the next command is a convenience, not for an agent loop.',
       },
       summaries: {
         type: 'boolean',
@@ -54,6 +53,7 @@ export const searchEntitiesDef = {
   },
 };
 
+/** Entities matching a query, ranked, with the call that reads each in full. */
 export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   if (getSystems().length === 0) {
     return toolError({
@@ -79,7 +79,7 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   // mistake and list what is actually there.
   // A filter value the tool can already name the correction for is accepted
   // rather than rejected. `--kind components` and `--kind sanity.chunks`
-  // were 23 of the 55 failed calls in the 2026-09-11 runs: the plural of a
+  // are the single largest class of failed call: the plural of a
   // real kind, diagnosed correctly ("Did you mean `component`?") and then
   // refused, costing a turn to retype what the tool had just worked out.
   // Only an unambiguous single candidate is corrected; two or more and the
@@ -175,7 +175,7 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   };
 }
 
-export function tokenize(query) {
+function tokenize(query) {
   return String(query ?? '')
     .toLowerCase()
     .split(/\s+/)

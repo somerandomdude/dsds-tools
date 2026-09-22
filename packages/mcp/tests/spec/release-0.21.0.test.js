@@ -9,8 +9,8 @@
 // is guaranteed to hit.
 
 import { describe, expect, it } from 'vitest';
-import { validateDoc20 } from '../../src/spec/validator-0.20.0.js';
-import { renderTraits20 } from '../../src/spec/render-0.20.0.js';
+import { validateDoc20 } from '../../src/spec/validator.js';
+import { renderTraits20 } from '../../src/spec/render.js';
 import { validateHandler } from '../../src/tools/validate.js';
 import { BUNDLED_VERSION } from '../../src/spec/version.js';
 

@@ -14,8 +14,8 @@ function makeGetters(systems) {
 describe('listEntitiesHandler', () => {
   it('lists all entities grouped by kind', async () => {
     const { systems } = await loadSystems([
-      `${fixturesDir}/button.dsds.json`,
-      `${fixturesDir}/tokens.dsds.json`,
+      `${fixturesDir}/button.dsds.yaml`,
+      `${fixturesDir}/tokens.dsds.yaml`,
     ]);
     const result = await listEntitiesHandler({}, ...makeGetters(systems));
     const text = result.content[0].text;
@@ -26,7 +26,7 @@ describe('listEntitiesHandler', () => {
   });
 
   it('shows status for each entity', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.json`]);
+    const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.yaml`]);
     const result = await listEntitiesHandler({}, ...makeGetters(systems));
     expect(result.content[0].text).toContain('deprecated');
     expect(result.content[0].text).toContain('stable');

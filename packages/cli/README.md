@@ -60,13 +60,8 @@ dsds manifest
 | `dsds context <id> [--verbose]` | LLM-optimized rules and constraints |
 | `dsds chunk <id>` | Pre-assembled code chunk with guidelines |
 | `dsds build <component> [--answers '<json>']` | Compose a component into guaranteed-valid JSX — omit `--answers` to list its props and allowed values, then finalize with a `{ propId: value }` map — **exit 2 if a value is rejected** |
-| `dsds deps <id>` / `dsds dependents <id>` | Relationship graph, either direction (`--relation`, `--transitive`) |
-| `dsds impact <id>` | Blast radius: what breaks if this changes |
-| `dsds alternatives <id>` | Interchangeable options and replacements |
-| `dsds markdown <id>` | Export an entity as markdown |
 | `dsds brief <build\|author\|ask> [--task t]` | Task briefing |
-| `dsds scaffold <kind>` | Blank DSDS JSON template |
-| `dsds spec overview \| schema <kind> \| blocks <kind>` | Spec reference |
+| `dsds spec schema <kind>` | Every field an entity kind accepts, from the schema |
 | `dsds validate <file>` | Schema-validate a document — **exit 2 on findings** |
 | `dsds lint <path…>` / `dsds lint --stdin` | Lint against configured ESLint plugins — **exit 2 on findings**. `--apply` rewrites files in place; preview with `--apply --dry-run` |
 | `dsds check-exports <Component…>` | Verify names are real package exports |

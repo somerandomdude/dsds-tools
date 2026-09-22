@@ -66,7 +66,7 @@ export function mainHelp(toolDefs, version) {
     `  Everything else via JSON:      --args '{"files":[{"path":"src/App.tsx"}]}' or --args-file payload.json`,
     '  Per-tool inputs:               dsds tool <tool-name> --help',
     '',
-    'The wizards (dsds_build_component, dsds_author_component_doc) and dsds_feedback',
+    'The build wizard (dsds_build_component) and dsds_feedback',
     'have no porcelain command — invoke them via `dsds tool` when needed.',
     '',
     'Configuration comes from dsds.config.{mjs,js,json} (discovered upward from cwd) and',

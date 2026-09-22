@@ -1,0 +1,38 @@
+{
+  "name": "dsds-markdown-export",
+  "version": "0.1.0",
+  "description": "Render DSDS entries as publication-ready Markdown pages.",
+  "type": "module",
+  "bin": {
+    "dsds-markdown": "src/cli.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "vitest run tests"
+  },
+  "keywords": [
+    "dsds",
+    "design-system",
+    "documentation",
+    "markdown"
+  ],
+  "license": "Apache-2.0",
+  "author": "PJ Onori",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/somerandomdude/dsds-tools.git",
+    "directory": "packages/markdown-export"
+  },
+  "dependencies": {
+    "dsds-mcp": "^0.4.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

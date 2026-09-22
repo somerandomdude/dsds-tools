@@ -24,6 +24,7 @@ import { writeLog } from './logger.js';
 import { createSurface } from './surface.js';
 import { createGraphGetter } from './graph.js';
 
+/** The MCP server: protocol handlers delegating to the shared surface. */
 export function createServer(getSystems, getSummaries, introEntities = [], getLintConfig = null, getExportPaths = null, feedbackDir = null, logsDir = null, enableFeedback = true, introInline = true, getPropsConfig = null, researchMode = 'thorough') {
   // Lets get_entity and the intro prompt reach intro entities (they live
   // outside the queried systems), so the compact-index pointer in the

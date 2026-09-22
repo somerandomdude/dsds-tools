@@ -37,9 +37,9 @@ describe('query porcelain', () => {
   });
 
   it('get --block returns a single block', async () => {
-    const { code, stdout } = await runCli(['get', 'test-button', '--block', 'use-cases'], { env });
+    const { code, stdout } = await runCli(['get', 'test-button', '--block', 'guidelines'], { env });
     expect(code).toBe(0);
-    expect(stdout).toContain('Trigger a test action');
+    expect(stdout).toContain('not for navigation');
   });
 
   it('get without identifier is a usage error', async () => {
@@ -60,38 +60,8 @@ describe('query porcelain', () => {
     expect(stdout).toContain('TestChunk');
   });
 
-  it('markdown exports the entity', async () => {
-    const { code, stdout } = await runCli(['markdown', 'test-button'], { env });
-    expect(code).toBe(0);
-    expect(stdout).toContain('Test Button');
-  });
 });
 
-describe('graph porcelain', () => {
-  it('deps shows what an entity is built from', async () => {
-    const { code, stdout } = await runCli(['deps', 'test-card'], { env });
-    expect(code).toBe(0);
-    expect(stdout).toContain('test-button');
-  });
-
-  it('dependents shows what points at an entity', async () => {
-    const { code, stdout } = await runCli(['dependents', 'test-button'], { env });
-    expect(code).toBe(0);
-    expect(stdout).toContain('test-card');
-  });
-
-  it('impact flags required dependents as breaking', async () => {
-    const { code, stdout } = await runCli(['impact', 'test-button'], { env });
-    expect(code).toBe(0);
-    expect(stdout).toContain('test-card');
-    expect(stdout).toContain('Breaking');
-  });
-
-  it('alternatives runs clean on an entity without alternatives', async () => {
-    const { code } = await runCli(['alternatives', 'test-button'], { env });
-    expect(code).toBe(0);
-  });
-});
 
 describe('spec porcelain', () => {
   it('brief build returns a briefing', async () => {
@@ -106,19 +76,14 @@ describe('spec porcelain', () => {
     expect(stderr).toContain('must be one of');
   });
 
-  it('scaffold emits a template', async () => {
-    const { code, stdout } = await runCli(['scaffold', 'component']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('"kind": "component"');
-  });
 
-  it('spec overview / schema / blocks work; blocks without kind is a usage error', async () => {
-    expect((await runCli(['spec', 'overview'])).code).toBe(0);
-    expect((await runCli(['spec', 'schema', 'component'])).code).toBe(0);
-    expect((await runCli(['spec', 'blocks', 'component'])).code).toBe(0);
-    const { code, stderr } = await runCli(['spec', 'blocks']);
-    expect(code).toBe(1);
-    expect(stderr).toContain('usage: dsds spec blocks');
+  it('spec schema works; a missing kind is a usage error', async () => {
+    const ok = await runCli(['spec', 'schema', 'component']);
+    expect(ok.code).toBe(0);
+    expect(ok.stdout).toContain('Entity Schema');
+
+    const bad = await runCli(['spec', 'schema']);
+    expect(bad.code).toBe(1);
   });
 });
 
@@ -126,19 +91,32 @@ describe('validate (exit code 2 contract)', () => {
   it('valid document exits 0', async () => {
     const { code, stdout } = await runCli(['validate', VALID_SYSTEM]);
     expect(code).toBe(0);
-    expect(stdout).toContain('Valid DSDS Document');
+    expect(stdout).toContain('Valid DSDS');
   });
 
   it('schema-invalid document exits 2 with findings on stdout', async () => {
-    const { code, stdout } = await runCli(['validate', BUTTON_FIXTURE]);
+    const dir = mkdtempSync(join(tmpdir(), 'dsds-validate-'));
+    const file = join(dir, 'invalid.dsds.yaml');
+    // `kind` is required on an entry; without it the schema rejects the document.
+    // Recognisably DSDS, but the entry is missing its required `description`.
+    writeFileSync(file, [
+      'schemaVersion: "0.21.1"',
+      'name: Broken',
+      'entries:',
+      '  - id: widget',
+      '    kind: component',
+      '    name: Widget',
+      '',
+    ].join('\n'));
+    const { code, stdout } = await runCli(['validate', file]);
     expect(code).toBe(2);
     expect(stdout).toContain('Validation Failed');
   });
 
-  it('malformed JSON exits 2 (parse findings)', async () => {
+  it('malformed document exits 2 (parse findings)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsds-validate-'));
-    const file = join(dir, 'broken.dsds.json');
-    writeFileSync(file, '{ not json');
+    const file = join(dir, 'broken.dsds.yaml');
+    writeFileSync(file, 'id: widget\n  bad: [indent\n');
     const { code } = await runCli(['validate', file]);
     expect(code).toBe(2);
   });
@@ -150,7 +128,18 @@ describe('validate (exit code 2 contract)', () => {
   });
 
   it('--json envelope carries ok:false and exitCode 2 for findings', async () => {
-    const { code, stdout } = await runCli(['validate', BUTTON_FIXTURE, '--json']);
+    const dir = mkdtempSync(join(tmpdir(), 'dsds-validate-'));
+    const file = join(dir, 'invalid.dsds.yaml');
+    writeFileSync(file, [
+      'schemaVersion: "0.21.1"',
+      'name: Broken',
+      'entries:',
+      '  - id: widget',
+      '    kind: component',
+      '    name: Widget',
+      '',
+    ].join('\n'));
+    const { code, stdout } = await runCli(['validate', file, '--json']);
     expect(code).toBe(2);
     const envelope = JSON.parse(stdout);
     expect(envelope.ok).toBe(false);
@@ -233,28 +222,24 @@ describe('doctor', () => {
 
   it('fails with exit 2 on duplicate identifiers', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsds-doctor-dupes-'));
-    const file = join(dir, 'dupes.dsds.json');
-    writeFileSync(
-      file,
-      JSON.stringify({
-        dsdsVersion: '0.13.0',
-        entityGroups: [
-          {
-            name: 'dupes',
-            entities: [
-              { kind: 'component', identifier: 'dupe', name: 'A' },
-              { kind: 'pattern', identifier: 'dupe', name: 'B' },
-            ],
-          },
-        ],
-      })
-    );
-    const { code, stdout } = await runCli(['doctor', '--json'], { env: { DSDS_PATHS: file } });
+    const file = join(dir, 'dupes.dsds.yaml');
+    writeFileSync(file, [
+      'schemaVersion: "0.21.1"',
+      'name: Dupes',
+      'entries:',
+      '  - id: dupe',
+      '    kind: component',
+      '    name: A',
+      '    description: First.',
+      '  - id: dupe',
+      '    kind: component',
+      '    name: B',
+      '    description: Second.',
+      '',
+    ].join('\n'));
+    const { code, stdout } = await runCli(['doctor'], { env: { DSDS_PATHS: file } });
     expect(code).toBe(2);
-    const report = JSON.parse(stdout);
-    const check = report.checks.find(c => c.name === 'identifier uniqueness');
-    expect(check.status).toBe('fail');
-    expect(check.details[0]).toContain('"dupe"');
+    expect(stdout).toContain('dupe');
   });
 
   it('fails with exit 2 on unresolvable lint plugins', async () => {
@@ -271,32 +256,34 @@ describe('doctor', () => {
 describe('build porcelain (wraps the build_component wizard)', () => {
   // A hermetic single-component fixture with an enum prop, so start / finalize
   // / rejection all run without the real design system.
-  const WIDGET = {
-    $schema: 'https://designsystemdocspec.org/v0.13.0/dsds.bundled.schema.json',
-    dsdsVersion: '0.13.0',
-    entity: {
-      kind: 'component',
-      identifier: 'widget',
-      name: 'Widget',
-      description: 'A test widget.',
-      metadata: { status: 'stable', tags: ['test'] },
-      documentBlocks: [
-        {
-          kind: 'api',
-          platform: 'react',
-          properties: [
-            { identifier: 'label', type: 'string', required: true, description: 'The label.' },
-            { identifier: 'tone', type: "'neutral' | 'critical'", required: false, description: 'Color.' },
-          ],
-        },
-      ],
-    },
-  };
+  const WIDGET = [
+    'schemaVersion: "0.21.1"',
+    'name: Widget System',
+    'entries:',
+    '  - id: widget',
+    '    kind: component',
+    '    name: Widget',
+    '    description: A test widget.',
+    '    metadata:',
+    '      tags: [test]',
+    '      status: {status: stable}',
+    '    traits:',
+    '      - id: tone',
+    '        kind: enum',
+    '        traitType: variant',
+    '        description: Color.',
+    '        values:',
+    '          - id: neutral',
+    '            description: Default.',
+    '          - id: critical',
+    '            description: Destructive.',
+    '',
+  ].join('\n');
   let env;
   beforeAll(() => {
     const dir = mkdtempSync(join(tmpdir(), 'dsds-build-'));
-    const p = join(dir, 'widget.dsds.json');
-    writeFileSync(p, JSON.stringify(WIDGET));
+    const p = join(dir, 'widget.dsds.yaml');
+    writeFileSync(p, WIDGET);
     env = { DSDS_PATHS: p };
   });
 
@@ -330,11 +317,9 @@ describe('build porcelain (wraps the build_component wizard)', () => {
     expect(stdout).toContain('Rejected');
   });
 
-  it('rejects a missing required prop with exit 2', async () => {
-    const { code, stdout } = await runCli(['build', 'widget', '--answers', '{"tone":"neutral"}'], { env });
-    expect(code).toBe(2);
-    expect(stdout).toContain('Cannot finalize');
-  });
+  // 0.21.x traits carry no `required` flag — `buildQuestions20` marks every
+  // question optional — so there is no missing-required-prop case to reject.
+  // The legacy `api` block was the only source of that signal.
 
   it('malformed --answers JSON is a usage error (exit 1)', async () => {
     const { code, stderr } = await runCli(['build', 'widget', '--answers', 'not-json'], { env });
@@ -361,7 +346,7 @@ describe('manifest and help include porcelain', () => {
   it('help lists commands and the exit code contract', async () => {
     const { stdout } = await runCli(['help']);
     expect(stdout).toContain('Commands');
-    expect(stdout).toContain('impact');
+    expect(stdout).toContain('lint');
     expect(stdout).toContain('ran but found problems');
   });
 

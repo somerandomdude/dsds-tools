@@ -26,7 +26,7 @@ describe('dsds init', () => {
     const { code, stdout } = await runCli(['init'], {
       cwd: dir,
       env: {
-        DSDS_PATHS: join(dir, 'dsds/system.dsds.json'),
+        DSDS_PATHS: join(dir, 'dsds/system.dsds.yaml'),
         LINT_PLUGINS: 'eslint-plugin-x',
         LINT_RESOLVE_DIR: '/somewhere/else',
       },
@@ -34,7 +34,7 @@ describe('dsds init', () => {
     expect(code).toBe(0);
     expect(stdout).toContain('seeded');
     const source = readFileSync(join(dir, 'dsds.config.mjs'), 'utf-8');
-    expect(source).toContain('"./dsds/system.dsds.json"'); // inside project → relative
+    expect(source).toContain('"./dsds/system.dsds.yaml"'); // inside project → relative
     expect(source).toContain('"eslint-plugin-x"');
     expect(source).toContain('"/somewhere/else"'); // outside project → absolute
   });
@@ -107,7 +107,7 @@ describe('dsds init', () => {
   it('the generated config round-trips through the CLI', async () => {
     const dir = tmp();
     // Seed a config pointing at the valid fixture system, then use it env-free.
-    const fixture = new URL('./fixtures/valid/system.dsds.json', import.meta.url).pathname;
+    const fixture = new URL('./fixtures/valid/system.dsds.yaml', import.meta.url).pathname;
     await runCli(['init'], { cwd: dir, env: { DSDS_PATHS: fixture } });
     const { code, stdout } = await runCli(['list'], { cwd: dir });
     expect(code).toBe(0);

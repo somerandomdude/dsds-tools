@@ -1,6 +1,9 @@
 /**
- * Integrity checks — pure functions, no I/O. The guard (scripts/check-integrity.js)
- * supplies the data; these decide pass/fail. Each returns an array of error strings
+ * Integrity checks — pure functions, no I/O. Two consumers supply the data and
+ * these decide pass/fail: `scripts/check-integrity.js` in this package, and
+ * `dsds doctor` in packages/cli. That second consumer is why this lives in
+ * `src/` rather than `scripts/` despite nothing inside `src/` importing it —
+ * it is published API. Each returns an array of error strings
  * (empty = pass).
  *
  * Covers the three reference classes from the integrity PRD:
@@ -45,7 +48,7 @@ export function extractIconImports(code, iconPackage) {
  * the failure it exists to catch: a root-barrel `import {ArrowUpIcon} from
  * '@sanity/icons'` type-checks (the tombstone satisfies it) but resolves to
  * `undefined` at runtime, so `<Icon icon={ArrowUpIcon} />` renders nothing.
- * Nine chunk code files carried that import undetected until 2026-09-03.
+ * Chunk code files carried such an import undetected for weeks before this.
  * Excluding `: never` is version-safe: v5 root yields no named icons (so any
  * root-barrel icon import is correctly flagged), v3 is unaffected.
  */

@@ -14,7 +14,7 @@ const fixturesDir = resolve(__dirname, '../../fixtures');
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
 describe('getDocumentBlockHandler — legacy 0.15.2', () => {
-  // NOTE: fixtures/button.dsds.json's documentBlocks use a `type` field
+  // NOTE: fixtures/button.dsds.yaml's documentBlocks use a `type` field
   // (`{type: "api", ...}`), but every legacy handler here and in
   // to-markdown.js matches on `.kind`. That's a pre-existing mismatch,
   // unrelated to the 0.20.0 prop-serving work this file otherwise tests —
@@ -22,7 +22,7 @@ describe('getDocumentBlockHandler — legacy 0.15.2', () => {
   // this fixture has ever actually matched; only the not-found path below
   // is safe to assert against.
   it('errors for an unknown entity', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
     const result = await getDocumentBlockHandler({ identifier: 'nonexistent', blockType: 'api' }, () => systems);
     expect(result.isError).toBe(true);
   });

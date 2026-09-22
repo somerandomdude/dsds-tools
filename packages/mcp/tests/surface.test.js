@@ -24,7 +24,7 @@ const introEntity = {
 };
 
 async function buildSurface(overrides = {}) {
-  const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`, `${fixturesDir}/tokens.dsds.json`]);
+  const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`, `${fixturesDir}/tokens.dsds.yaml`]);
   const getSystems = () => systems;
   return createSurface({
     getSystems,

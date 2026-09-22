@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 // renderApi20 reads the extractor through getApiForEntry; stub it so these
 // tests describe rendering behaviour only, with no clone or cache involved.
-vi.mock('../../src/spec/prop-extractor-0.20.0.js', () => ({
+vi.mock('../../src/spec/prop-extractor.js', () => ({
   getApiForEntry: vi.fn(),
 }));
 
-const { getApiForEntry } = await import('../../src/spec/prop-extractor-0.20.0.js');
-const { renderApi20 } = await import('../../src/spec/render-0.20.0.js');
+const { getApiForEntry } = await import('../../src/spec/prop-extractor.js');
+const { renderApi20 } = await import('../../src/spec/render.js');
 
 const render = (result) => {
   getApiForEntry.mockReturnValue(result);

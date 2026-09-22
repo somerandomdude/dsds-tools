@@ -1,0 +1,17 @@
+schemaVersion: "0.21.1"
+
+name: Test Manifest System
+
+entries:
+  - id: test-manifest-system
+    kind: system
+    name: Test Manifest System
+    description: Composes the button and token fixtures for loader tests.
+
+refs:
+  - href: ./button.dsds.yaml
+    rel: file
+    role: Button component
+  - href: ./tokens.dsds.yaml
+    rel: file
+    role: Color tokens

@@ -1,4 +1,4 @@
-// In-memory bidirectional relationship graph (DSDS 0.15.2).
+// In-memory bidirectional relationship graph.
 //
 // Built in one O(edges) pass over the loaded entity catalog. Authors declare
 // each edge once on the source entity (`entity.relationships`); the server
@@ -19,6 +19,7 @@ const INVERSE = {
 // Relations whose authored graph is expected to be acyclic — cycles here are defects.
 const ACYCLIC_RELATIONS = new Set(['composes', 'depends-on']);
 
+/** The reverse name of a relation (`composes` -> `composed-by`). */
 export function inverseOf(relation) {
   return INVERSE[relation] ?? `inverse-of:${relation}`;
 }

@@ -1,8 +1,7 @@
-import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0, VALID_BLOCKS_BY_KIND, METADATA_FIELDS } from '../spec/knowledge.js';
-import { isValidKind20, isSpec20x } from '../spec/dsds20-lib.js';
+import { ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0 } from '../spec/knowledge.js';
+import { isValidKind20 } from '../spec/dsds-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { describeEntryFields, describeSectionKinds } from '../spec/schema-describe.js';
-import { corpusSpec } from '../spec/corpus-spec.js';
 import { renderTable } from '../render/table.js';
 
 // 0.20.0, 0.20.1 and 0.21.0 are one document model: 0.20.1 changed field
@@ -24,91 +23,31 @@ export const specEntitySchemaDef = {
         type: 'string',
         description: 'The entity kind to describe. For 0.20.0, either a well-known kind (component, token, theme, system, entry) or a namespaced custom kind (e.g. "sanity.guide").',
       },
-      spec: {
-        type: 'string',
-        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0', '0.21.1'],
-        description: 'Which DSDS model to describe this kind under. Defaults to the schemaVersion of the loaded document, so it describes the model the corpus actually uses; 0.15.2 when nothing is loaded. system/entry are 0.20.x-only regardless of this flag.',
-      },
     },
     required: ['kind'],
   },
 };
 
-export async function specEntitySchemaHandler({ kind, spec }, getSystems = null) {
-  // Default to the model the loaded corpus is written in. Defaulting to
-  // legacy 0.15.2 meant the common call — no `spec` argument, against a
-  // 0.20.1 document — described `identifier`, `documentBlocks` and
-  // `agentDocumentBlocks`, none of which appear in the files being read.
-  const effective = spec ?? corpusSpec(getSystems);
-  // A namespaced custom kind (e.g. "sanity.guide") can't exist under legacy
-  // 0.15.2 at all, so it always routes to the 0.20.0 path regardless of spec.
-  const is20Only = kind === 'system' || kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
-  if (isSpec20x(effective) || is20Only) return render20(kind);
-
-  const def = ENTITY_DESCRIPTIONS[kind];
-  if (!def) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: `Unknown legacy 0.15.2 entity kind "${kind}". Valid kinds: ${ENTITY_KINDS.join(', ')}. (system/entry are 0.20.0-only — call again with spec:"0.20.0".)` }],
-    };
-  }
-
-  const validBlocks = VALID_BLOCKS_BY_KIND[kind] ?? [];
-
-  const lines = [
-    `# Entity Schema: \`${kind}\``,
-    '',
-    def.summary,
-  ];
-
-  if (def.notes) lines.push('', `> **Note:** ${def.notes}`);
-
-  lines.push(
-    '',
-    '## Required Fields',
-    '',
-    ...def.required.map(f => `- \`${f}\``),
-    '',
-    '## Top-Level Fields',
-    '',
-    '| Field | Required | Description |',
-    '|-------|----------|-------------|',
-    ...buildFieldTable(kind, def),
-    '',
-    '## Metadata Fields',
-    '',
-    'Set via the `metadata` object on the entity:',
-    '',
-    ...Object.entries(METADATA_FIELDS).map(([k, v]) => `- **\`${k}\`** — ${v}`),
-  );
-
-  if (kind === 'chunk') {
-    lines.push(
-      '',
-      '## Structure Note',
-      '',
-      'Chunks do **not** use `documentBlocks`. Instead, `guidelines` and `useCases` are top-level arrays directly on the entity. Use `dsds_get_chunk` to retrieve a chunk with its code and rules rendered for agent use.',
-    );
-  } else {
-    lines.push(
-      '',
-      '## Valid Document Block Types',
-      '',
-      validBlocks.length
-        ? `For \`${kind}\`, these block types are allowed in \`documentBlocks\`:\n\n${validBlocks.map(b => `- \`${b}\``).join('\n')}`
-        : 'No document blocks defined for this kind.',
-      '',
-      'Use `dsds_spec_document_blocks` to get descriptions of each block type.',
-    );
-  }
-
-  const notice = getUpdateNotice();
-  if (notice) lines.push(notice);
-
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+/** Every field one entity kind accepts, described from the vendored schema. */
+export async function specEntitySchemaHandler({ kind }) {
+  return render20(kind);
 }
 
+// Schema section-kind descriptions run to a paragraph; the table wants the
+// gist. One sentence is often too little, so keep taking sentences until
+// there is enough to be useful.
+/** The opening sentences of `text`, to at least `min` characters. */
+function firstSentence(text, min = 60) {
+  const trimmed = String(text ?? '').trim();
+  let out = '';
+  for (const part of trimmed.split(/(?<=\.)\s+/)) {
+    out = out ? `${out} ${part}` : part;
+    if (out.length >= min) break;
+  }
+  return out;
+}
 
+/** Render a field list as a Markdown table. */
 function fieldTable(fields) {
   return renderTable(
     fields.map(f => ({
@@ -123,20 +62,7 @@ function fieldTable(fields) {
     ]).split('\n');
 }
 
-// Section-kind descriptions in the schema run to a paragraph. The table wants
-// the gist. One sentence is often too little — `guidelines` opens with "Rules
-// for an entry.", which drops the half that says what distinguishes it — so
-// keep taking sentences until there is enough to be useful.
-function firstSentence(text, min = 60) {
-  const trimmed = String(text ?? '').trim();
-  let out = '';
-  for (const part of trimmed.split(/(?<=\.)\s+/)) {
-    out = out ? `${out} ${part}` : part;
-    if (out.length >= min) break;
-  }
-  return out;
-}
-
+/** Describe one entity kind from the vendored schema. */
 function render20(kind) {
   const isNamespacedCustomKind = !ENTITY_DESCRIPTIONS_0_20_0[kind] && isValidKind20(kind);
   const def = ENTITY_DESCRIPTIONS_0_20_0[isNamespacedCustomKind ? 'entry' : kind];

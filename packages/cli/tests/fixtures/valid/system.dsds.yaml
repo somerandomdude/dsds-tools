@@ -1,0 +1,105 @@
+schemaVersion: "0.21.1"
+
+name: Test System
+
+entries:
+  - id: test-button
+    kind: component
+    name: Test Button
+    description: A schema-valid component for dsds-cli tests.
+    metadata:
+      tags: [action]
+      status: {status: stable}
+    imports:
+      - platform: react
+        code: import { TestButton } from '@test/ui'
+        package: "@test/ui"
+    sections:
+      - kind: guidelines
+        for: all
+        framing: when-to-use
+        items:
+          - level: should
+            statement: Use for actions the user takes, not for navigation.
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must
+            statement: Give every Test Button an accessible name.
+    traits:
+      - id: tone
+        kind: enum
+        traitType: variant
+        description: The Test Button's semantic tone.
+        values:
+          - id: default
+            description: Neutral. The everyday case.
+          - id: critical
+            description: Red. Destructive actions.
+
+  - id: test-card
+    kind: component
+    name: Test Card
+    description: A schema-valid surface for dsds-cli tests.
+    metadata:
+      tags: [layout]
+      status: {status: stable}
+    refs:
+      - to: test-button
+        rel: composes
+        role: Its action affordance
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: should
+            statement: Keep a Test Card's content to one subject.
+
+  - id: test-chunk
+    kind: sanity.chunk
+    name: Test Chunk
+    description: A schema-valid chunk for dsds-cli tests.
+    metadata:
+      status: {status: stable}
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must
+            statement: Use only in dsds-cli tests.
+    refs:
+      - href: ./test-chunk.tsx
+        rel: file
+        role: source
+
+  - id: test-pattern
+    kind: sanity.pattern
+    name: Test Pattern
+    description: A pattern used by the test suite.
+    metadata:
+      status: {status: stable}
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: should
+            statement: Compose a Test Pattern from Test Button and Test Card.
+
+  - id: test-tokens
+    kind: token
+    name: Test Tokens
+    description: A test dimension scale.
+    tokenType: dimension
+    metadata:
+      status: {status: stable}
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must
+            statement: Use the scale rather than raw pixel values.

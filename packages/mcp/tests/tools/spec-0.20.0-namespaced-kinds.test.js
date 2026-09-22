@@ -20,13 +20,13 @@ function buildDispatch() {
 describe('dsds_spec_entity_schema — namespaced 0.20.0 kinds', () => {
   it('accepts a namespaced custom kind through the actual dispatch/input-validation layer', async () => {
     const dispatch = buildDispatch();
-    const result = await dispatch('dsds_spec_entity_schema', { kind: 'sanity.guide', spec: '0.20.0' });
+    const result = await dispatch('dsds_spec_entity_schema', { kind: 'sanity.guide' });
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toContain('namespaced custom kind');
     expect(result.content[0].text).toContain('id');
   });
 
-  it('routes a namespaced kind to the 0.20.0 path even without an explicit spec flag', async () => {
+  it('routes a namespaced kind to the entry shape', async () => {
     const dispatch = buildDispatch();
     const result = await dispatch('dsds_spec_entity_schema', { kind: 'sanity.chunk' });
     expect(result.isError).toBeFalsy();
@@ -35,41 +35,17 @@ describe('dsds_spec_entity_schema — namespaced 0.20.0 kinds', () => {
 
   it('still rejects a kind that is neither well-known nor validly namespaced', async () => {
     const dispatch = buildDispatch();
-    const result = await dispatch('dsds_spec_entity_schema', { kind: 'widget', spec: '0.20.0' });
+    const result = await dispatch('dsds_spec_entity_schema', { kind: 'widget' });
     expect(result.isError).toBe(true);
   });
 
   it('still renders the well-known component schema unaffected by the fallback', async () => {
     const dispatch = buildDispatch();
-    const result = await dispatch('dsds_spec_entity_schema', { kind: 'component', spec: '0.20.0' });
+    const result = await dispatch('dsds_spec_entity_schema', { kind: 'component' });
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).not.toContain('namespaced custom kind');
     expect(result.content[0].text).toContain('sourceFiles');
   });
 });
 
-describe('dsds_spec_document_blocks — namespaced 0.20.0 kinds', () => {
-  it('accepts a namespaced kind through the actual dispatch/input-validation layer (even though spec:0.20.0 ignores kind)', async () => {
-    const dispatch = buildDispatch();
-    const result = await dispatch('dsds_spec_document_blocks', { kind: 'sanity.guide', spec: '0.20.0' });
-    expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain('Section kinds (real 0.20.0)');
-  });
-});
 
-describe('dsds_spec_scaffold — namespaced 0.20.0 kinds', () => {
-  it('accepts a namespaced custom kind through the actual dispatch/input-validation layer', async () => {
-    const dispatch = buildDispatch();
-    const result = await dispatch('dsds_spec_scaffold', { kind: 'sanity.pattern', spec: '0.20.0' });
-    expect(result.isError).toBeFalsy();
-    const text = result.content[0].text;
-    expect(text).toContain('"kind": "sanity.pattern"');
-    expect(text).toContain('generic `entry` scaffold');
-  });
-
-  it('still rejects a kind that is neither well-known nor validly namespaced', async () => {
-    const dispatch = buildDispatch();
-    const result = await dispatch('dsds_spec_scaffold', { kind: 'widget', spec: '0.20.0' });
-    expect(result.isError).toBe(true);
-  });
-});

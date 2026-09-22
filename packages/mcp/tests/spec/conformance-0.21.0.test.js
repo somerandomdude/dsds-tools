@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { loadYaml20 } from '../../src/spec/dsds20-lib.js';
-import { validateDoc20 } from '../../src/spec/validator-0.20.0.js';
+import { loadYaml20 } from '../../src/spec/dsds-lib.js';
+import { validateDoc20 } from '../../src/spec/validator.js';
 
 // The upstream spec repo publishes its own conformance suite at 0.21.0
 // (schema/conformance-suite.json) — 26 documents that MUST be rejected, each

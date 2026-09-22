@@ -1,6 +1,12 @@
 # Plan 006: Settle how spec versions are named in `src/spec/`
 
-- Status: TODO
+- Status: DONE 2026-09-22, resolved by plan 009 phase 8. Cutting the 0.15.2
+  generation left one spec model, so the version suffixes had nothing to
+  disambiguate: `render-0.20.0.js` → `render.js`, `validator-0.20.0.js` →
+  `validator.js`, `dsds20-lib.js` → `dsds-lib.js`,
+  `prop-extractor-0.20.0.js` → `prop-extractor.js`,
+  `style-guide-0.20.1.js` → `style-guide.js`, plus the four matching test
+  files. `version.js` is now the only place a version is written.
 - Priority: P3 — no user-visible defect; it is a legibility and maintenance cost
 - Effort: XS for the cleanup, S for the renames
 - Noted at: `eefb89f` on 2026-09-09, on branch `0.20.1-support`

@@ -9,7 +9,7 @@
 // is the exact failure this renderer's namespace allowlist exists to prevent.
 
 import { describe, it, expect } from 'vitest';
-import { renderExtensions20 } from '../../src/spec/render-0.20.0.js';
+import { renderExtensions20 } from '../../src/spec/render.js';
 
 const render = (extensions) => {
   const lines = [];

@@ -14,7 +14,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadYamlFile20 } from './dsds20-lib.js';
+import { loadYamlFile20 } from './dsds-lib.js';
 import { BUNDLED_VERSION } from './version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +23,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // constant and vendoring the new schema-<version>/ directory is one change
 // instead of three that can disagree. A missing directory fails here, at
 // load, rather than as a confusing per-file miss later.
+export const SCHEMA_DIR_NAME = `schema-${BUNDLED_VERSION}`;
 export const SCHEMA_DIR = resolve(__dirname, `schema-${BUNDLED_VERSION}`);
 if (!existsSync(SCHEMA_DIR)) {
   throw new Error(
@@ -54,7 +55,7 @@ export function declaredProps(relPath) {
     const keys = Object.keys(doc.properties || (inline && inline.properties) || {});
     if (keys.length === 0) {
       throw new Error(
-        `schema-0.21.0/${relPath} declares no properties of its own, so no field order can be derived from it. Either the file was restructured, or the caller asked for the wrong one.`,
+        `${SCHEMA_DIR_NAME}/${relPath} declares no properties of its own, so no field order can be derived from it. Either the file was restructured, or the caller asked for the wrong one.`,
       );
     }
     declaredPropsCache.set(relPath, keys);
@@ -106,7 +107,7 @@ export function declaredEnum(relPath, locate) {
   const values = field && field.enum;
   if (!Array.isArray(values) || values.length === 0) {
     throw new Error(
-      `schema-0.21.0/${relPath} declares no enum where one was expected, so no order can be derived from it. Either the file was restructured, or the caller looked in the wrong place.`,
+      `${SCHEMA_DIR_NAME}/${relPath} declares no enum where one was expected, so no order can be derived from it. Either the file was restructured, or the caller looked in the wrong place.`,
     );
   }
   return { values, fallback: field.default };

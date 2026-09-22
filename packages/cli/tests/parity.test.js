@@ -27,7 +27,7 @@ describe('CLI ↔ surface parity — tools', () => {
 
   it('manifest lists every registered tool, in registry order', () => {
     expect(manifest.tools.map(t => t.name)).toEqual(surface.toolDefs.map(d => d.name));
-    expect(manifest.tools.length).toBeGreaterThanOrEqual(22);
+    expect(manifest.tools.length).toBeGreaterThanOrEqual(15);
   });
 
   it('every manifest tool carries its input schema', () => {

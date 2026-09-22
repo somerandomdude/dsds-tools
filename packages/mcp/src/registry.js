@@ -6,10 +6,7 @@
 // createToolRuntime, so the tool catalog cannot drift between them.
 
 import { writeLog } from './logger.js';
-import { specOverviewDef, specOverviewHandler } from './tools/spec-overview.js';
 import { specEntitySchemaDef, specEntitySchemaHandler } from './tools/spec-entity-schema.js';
-import { specDocumentBlocksDef, specDocumentBlocksHandler } from './tools/spec-document-blocks.js';
-import { specScaffoldDef, specScaffoldHandler } from './tools/spec-scaffold.js';
 import { validateDef, validateHandler } from './tools/validate.js';
 import { styleCheckDef, styleCheckHandler } from './tools/style-check.js';
 import { contextBriefDef, contextBriefHandler } from './tools/context-brief.js';
@@ -18,24 +15,14 @@ import { getEntityDef, getEntityHandler } from './tools/get-entity.js';
 import { searchEntitiesDef, searchEntitiesHandler } from './tools/search-entities.js';
 import { getDocumentBlockDef, getDocumentBlockHandler } from './tools/get-document-block.js';
 import { getAgentContextDef, getAgentContextHandler } from './tools/get-agent-context.js';
-import { lintByPathDef, lintByPathHandler, lintInlineDef, lintInlineHandler } from './tools/lint-code.js';
+import { lintDef, lintHandler } from './tools/lint-code.js';
 import { getChunkDef, getChunkHandler } from './tools/get-chunk.js';
-import { getExamplesDef, getExamplesHandler } from './tools/get-examples.js';
-import { getVariantsDef, getVariantsHandler } from './tools/get-variants.js';
 import { feedbackDef, feedbackHandler } from './tools/feedback.js';
 import { checkExportsDef, checkExportsHandler } from './tools/check-exports.js';
 import { explainErrorDef, explainErrorHandler } from './tools/explain-error.js';
 import { listSkillsDef, listSkillsHandler } from './tools/list-skills.js';
 import { getSkillDef, getSkillHandler } from './tools/get-skill.js';
-import { toMarkdownDef, toMarkdownHandler } from './tools/to-markdown.js';
 import { buildComponentDef, buildComponentHandler } from './tools/build-component.js';
-import { authorComponentDocDef, authorComponentDocHandler } from './tools/author-component-doc.js';
-import {
-  getDependentsDef, getDependentsHandler,
-  getDependenciesDef, getDependenciesHandler,
-  getAlternativesDef, getAlternativesHandler,
-  impactDef, impactHandler,
-} from './tools/relationships.js';
 
 function validateArgs(toolDef, args) {
   const { required = [], properties = {} } = toolDef.inputSchema ?? {};
@@ -55,8 +42,8 @@ function validateArgs(toolDef, args) {
     if (prop.type === 'array' && !Array.isArray(value)) {
       // A lone string where a list is expected is the single most common
       // shape mistake agents make against these tools — every argument
-      // error in the 2026-09-10 usage log was this, all on
-      // dsds_lint_by_path's `files`. The intent is never ambiguous (one
+      // argument error in the usage log has been this one, on
+      // dsds_lint's `files`. The intent is never ambiguous (one
       // item), so accept it and wrap, rather than rejecting a call whose
       // meaning is clear. The element shape comes from the schema, so this
       // stays correct as tools are added:
@@ -139,11 +126,7 @@ export function createToolRuntime({
   const propsConfig = getPropsConfig ?? (() => ({ propsExtractorDir: null, uiSourceRoot: null }));
   const toolDefs = [
     contextBriefDef,
-    specOverviewDef,
     specEntitySchemaDef,
-    specDocumentBlocksDef,
-    specScaffoldDef,
-    authorComponentDocDef,
     buildComponentDef,
     validateDef,
     styleCheckDef,
@@ -153,19 +136,11 @@ export function createToolRuntime({
     getDocumentBlockDef,
     getAgentContextDef,
     getChunkDef,
-    getExamplesDef,
-    getVariantsDef,
-    getDependentsDef,
-    getDependenciesDef,
-    getAlternativesDef,
-    impactDef,
-    lintByPathDef,
-    lintInlineDef,
+    lintDef,
     checkExportsDef,
     explainErrorDef,
     listSkillsDef,
     getSkillDef,
-    toMarkdownDef,
     ...(enableFeedback ? [feedbackDef] : []),
   ];
 
@@ -199,12 +174,8 @@ export function createToolRuntime({
     try {
       switch (name) {
         case 'dsds_context_brief':        return contextBriefHandler(args, getSystems, getSummaries);
-        case 'dsds_spec_overview':        return specOverviewHandler(args);
-        case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args, getSystems);
-        case 'dsds_spec_document_blocks': return specDocumentBlocksHandler(args, getSystems);
-        case 'dsds_spec_scaffold':        return specScaffoldHandler(args, getSystems);
+        case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args);
         case 'dsds_build_component':      return buildComponentHandler(args, getSystems, getSummaries);
-        case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);
         case 'dsds_style_check':          return styleCheckHandler(args);
         case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
@@ -213,19 +184,11 @@ export function createToolRuntime({
         case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
         case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
-        case 'dsds_get_examples':         return getExamplesHandler(args, getGraph, getSummaries);
-        case 'dsds_get_variants':         return getVariantsHandler(args, getSystems);
-        case 'dsds_get_dependents':       return getDependentsHandler(args, getGraph);
-        case 'dsds_get_dependencies':     return getDependenciesHandler(args, getGraph);
-        case 'dsds_get_alternatives':     return getAlternativesHandler(args, getGraph);
-        case 'dsds_impact':               return impactHandler(args, getGraph);
-        case 'dsds_lint_by_path':         return lintByPathHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
-        case 'dsds_lint_inline':          return lintInlineHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
+        case 'dsds_lint':                 return lintHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
         case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()));
         case 'dsds_explain_error':        return explainErrorHandler(args);
         case 'dsds_list_skills':          return listSkillsHandler(args);
         case 'dsds_get_skill':            return getSkillHandler(args);
-        case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems, propsConfig());
         case 'dsds_feedback':             return feedbackHandler(args, feedbackDir);
         default:                          return errorResponse(`Unknown tool: "${name}"`);
       }

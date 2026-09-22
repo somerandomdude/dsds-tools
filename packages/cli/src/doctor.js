@@ -14,9 +14,8 @@ import { createRequire } from 'node:module';
 import { resolveConfig } from 'dsds-mcp/src/config.js';
 import { loadSystems, loadIntroEntities, summarizeEntities } from 'dsds-mcp/src/loader.js';
 import { createSurface } from 'dsds-mcp/src/surface.js';
-import { validateDocument } from 'dsds-mcp/src/validator.js';
-import { looksLike20, validateDoc20 } from 'dsds-mcp/src/spec/validator-0.20.0.js';
-import { loadYaml20 } from 'dsds-mcp/src/spec/dsds20-lib.js';
+import { looksLike20, validateDoc20 } from 'dsds-mcp/src/spec/validator.js';
+import { loadYaml20 } from 'dsds-mcp/src/spec/dsds-lib.js';
 import { buildGraph, createGraphGetter, integrity as graphIntegrity } from 'dsds-mcp/src/graph.js';
 import {
   checkExampleProps,
@@ -28,28 +27,30 @@ import {
 import { BUILD_BRIEF } from 'dsds-mcp/src/briefs.js';
 import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
 
-// Dispatches to the real 0.20.0 validator for a real 0.20.0 document (YAML
-// entries/sections shape), the legacy validator otherwise — mirrors the
-// dsds_validate MCP tool's own auto-detection so `dsds doctor` doesn't run
-// the wrong schema against a real 0.20.0 doc (it did, before this: every
-// 0.20.0 document failed with "(root): must have required property
-// 'entityGroups'", a legacy-only field).
+/**
+ * Validate one document, or report that it is not a DSDS document at all.
+ *
+ * `[DSDS-11]` (a `sourceFiles`/`source`/`rel: file` href that does not exist
+ * on disk) arrives as a warning rather than an error, but doctor always has a
+ * real `filePath` and a dangling file reference is exactly the build-health
+ * problem it exists to catch — so it is promoted here.
+ */
 function validateAny(doc, filePath) {
   if (looksLike20(doc)) {
     const { errors, warnings } = validateDoc20(doc, { filePath });
-    // DSDS-11 (a sourceFiles/source/rel:file href that doesn't exist on
-    // disk) only runs when filePath is supplied — doctor always has one,
-    // unlike the dsds_validate MCP tool's pasted-document case — and is
-    // exactly the kind of "does this actually point at something real"
-    // build-health problem doctor already looks for elsewhere, so it's
-    // folded into `errors` here rather than silently dropped.
     const fileRefWarnings = warnings.filter((w) => w.startsWith('[DSDS-11]'));
     return {
       valid: errors.length === 0 && fileRefWarnings.length === 0,
       errors: [...errors, ...fileRefWarnings].map(message => ({ path: '(root)', message })),
     };
   }
-  return validateDocument(doc);
+  return {
+    valid: false,
+    errors: [{
+      path: '(root)',
+      message: `not a DSDS ${BUNDLED_VERSION} document — expected \`entries\` with a \`schemaVersion\`, or a standalone entry with \`id\` and \`kind\``,
+    }],
+  };
 }
 
 // loadSystems() mutates each 0.20.0 entity object in place as it normalizes

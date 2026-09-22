@@ -18,6 +18,7 @@ export const checkExportsDef = {
   },
 };
 
+/** Report which of the named components the configured packages actually export. */
 export function checkExportsHandler({ components }, getExportPaths) {
   const packagePaths = getExportPaths();
 

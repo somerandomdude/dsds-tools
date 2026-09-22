@@ -13,21 +13,20 @@ let introPath;
 
 beforeAll(() => {
   const dir = mkdtempSync(join(tmpdir(), 'dsds-intro-'));
-  introPath = join(dir, 'intro.dsds.json');
-  writeFileSync(
-    introPath,
-    JSON.stringify({
-      entity: {
-        identifier: 'system-intro',
-        kind: 'guide',
-        name: 'System Intro',
-        metadata: [{ kind: 'description', value: 'Start here.' }],
-        documentBlocks: [
-          { kind: 'section', items: [{ title: 'Layout', body: 'Compose with Stack.' }] },
-        ],
-      },
-    })
-  );
+  introPath = join(dir, 'intro.dsds.yaml');
+  writeFileSync(introPath, [
+    'id: system-intro',
+    'kind: sanity.guide',
+    'name: System Intro',
+    'description: Start here.',
+    'sections:',
+    '  - kind: section',
+    '    for: all',
+    '    freeform:',
+    '      - title: Layout',
+    '        body: Compose with Stack.',
+    '',
+  ].join('\n'));
 });
 
 describe('dsds prompt', () => {

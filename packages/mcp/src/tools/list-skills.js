@@ -24,6 +24,7 @@ function parseFrontmatter(text) {
   return out;
 }
 
+/** The bundled authoring skills, read from their SKILL.md frontmatter. */
 export function loadSkills() {
   let dirs;
   try {
@@ -55,6 +56,7 @@ export const listSkillsDef = {
   inputSchema: { type: 'object', properties: {} },
 };
 
+/** Name and description of every bundled skill, so one can be chosen before reading it. */
 export async function listSkillsHandler() {
   const skills = loadSkills();
   if (skills.length === 0) {

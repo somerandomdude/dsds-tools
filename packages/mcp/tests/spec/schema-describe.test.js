@@ -11,7 +11,6 @@
 import { describe, it, expect } from 'vitest';
 import { describeEntryFields, describeSectionKinds } from '../../src/spec/schema-describe.js';
 import { BUNDLED_VERSION } from '../../src/spec/version.js';
-import { corpusSpec } from '../../src/spec/corpus-spec.js';
 import { specEntitySchemaHandler } from '../../src/tools/spec-entity-schema.js';
 
 const text = r => r.content[0].text;
@@ -83,54 +82,12 @@ describe('describeSectionKinds', () => {
   });
 });
 
-describe('corpusSpec', () => {
-  it("reads the loaded document's schemaVersion", () => {
-    expect(corpusSpec(() => [{ document: { schemaVersion: '0.20.1' } }])).toBe('0.20.1');
-  });
-
-  // Which release to name is a guess when the document doesn't say. Name the
-  // one this server validates against, so the described model matches the one
-  // an error message would cite. Asserted against the constant, not a
-  // literal, so the next bump doesn't need this test edited.
-  it('falls back to the bundled version when the document omits the field', () => {
-    expect(corpusSpec(() => [{ entities: [{ __dsds20: true }] }])).toBe(BUNDLED_VERSION);
-  });
-
-  // An unconfigured server must behave exactly as it did before.
-  it('is legacy when nothing is loaded', () => {
-    expect(corpusSpec(() => [])).toBe('0.15.2');
-    expect(corpusSpec(null)).toBe('0.15.2');
-  });
-
-  it('is legacy for a genuinely legacy document', () => {
-    expect(corpusSpec(() => [{ document: { schemaVersion: '0.15.2' } }])).toBe('0.15.2');
-  });
-
-  it('does not throw when the getter does', () => {
-    expect(corpusSpec(() => { throw new Error('boom'); })).toBe('0.15.2');
-  });
-});
 
 describe('dsds_spec_entity_schema', () => {
   const loaded20 = () => [{ document: { schemaVersion: '0.20.1' }, entities: [] }];
 
-  it('describes the corpus model when no spec is given', async () => {
-    const out = text(await specEntitySchemaHandler({ kind: 'component' }, loaded20));
-    expect(out).toContain('real 0.20.0');
-    expect(out).toContain('`id`');
-    expect(out).not.toContain('`documentBlocks`');
-  });
 
-  it('still describes legacy when asked for it', async () => {
-    const out = text(await specEntitySchemaHandler({ kind: 'component', spec: '0.15.2' }, loaded20));
-    expect(out).toContain('`identifier`');
-    expect(out).toContain('`documentBlocks`');
-  });
 
-  it('stays legacy when no document is loaded', async () => {
-    const out = text(await specEntitySchemaHandler({ kind: 'component' }, () => []));
-    expect(out).toContain('`identifier`');
-  });
 
   // The regression this whole change exists for: names without meanings.
   it('gives every field a description, not just a name', async () => {

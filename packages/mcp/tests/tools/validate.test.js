@@ -13,14 +13,16 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const fixturesDir = resolve(__dirname, '../../fixtures');
 
 describe('validateHandler — auto-detects legacy JSON vs real 0.20.0 YAML', () => {
-  it('validates a legacy 0.15.2 JSON document', async () => {
+  // The 0.15.2 model is no longer served. A legacy document is a clear
+  // rejection rather than a silent validation against the wrong schema.
+  it('rejects a legacy 0.15.2 JSON document', async () => {
     const document = JSON.stringify({
       dsdsVersion: LEGACY_VERSION,
       entity: { kind: 'component', identifier: 'x', name: 'X' },
     });
     const result = await validateHandler({ document });
-    expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain('Valid DSDS Document');
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Not a DSDS');
   });
 
   it('validates a real 0.20.0 YAML document', async () => {

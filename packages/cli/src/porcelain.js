@@ -4,7 +4,7 @@
 // call. `dsds build` wraps the dsds_build_component wizard as a two-shot
 // command (list props, then finalize with --answers) so shell agents get the
 // guided compose path without the stateful start/answer/finalize protocol.
-// The author wizard (dsds_author_component_doc) and dsds_feedback remain
+// dsds_feedback remains
 // porcelain-free (FR-13) — they are multi-turn conversational tools; reach
 // them via `dsds tool` when needed.
 //
@@ -121,33 +121,7 @@ export const PORCELAIN = {
     build: ([identifier]) => ({ tool: 'dsds_get_chunk', args: { identifier } }),
   },
 
-  examples: {
-    summary: 'Worked examples that use an entity — an index, not their code',
-    usage: 'dsds examples <identifier> [--next]',
-    options: {
-      next: { type: 'boolean', description: 'Append the fetch command for each example (off by default)' },
-    },
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier], values) => ({
-      tool: 'dsds_get_examples',
-      args: { identifier, ...(values.next ? { nextCommands: true } : {}) },
-    }),
-  },
 
-  variants: {
-    summary: "A component's configurable dimensions and their allowed values",
-    usage: 'dsds variants <component> [--include variants|states|all]',
-    options: {
-      include: { type: 'string', description: 'Which traits to list: variants (default), states, or all' },
-    },
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<component>' },
-    build: ([identifier], values) => ({
-      tool: 'dsds_get_variants',
-      args: { identifier, ...(values.include ? { include: values.include } : {}) },
-    }),
-  },
 
   build: {
     summary: 'Compose a documented component into valid JSX — list its props, then finalize with answers',
@@ -192,68 +166,10 @@ export const PORCELAIN = {
     },
   },
 
-  deps: {
-    summary: 'What an entity needs / is built from',
-    usage: 'dsds deps <identifier> [--relation <relation>] [--transitive]',
-    options: {
-      relation: { type: 'string', description: 'Filter by relation (composes, depends-on, part-of, …)' },
-      transitive: { type: 'boolean', description: 'Follow edges transitively' },
-    },
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier], values) => ({
-      tool: 'dsds_get_dependencies',
-      args: { identifier, ...pick(values, 'relation', 'transitive') },
-    }),
-  },
 
-  dependents: {
-    summary: 'What points at an entity',
-    usage: 'dsds dependents <identifier> [--relation <relation>] [--transitive]',
-    options: {
-      relation: { type: 'string', description: 'Filter by relation' },
-      transitive: { type: 'boolean', description: 'Follow edges transitively' },
-    },
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier], values) => ({
-      tool: 'dsds_get_dependents',
-      args: { identifier, ...pick(values, 'relation', 'transitive') },
-    }),
-  },
 
-  impact: {
-    summary: 'Blast radius: what breaks if this entity changes',
-    usage: 'dsds impact <identifier>',
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier]) => ({ tool: 'dsds_impact', args: { identifier } }),
-  },
 
-  alternatives: {
-    summary: 'Interchangeable options and replacements',
-    usage: 'dsds alternatives <identifier>',
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier]) => ({ tool: 'dsds_get_alternatives', args: { identifier } }),
-  },
 
-  markdown: {
-    summary: 'Export an entity as markdown',
-    usage: 'dsds markdown <identifier> [--include-agent-content]',
-    options: {
-      'include-agent-content': {
-        type: 'boolean',
-        description: 'Also render `for: agent` sections (default: human-facing sections only)',
-      },
-    },
-    schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier], values) => ({
-      tool: 'dsds_to_markdown',
-      args: { identifier, includeAgentContent: !!values['include-agent-content'] },
-    }),
-  },
 
   brief: {
     summary: 'Task briefing before building, authoring, or answering',
@@ -267,44 +183,14 @@ export const PORCELAIN = {
     }),
   },
 
-  scaffold: {
-    summary: 'Blank DSDS JSON template for an entity kind',
-    usage: 'dsds scaffold <kind> [--spec <version>]',
-    schemaKeys: ['kind'],
-    options: {
-      spec: { type: 'string', description: 'Which DSDS model to scaffold (0.15.2, 0.20.0, 0.20.1, 0.21.0)' },
-    },
-    positionals: { min: 1, max: 1, label: '<kind>' },
-    build: ([kind], values) => ({
-      tool: 'dsds_spec_scaffold',
-      args: { kind, ...(values.spec ? { spec: values.spec } : {}) },
-    }),
-  },
-
   spec: {
-    summary: 'DSDS spec reference: overview, entity schema, block types',
-    usage: 'dsds spec overview | schema <kind> | blocks <kind> [--spec <version>]',
-    options: {
-      // Reachable only through `dsds tool` before this. The default follows
-      // the loaded document's own schemaVersion, so the flag is for reading
-      // a model the corpus is not written in — usually the legacy one.
-      spec: { type: 'string', description: 'Which DSDS model to describe (0.15.2, 0.20.0, 0.20.1, 0.21.0). Defaults to the loaded document\'s schemaVersion' },
-    },
-    positionals: { min: 1, max: 2, label: 'overview | schema <kind> | blocks <kind>' },
-    build([sub, kind], values) {
-      const spec = values.spec ? { spec: values.spec } : {};
-      if (sub === 'overview') {
-        if (kind) throw new UsageError('usage: dsds spec overview');
-        return { tool: 'dsds_spec_overview', args: { ...spec } };
-      }
-      if (sub === 'schema' || sub === 'blocks') {
-        if (!kind) throw new UsageError(`usage: dsds spec ${sub} <kind>`);
-        return {
-          tool: sub === 'schema' ? 'dsds_spec_entity_schema' : 'dsds_spec_document_blocks',
-          args: { kind, ...spec },
-        };
-      }
-      throw new UsageError('usage: dsds spec overview | schema <kind> | blocks <kind>');
+    summary: 'DSDS spec reference: the schema for an entity kind',
+    usage: 'dsds spec schema <kind>',
+    positionals: { min: 1, max: 2, label: 'schema <kind>' },
+    build([sub, kind]) {
+      if (sub !== 'schema') throw new UsageError('usage: dsds spec schema <kind>');
+      if (!kind) throw new UsageError('usage: dsds spec schema <kind>');
+      return { tool: 'dsds_spec_entity_schema', args: { kind } };
     },
   },
 
@@ -330,7 +216,11 @@ export const PORCELAIN = {
       return { tool: 'dsds_validate', args: { document, filePath: resolvePath(file) } };
     },
     // Findings (schema errors, parse errors) are exit 2; only usage problems are 1.
-    exitCode: (result, text) => (text.includes('Validation Failed') ? 2 : result.isError ? 1 : 0),
+    // Exit 2 is "ran and found problems", exit 1 is "could not run". A
+    // document that fails the schema, fails to parse, or is not DSDS at all
+    // are all findings about the file — the command did its job.
+    exitCode: (result, text) =>
+      /Validation Failed|Parse Error|Not a DSDS/.test(text) ? 2 : result.isError ? 1 : 0,
   },
 
   lint: {
@@ -359,7 +249,7 @@ export const PORCELAIN = {
         const code = await readStdin();
         if (!code.trim()) throw new UsageError('no code received on stdin');
         return {
-          tool: 'dsds_lint_inline',
+          tool: 'dsds_lint',
           args: { code, ...pick(values, 'filename') },
         };
       }
@@ -367,7 +257,7 @@ export const PORCELAIN = {
         throw new UsageError('usage: dsds lint <path…> | dsds lint --stdin [--filename <name>]');
       }
       return {
-        tool: 'dsds_lint_by_path',
+        tool: 'dsds_lint',
         args: {
           files: paths.map(path => ({ path })),
           // --dry-run runs the fixer but keeps `apply` off, so the report

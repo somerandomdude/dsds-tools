@@ -19,7 +19,7 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadYamlFile20 } from './dsds20-lib.js';
+import { loadYamlFile20 } from './dsds-lib.js';
 import { SCHEMA_DIR } from './schema-order.js';
 
 const cache = new Map();

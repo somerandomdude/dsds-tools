@@ -1,16 +1,9 @@
-// The DSDS surface — every capability the tooling exposes, in one object,
-// independent of transport.
+// Every capability the tooling exposes — instructions, tools, prompts,
+// resources — in one object, independent of transport.
 //
-// An MCP server has four capability groups: instructions, tools, prompts, and
-// resources. Until now only tools were shared (registry.js); the other three
-// lived inside server.js and were therefore MCP-only, which is why the CLI
-// could not reach them. This module owns all four, so:
-//
-//   - src/server.js is a thin envelope: protocol handlers that delegate here.
-//   - The dsds CLI builds the same surface and exposes the same four groups
-//     (`dsds tool`, `dsds prompt`, `dsds resource`, `dsds instructions`).
-//
-// Adding a capability here reaches both surfaces at once; that is the point.
+// server.js is a thin MCP envelope over this, and the dsds CLI builds the
+// same surface. Adding a capability here reaches both at once; anything
+// defined in either transport instead is something the other cannot see.
 
 import { createToolRuntime } from './registry.js';
 import { createPromptRuntime } from './prompts.js';

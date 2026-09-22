@@ -19,17 +19,18 @@ export const listEntitiesDef = {
       nextCommands: {
         type: 'boolean',
         description:
-          'Append the follow-up call that reads each result in full. Default false. Measured 2026-09-10: with this on, the agent treated the listing as a worklist and made 13% more dsds_get_agent_context calls, adding ~30k characters per iteration against the ~12k the listing itself saves. Turn it on for an interactive session where the next command is a convenience, not for an agent loop.',
+          'Append the follow-up call that reads each result in full. Default false. Measured: with this on, the agent treated the listing as a worklist and made 13% more dsds_get_agent_context calls, adding ~30k characters per iteration against the ~12k the listing itself saves. Turn it on for an interactive session where the next command is a convenience, not for an agent loop.',
       },
       summaries: {
         type: 'boolean',
         description:
-          'Include a one-line summary per entity. Default TRUE. The summary is what lets you decide which entities you need without opening each one; measured 2026-09-10, dropping it saved ~12k characters here and cost ~30k in extra dsds_get_agent_context calls. Pass false only when you already know the identifier you want.',
+          'Include a one-line summary per entity. Default TRUE. The summary is what lets you decide which entities you need without opening each one; measured: dropping it saved ~12k characters here and cost ~30k in extra dsds_get_agent_context calls. Pass false only when you already know the identifier you want.',
       },
     },
   },
 };
 
+/** The entity catalogue, grouped by kind and filterable. */
 export async function listEntitiesHandler(args, getSystems, getSummaries) {
   if (getSystems().length === 0) {
     return {
@@ -96,7 +97,7 @@ export async function listEntitiesHandler(args, getSystems, getSummaries) {
 
   if (omitted > 0) lines.push(`_${omitted} entities hidden by \`limit\`._`, '');
 
-  // A complete catalogue is worth saying is complete. Observed 2026-09-10:
+  // A complete catalogue is worth saying is complete. Observed:
   // one iteration in five called this twice in the same session and got a
   // byte-identical 6–18k answer the second time. The catalogue is loaded at
   // startup and cannot change mid-session, so a re-read can only ever

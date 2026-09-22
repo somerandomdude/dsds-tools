@@ -69,15 +69,15 @@ describe('loadConfig', () => {
   });
 
   it('expands ~ in DSDS_PATHS to the home directory', () => {
-    process.env['DSDS_PATHS'] = '~/Documents/design.dsds.json';
+    process.env['DSDS_PATHS'] = '~/Documents/design.dsds.yaml';
     const config = loadConfig();
-    expect(config.paths).toEqual([`${homedir()}/Documents/design.dsds.json`]);
+    expect(config.paths).toEqual([`${homedir()}/Documents/design.dsds.yaml`]);
   });
 
   it('expands ~ in DSDS_PATHS with multiple paths', () => {
-    process.env['DSDS_PATHS'] = '~/a.dsds.json,/absolute/b.dsds.json';
+    process.env['DSDS_PATHS'] = '~/a.dsds.yaml,/absolute/b.dsds.yaml';
     const config = loadConfig();
-    expect(config.paths).toEqual([`${homedir()}/a.dsds.json`, '/absolute/b.dsds.json']);
+    expect(config.paths).toEqual([`${homedir()}/a.dsds.yaml`, '/absolute/b.dsds.yaml']);
   });
 
   it('returns empty lintPlugins when LINT_PLUGINS is not set', () => {

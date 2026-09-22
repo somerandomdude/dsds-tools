@@ -42,6 +42,7 @@ export const explainErrorDef = {
   },
 };
 
+/** Match a raw compiler error against known mistakes and return a fix hint for each. */
 export function explainErrorHandler({ error }) {
   const hints = deriveErrorHints(error);
 
