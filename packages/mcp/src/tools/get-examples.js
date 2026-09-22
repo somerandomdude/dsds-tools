@@ -59,7 +59,7 @@ export const getExamplesDef = {
   },
 };
 
-export async function getExamplesHandler({ identifier, nextCommands }, getGraph, getSummaries, format = 'markdown') {
+export async function getExamplesHandler({ identifier, nextCommands }, getGraph, getSummaries) {
   const withNext = nextCommands === true;
   const graph = getGraph();
 
@@ -126,9 +126,7 @@ export async function getExamplesHandler({ identifier, nextCommands }, getGraph,
         })),
         withNext
           ? [{ key: 'example', header: 'Example' }, { key: 'demonstrates', header: 'Demonstrates' }, { key: 'fetch', header: 'Fetch' }]
-          : [{ key: 'example', header: 'Example' }, { key: 'demonstrates', header: 'Demonstrates' }],
-        { format, name: 'examples' }
-      ).split('\n')
+          : [{ key: 'example', header: 'Example' }, { key: 'demonstrates', header: 'Demonstrates' }]).split('\n')
     );
   }
 

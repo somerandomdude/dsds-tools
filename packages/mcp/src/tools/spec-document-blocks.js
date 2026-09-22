@@ -1,4 +1,5 @@
 import { ENTITY_KINDS, DOCUMENT_BLOCK_DESCRIPTIONS, VALID_BLOCKS_BY_KIND, SECTION_KIND_DESCRIPTIONS_0_20_0, SECTION_FREEFORM_NOTE } from '../spec/knowledge.js';
+import { isSpec20x } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { corpusSpec } from '../spec/corpus-spec.js';
 
@@ -7,7 +8,6 @@ import { corpusSpec } from '../spec/corpus-spec.js';
 // `tags` to a section. An author writes the same shape either way, so all
 // three route here and the described field tables come from the vendored
 // schema, which is pinned to the bundled release.
-const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1' || spec === '0.21.0';
 
 // Chunks don't use documentBlocks — their guidelines/useCases are top-level.
 const DOCUMENT_BLOCK_KINDS = ENTITY_KINDS.filter(k => k !== 'chunk');
@@ -26,7 +26,7 @@ export const specDocumentBlocksDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0'],
+        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0', '0.21.1'],
         description: 'Which DSDS model to describe. Defaults to 0.15.2 (legacy), which requires "kind"; 0.20.0 ignores "kind" entirely.',
       },
     },
@@ -37,7 +37,7 @@ export const specDocumentBlocksDef = {
 export async function specDocumentBlocksHandler({ kind, spec }, getSystems = null) {
   // Defaults to the loaded corpus's model — see spec/corpus-spec.js.
   spec = spec ?? corpusSpec(getSystems);
-  if (is20x(spec)) {
+  if (isSpec20x(spec)) {
     const lines = [
       '# Section kinds (real 0.20.0)',
       '',

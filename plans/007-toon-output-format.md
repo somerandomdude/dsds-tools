@@ -1,6 +1,10 @@
 # Plan 007: Deliver structured output as TOON
 
-- Status: TODO — decision required before any code (see "The decision this plan asks for")
+- Status: **REJECTED 2026-09-21**, after measuring it. The `renderTable` seam
+  from Phase 1 is kept; the TOON branch, the `@toon-format/toon` dependency,
+  the `format` argument on 26 signatures, the `DSDS_OUTPUT_FORMAT` env var,
+  the `outputFormat` config key, the CLI `--format` flag and the ~50-token
+  instruction legend are all removed. See "Why this was rejected" below.
 - Priority: P2 — a real but modest token saving, with a comprehension risk attached
 - Effort: S for tables only, M for tables + guideline records, plus a run to validate
 - Depends on: nothing in code. Depends on a measurement run for the go/no-go.
@@ -155,6 +159,107 @@ against. A format that saves 2.5% and costs one build failure is a loss.
 
 **Phase 4 — decide the default.** Flip to `toon` only if Phase 3 shows a token
 saving with no quality regression. Otherwise keep it opt-in and record why.
+
+## Why this was rejected
+
+Measured, not assumed. Run `2026-09-21/18.16`, n=10 per arm, plus a corpus-wide
+encoding comparison.
+
+**The saving is 3.7% and that is near the ceiling.** Decomposing 310 real
+`get_agent_context` payloads by line shape: bullet 56.4%, prose 26.2%,
+**table 12.3%**, heading 2.6%, code 1.9%. Tables are the only TOON-eligible
+shape, so no version of the tables-only scope does much better. The original
+-2.5% estimate was sound; it just was not worth what it cost.
+
+**The cost was spread much wider than the saving.** A `format` argument
+threaded through 13 files and 26 signatures, a hard-pinned dependency upstream
+describes as "stable, but also an idea in progress" (a minor bump silently
+changes every payload and invalidates every baseline), three config surfaces
+(env var, config key, CLI flag), two output shapes to test and golden-file,
+and ~50 tokens of legend in the cached prefix because the model may not know
+the format.
+
+**Quality could not be settled, and could not have been.** Power analysis on
+build success, 80% power, alpha .05: detecting 85% vs 90% needs **340
+iterations per arm**. The planned n=30 rerun could only have detected a ~13
+point swing. Phase 4's gate — "no quality regression" — is not provable at any
+budget worth spending. The rerun was started and stopped at 4/60 once this
+became clear.
+
+**The one apparent quality signal was noise.** Trimmed lint findings were 1.90
+(toon) vs 3.88 (markdown), p=0.172, driven almost entirely by
+`require-icon-accessible-label` at 9 vs 0 — and 6 of those 9 came from a single
+iteration. There is no mechanism from "prop table encoded as TOON" to "agent
+remembers aria-labels on icon buttons".
+
+**A 13.3% saving was sitting next to it, untouched.** The same payload audit
+that produced these numbers found v3 migration guides being shipped to
+greenfield agents on every lookup: 3.6x the TOON saving, one concept, no
+dependency, no new config. See plan 008. Re-encoding was never the biggest
+lever; it was just the one already written down.
+
+### What was kept
+
+Phase 1, the `renderTable` seam. Seven handlers each built their own pipe
+table, with three different divider styles and three empty-cell conventions.
+One function, 17 call sites, one convention. Worth keeping on legibility
+alone, and it is where a future format decision would live.
+
+### If you are reading this because you want to add a format again
+
+Re-read "The trap that makes TOON lose" below, then answer two questions the
+2026-09-21 work had to answer the hard way: what share of the payload is the
+new format actually eligible for, and how many iterations would it take to
+detect the quality effect you are worried about. If the answers are "about a
+tenth" and "hundreds", the arithmetic has not changed.
+
+## Phase 3 results — run `2026-09-21/18.16`, n=10 per arm
+
+**Headline in the generated report is an artifact.** It shows toon at -56%
+effective input and -94% output. Two baseline iterations caused all of it:
+
+| arm | iter | eff. input | output | fixes | exit |
+| --- | --- | --- | --- | --- | --- |
+| markdown | 2 | 779,164 | 178,934 | 5 | build |
+| markdown | 3 | 742,837 | 179,067 | 5 | build |
+
+Drop those two and the input gap is **-4.9%**. Within-arm spread is
+120k-353k, roughly 3x, so at n=10 an effect of a few percent sits well under
+the noise floor. End-to-end tokens are the wrong instrument for this question.
+
+**The encoding effect, measured directly on MCP payload bytes:**
+
+| tool | toon avg | markdown avg | delta |
+| --- | --- | --- | --- |
+| `get_agent_context` | 10,541 | 10,911 | -3.4% |
+| `get_chunk` | 6,199 | 6,567 | -5.6% |
+| `list_entities` | 16,795 | 17,845 | -5.9% |
+| `check_exports` | 2,671 | 2,704 | -1.2% |
+| `context_brief` | 6,242 | 6,242 | -0.0% |
+
+Raw per-iteration totals show toon *larger*; that is Simpson's paradox, the
+arms drew a different tool mix. Holding the mix constant: **-3.7%**. The
+plan predicted -2.5%. **The estimate was sound.**
+
+**Quality is unresolved, not passed.** 10/10 builds vs 8/10 gives Fisher exact
+two-tailed **p = 0.474**. Trimmed call volume is identical (28.0 vs 28.4 per
+iteration), so the apparent "toon makes more calls" reading was also an
+artifact. n=10 against a 2-event difference cannot clear Phase 4's gate.
+
+**Ceiling check.** Decomposing 310 real `get_agent_context` payloads by line
+shape: bullet 56.4%, prose 26.2%, **table 12.3%**, heading 2.6%, code 1.9%.
+Tables are the only TOON-eligible shape, so -3.7% is close to the structural
+maximum for the tables-only scope.
+
+**Confound found and fixed.** `measure.performance` was `true` on the baseline
+and `false` on the toon arm, so Lighthouse ran on one side only. It runs after
+the agent finishes and so cannot explain the token or build results, but it
+made every timing column incomparable. Matched 2026-09-21; the arms now differ
+by `label` and `DSDS_OUTPUT_FORMAT` alone.
+
+**Rerun in flight:** 30 iterations per arm, fixed brief
+(`briefs/toon-phase3.txt`, the same Content Moderation Queue brief as `18.16`),
+`--concurrency 1`. Powered to say something about quality rather than nothing.
 
 ## Scope calls to make explicitly
 

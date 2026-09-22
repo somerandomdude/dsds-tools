@@ -54,7 +54,7 @@ export const searchEntitiesDef = {
   },
 };
 
-export async function searchEntitiesHandler(args, getSystems, getSummaries, format = 'markdown') {
+export async function searchEntitiesHandler(args, getSystems, getSummaries) {
   if (getSystems().length === 0) {
     return toolError({
       code: ERROR_CODES.NOT_CONFIGURED,
@@ -152,9 +152,7 @@ export async function searchEntitiesHandler(args, getSystems, getSummaries, form
         summary: truncate(e.summary ?? '', 80),
         next: nextCommandFor(e),
       })),
-      searchColumns(withSummaries, withNext),
-      { format, name: 'results' }
-    ).split('\n'),
+      searchColumns(withSummaries, withNext)).split('\n'),
   ];
   if (shown < total) lines.push('', `_${total - shown} more — raise \`limit\` to see them._`);
 

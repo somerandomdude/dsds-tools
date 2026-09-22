@@ -60,7 +60,7 @@ function migrationHint(errors) {
     '',
     `\`traitType\` is required on every component trait as of 0.21.0 — ${missing} trait${missing !== 1 ? 's' : ''} here ${missing !== 1 ? 'are' : 'is'} missing it.`,
     'Use `variant` for a dimension the caller configures (`size`, `tone`), and `state` for a condition the component can be in (`hover`, `loading`, `disabled`).',
-    'It is a different question from the optional `setBy`: `disabled` and `loading` are states the *consumer* sets, so neither field can be derived from the other.',
+    'A `state` is not always something the component sets on its own — `disabled` and `loading` are states the caller turns on.',
     'The spec repo ships `scripts/tools/migrate-to-0.21.js`, which adds the field in place and prints every trait whose value it had to guess.',
   ];
 }

@@ -53,10 +53,11 @@ describe('traitType — required on every trait', () => {
     expect(errors).toEqual([]);
   });
 
-  // The reason the field exists: `setBy` cannot answer the same question.
-  it('accepts a state the consumer sets', () => {
+  // The case the field exists for: a state the consumer turns on. 0.21.0
+  // removed `setBy`, so `traitType` has to carry this on its own.
+  it('accepts a state the consumer sets, with no `setBy` to lean on', () => {
     const { errors } = validateDoc20(component([
-      { kind: 'boolean', traitType: 'state', setBy: 'consumer', id: 'disabled', description: 'Blocks interaction.' },
+      { kind: 'boolean', traitType: 'state', id: 'disabled', description: 'Blocks interaction.' },
     ]));
     expect(errors).toEqual([]);
   });
@@ -74,11 +75,12 @@ describe('renderTraits20 — grouped by traitType', () => {
     expect(out.slice(out.indexOf('**Variants**'), out.indexOf('**States**'))).toContain('`size`');
   });
 
-  it('states setBy when present, since it is a different question', () => {
+  it('renders a state that the consumer sets with no extra qualifier', () => {
     const out = render([
-      { kind: 'boolean', traitType: 'state', setBy: 'consumer', id: 'disabled', description: 'Blocks interaction.' },
+      { kind: 'boolean', traitType: 'state', id: 'disabled', description: 'Blocks interaction.' },
     ]);
-    expect(out).toContain('set by: consumer');
+    expect(out).toContain('`disabled`');
+    expect(out).not.toContain('set by:');
   });
 
   it('adds no headings when every trait is the same sort', () => {

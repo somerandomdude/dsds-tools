@@ -145,8 +145,4 @@ describe('dsds_spec_entity_schema', () => {
     for (const k of ['guidelines', 'definitions', 'steps', 'section']) expect(out).toContain(`\`${k}\``);
   });
 
-  it('renders the field table as TOON when the surface is set to it', async () => {
-    const out = text(await specEntitySchemaHandler({ kind: 'component' }, loaded20, 'toon'));
-    expect(out).toMatch(/fields\[\d+\]\{field,type,description\}:/);
-  });
 });

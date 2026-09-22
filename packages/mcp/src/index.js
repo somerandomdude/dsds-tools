@@ -89,7 +89,6 @@ async function main() {
     config.introInline,
     getPropsConfig,
     config.researchMode,
-    config.outputFormat,
   );
 
   startWatching(config.paths, state);

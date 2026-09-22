@@ -81,7 +81,7 @@ function renderSections(block, lines) {
   }
 }
 
-function renderApi(block, lines, format = 'markdown') {
+function renderApi(block, lines) {
   const rows = (block.properties ?? []).map(prop => ({
     prop: `\`${prop.identifier}\``,
     type: prop.type ? `\`${prop.type}\`` : null,
@@ -93,7 +93,7 @@ function renderApi(block, lines, format = 'markdown') {
     { key: 'type', header: 'Type' },
     { key: 'required', header: 'Required' },
     { key: 'description', header: 'Description' },
-  ], { format, name: 'props' }).split('\n'), '');
+  ]).split('\n'), '');
 }
 
 // Lead with the closed value sets (tone, numeric scales, booleans) as hard
@@ -127,12 +127,12 @@ function renderConstraints(apiBlock, lines) {
   return true;
 }
 
-function renderBlock(block, lines, format = 'markdown') {
+function renderBlock(block, lines) {
   switch (block.kind) {
     case 'guidelines': lines.push('## Rules', ''); renderGuidelines(block, lines); break;
     case 'useCases': lines.push('## When to use', ''); renderUseCases(block, lines); break;
     case 'sections': renderSections(block, lines); break;
-    case 'api': lines.push('## Props', ''); renderApi(block, lines, format); break;
+    case 'api': lines.push('## Props', ''); renderApi(block, lines); break;
     case 'imports': break; // skip — trivial (just the import statement)
     case 'accessibility': break; // skip — verbose keyboard/criteria detail not needed for code generation
     default:
@@ -147,7 +147,7 @@ function renderBlock(block, lines, format = 'markdown') {
 // Compact (default) renders `for: agent`/`for: all` sections only — a
 // `for: human` section is prose for people, not something an agent needs
 // to spend context on before writing code. Verbose renders everything.
-function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'markdown') {
+function renderAgentContext20(found, verbose, getGraph, propsConfig) {
   const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
   if (found.description) lines.push(asText(found.description), '');
 
@@ -163,7 +163,7 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'm
   at = lines.length;
   renderSourceAndImports20(found, lines); mark('imports', at);
   at = lines.length;
-  renderApi20(found, lines, propsConfig, format); mark('api', at);
+  renderApi20(found, lines, propsConfig); mark('api', at);
 
   const graph = getGraph ? getGraph() : null;
   if (graph) {
@@ -201,7 +201,19 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'm
       lines.push(`> ${omitted} human-only section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you need them.`, '');
     }
   }
-  renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
+  // Same bargain as the sections above: the compact view keeps the facts and
+  // points at what it left out, rather than silently shipping a v3 migration
+  // guide to an agent building something new.
+  const droppedExt = renderExtensions20(found.$extensions, lines, {
+    heading: '## Tool data',
+    compact: !verbose,
+  });
+  if (droppedExt > 0) {
+    lines.push(
+      `> ${droppedExt} migration/porting section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you are porting v3 code.`,
+      '',
+    );
+  }
 
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
@@ -221,7 +233,7 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, format = 'm
   };
 }
 
-export async function getAgentContextHandler({ identifier, verbose = false }, getSystems, getGraph = null, propsConfig = null, format = 'markdown') {
+export async function getAgentContextHandler({ identifier, verbose = false }, getSystems, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
     return {
@@ -249,7 +261,7 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
     });
   }
 
-  if (found.__dsds20) return renderAgentContext20(found, verbose, getGraph, propsConfig, format);
+  if (found.__dsds20) return renderAgentContext20(found, verbose, getGraph, propsConfig);
 
   const agentBlocks = found.agentDocumentBlocks ?? [];
   const docBlocks = found.documentBlocks ?? [];
@@ -316,7 +328,7 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   if (agentBlocks.length > 0) {
     lines.push('## Agent-optimized context', '');
     for (const block of agentBlocks) {
-      renderBlock(block, lines, format);
+      renderBlock(block, lines);
       served.push({ kind: block.kind, for: 'agent' });
     }
   }
@@ -330,13 +342,13 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
     if (docBlocksToRender.length > 0) {
       lines.push('## Full component documentation', '');
       for (const block of docBlocksToRender) {
-        renderBlock(block, lines, format);
+        renderBlock(block, lines);
         served.push({ kind: block.kind });
       }
     }
   } else {
     const apiBlock = docBlocksToRender.find(b => b.kind === 'api');
-    if (apiBlock) { renderBlock(apiBlock, lines, format); served.push({ kind: 'api' }); }
+    if (apiBlock) { renderBlock(apiBlock, lines); served.push({ kind: 'api' }); }
     const omitted = docBlocksToRender.filter(b => b.kind !== 'api').map(b => b.kind);
     omittedCount = omitted.length;
     if (omitted.length > 0) {

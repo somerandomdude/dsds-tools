@@ -1,5 +1,5 @@
 import { ENTITY_KINDS, ENTITY_KINDS_0_20_0, SCAFFOLDS, SCAFFOLDS_0_20_0 } from '../spec/knowledge.js';
-import { isValidKind20 } from '../spec/dsds20-lib.js';
+import { isValidKind20, isSpec20x } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { corpusSpec } from '../spec/corpus-spec.js';
 
@@ -8,7 +8,6 @@ import { corpusSpec } from '../spec/corpus-spec.js';
 // `tags` to a section. An author writes the same shape either way, so all
 // three route here and the described field tables come from the vendored
 // schema, which is pinned to the bundled release.
-const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1' || spec === '0.21.0';
 
 export const specScaffoldDef = {
   name: 'dsds_spec_scaffold',
@@ -24,7 +23,7 @@ export const specScaffoldDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0'],
+        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0', '0.21.1'],
         description: 'Which DSDS model to scaffold. Defaults to 0.15.2 (legacy) for a kind that exists in both.',
       },
     },
@@ -36,7 +35,7 @@ export async function specScaffoldHandler({ kind, spec }, getSystems = null) {
   // Defaults to the loaded corpus's model — see spec/corpus-spec.js.
   spec = spec ?? corpusSpec(getSystems);
   const is20Only = kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
-  if (is20x(spec) || is20Only) {
+  if (isSpec20x(spec) || is20Only) {
     const isNamespacedCustomKind = !SCAFFOLDS_0_20_0[kind] && isValidKind20(kind);
     const scaffold20 = isNamespacedCustomKind
       ? { ...SCAFFOLDS_0_20_0.entry, kind }

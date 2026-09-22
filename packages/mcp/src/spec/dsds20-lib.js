@@ -101,3 +101,26 @@ export function resolveStatusDisplay20(status) {
   if (entries.length === 1 && !entries[0].platform) return entries[0].status;
   return entries.map((s) => (s.platform ? `${s.platform}: ${s.status}` : s.status)).join(' · ');
 }
+
+/**
+ * Is `spec` a version of the real 0.20.x document model (as opposed to
+ * legacy 0.15.2)?
+ *
+ * 0.20.0, 0.20.1, 0.21.0 and 0.21.1 are one model: 0.20.1 changed field
+ * ORDER, 0.21.0 added `traitType` and section `tags`, and 0.21.1 let an item
+ * that points elsewhere drop the fields it borrows. An author writes the
+ * same shape throughout, so every spec tool routes them to the same
+ * renderer.
+ *
+ * Matched by major.minor rather than listed release-by-release. The list
+ * form silently broke on the 0.21.1 bump: `corpusSpec()` started returning
+ * a version no branch recognised, and three spec tools fell through to
+ * describing legacy `documentBlocks` against a 0.21.x corpus — the exact
+ * failure corpus-spec.js exists to prevent.
+ */
+export function isSpec20x(spec) {
+  const m = /^(\d+)\.(\d+)(?:\.\d+)?/.exec(String(spec ?? ''));
+  if (!m) return false;
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  return major === 0 && minor >= 20;
+}

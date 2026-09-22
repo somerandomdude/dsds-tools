@@ -88,7 +88,7 @@ describe('renderEvents20', () => {
         { name: 'onClick', signature: '(event: React.MouseEvent<HTMLButtonElement>) => void', specialized: false },
       ],
     };
-    const out = renderEvents20(button, 'markdown', { prop: 'as', defaultTag: 'button' }).join('\n');
+    const out = renderEvents20(button, { prop: 'as', defaultTag: 'button' }).join('\n');
     expect(out).toContain('`<button>` is the default element');
     expect(out).toContain('`as` changes it');
   });
@@ -108,8 +108,4 @@ describe('renderEvents20', () => {
     expect(renderEvents20(divider)).toEqual([]);
   });
 
-  it('encodes the same columns in TOON as in Markdown', () => {
-    const out = renderEvents20(SELECT_EVENTS, 'toon').join('\n');
-    expect(out).toContain('events[2]{event,signature,elementSpecific}:');
-  });
 });

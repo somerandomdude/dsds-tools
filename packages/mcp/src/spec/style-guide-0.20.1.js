@@ -207,10 +207,26 @@ const ENTITY_RULES = {
 
   // §5 — must, should, may, should-not, must-not. Items sharing a level keep
   // their relative order; only a strict level-to-level inversion is flagged.
+  //
+  // An item that borrows its rule via `refs` and declares no `level` of its
+  // own is skipped, not ranked. 0.21.1 made that shape the ordinary way to
+  // point at a shared rule, and the level it borrows lives in the `shared[]`
+  // pool — usually in a different file from the entry being checked, so a
+  // single-document check cannot know it. `enumRanker` would otherwise fall
+  // back to sorting an undeclared level LAST, which reports every pure
+  // pointer sitting above a `must` as an inversion: 25 spurious findings
+  // across this corpus, all on the form the release recommends.
+  //
+  // Upstream's own scripts/validate/lint-docs.js still ranks `it.level`
+  // directly and has the same false positive at 0.21.1. Diverging knowingly:
+  // the rule's own description says items are ordered "by `level`", and an
+  // item whose level is declared elsewhere has one — it just isn't visible
+  // from here. Inventing a rank for it is worse than not checking it.
   'guideline-item-level-order': (entry, emit) => {
     (entry.sections || []).forEach((section, si) => {
       if (!section || section.kind !== 'guidelines' || !Array.isArray(section.items)) return;
-      const inversion = firstInversion(section.items, (it) => levelRank(it.level));
+      const rankable = section.items.filter((it) => it && (it.level != null || !it.refs?.length));
+      const inversion = firstInversion(rankable, (it) => levelRank(it.level));
       if (inversion) {
         emit(
           `/sections/${si}/items`,

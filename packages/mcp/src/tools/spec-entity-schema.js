@@ -1,5 +1,5 @@
 import { ENTITY_KINDS, ENTITY_DESCRIPTIONS, ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0, VALID_BLOCKS_BY_KIND, METADATA_FIELDS } from '../spec/knowledge.js';
-import { isValidKind20 } from '../spec/dsds20-lib.js';
+import { isValidKind20, isSpec20x } from '../spec/dsds20-lib.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { describeEntryFields, describeSectionKinds } from '../spec/schema-describe.js';
 import { corpusSpec } from '../spec/corpus-spec.js';
@@ -10,7 +10,6 @@ import { renderTable } from '../render/table.js';
 // `tags` to a section. An author writes the same shape either way, so all
 // three route here and the described field tables come from the vendored
 // schema, which is pinned to the bundled release.
-const is20x = (spec) => spec === '0.20.0' || spec === '0.20.1' || spec === '0.21.0';
 
 export const specEntitySchemaDef = {
   name: 'dsds_spec_entity_schema',
@@ -27,7 +26,7 @@ export const specEntitySchemaDef = {
       },
       spec: {
         type: 'string',
-        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0'],
+        enum: ['0.15.2', '0.20.0', '0.20.1', '0.21.0', '0.21.1'],
         description: 'Which DSDS model to describe this kind under. Defaults to the schemaVersion of the loaded document, so it describes the model the corpus actually uses; 0.15.2 when nothing is loaded. system/entry are 0.20.x-only regardless of this flag.',
       },
     },
@@ -35,7 +34,7 @@ export const specEntitySchemaDef = {
   },
 };
 
-export async function specEntitySchemaHandler({ kind, spec }, getSystems = null, format = 'markdown') {
+export async function specEntitySchemaHandler({ kind, spec }, getSystems = null) {
   // Default to the model the loaded corpus is written in. Defaulting to
   // legacy 0.15.2 meant the common call — no `spec` argument, against a
   // 0.20.1 document — described `identifier`, `documentBlocks` and
@@ -44,7 +43,7 @@ export async function specEntitySchemaHandler({ kind, spec }, getSystems = null,
   // A namespaced custom kind (e.g. "sanity.guide") can't exist under legacy
   // 0.15.2 at all, so it always routes to the 0.20.0 path regardless of spec.
   const is20Only = kind === 'system' || kind === 'entry' || (!ENTITY_KINDS.includes(kind) && isValidKind20(kind));
-  if (is20x(effective) || is20Only) return render20(kind, format);
+  if (isSpec20x(effective) || is20Only) return render20(kind);
 
   const def = ENTITY_DESCRIPTIONS[kind];
   if (!def) {
@@ -110,7 +109,7 @@ export async function specEntitySchemaHandler({ kind, spec }, getSystems = null,
 }
 
 
-function fieldTable(fields, format) {
+function fieldTable(fields) {
   return renderTable(
     fields.map(f => ({
       field: `\`${f.name}\``,
@@ -121,9 +120,7 @@ function fieldTable(fields, format) {
       { key: 'field', header: 'Field' },
       { key: 'type', header: 'Type' },
       { key: 'description', header: 'Description' },
-    ],
-    { format, name: 'fields' }
-  ).split('\n');
+    ]).split('\n');
 }
 
 // Section-kind descriptions in the schema run to a paragraph. The table wants
@@ -140,7 +137,7 @@ function firstSentence(text, min = 60) {
   return out;
 }
 
-function render20(kind, format = 'markdown') {
+function render20(kind) {
   const isNamespacedCustomKind = !ENTITY_DESCRIPTIONS_0_20_0[kind] && isValidKind20(kind);
   const def = ENTITY_DESCRIPTIONS_0_20_0[isNamespacedCustomKind ? 'entry' : kind];
   if (!def) {
@@ -174,10 +171,10 @@ function render20(kind, format = 'markdown') {
   lines.push(def.summary, '');
 
   if (required.length) {
-    lines.push('## Required Fields', '', ...fieldTable(required, format), '');
+    lines.push('## Required Fields', '', ...fieldTable(required), '');
   }
   if (optional.length) {
-    lines.push('## Optional Fields', '', ...fieldTable(optional, format), '');
+    lines.push('## Optional Fields', '', ...fieldTable(optional), '');
   }
 
   const sectionKinds = describeSectionKinds();
@@ -189,9 +186,7 @@ function render20(kind, format = 'markdown') {
       '',
       ...renderTable(
         sectionKinds.map(s => ({ kind: `\`${s.kind}\``, holds: firstSentence(s.description) })),
-        [{ key: 'kind', header: 'Kind' }, { key: 'holds', header: 'Holds' }],
-        { format, name: 'sectionKinds' }
-      ).split('\n'),
+        [{ key: 'kind', header: 'Kind' }, { key: 'holds', header: 'Holds' }]).split('\n'),
       ''
     );
   }

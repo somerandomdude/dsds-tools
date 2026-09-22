@@ -22,7 +22,7 @@ export const getEntityDef = {
   },
 };
 
-export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null, format = 'markdown') {
+export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
   if (systems.length === 0 && introEntities.length === 0) {
@@ -141,7 +141,7 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     at = lines.length;
     renderSourceAndImports20(found, lines); if (lines.length > at) parts.push('imports');
     at = lines.length;
-    renderApi20(found, lines, propsConfig, format); if (lines.length > at) parts.push('api');
+    renderApi20(found, lines, propsConfig); if (lines.length > at) parts.push('api');
     if (found.sections?.length) {
       renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
       served.push(...found.sections);

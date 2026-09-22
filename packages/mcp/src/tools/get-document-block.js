@@ -1,7 +1,7 @@
 import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { notFoundMessage, entityIdentifiers, didYouMean } from '../suggest.js';
-import { renderApi20 } from '../spec/render-0.20.0.js';
+import { renderApi20, hydrateSharedItem20 } from '../spec/render-0.20.0.js';
 import { accessRecord } from '../logger.js';
 
 export const getDocumentBlockDef = {
@@ -86,7 +86,7 @@ function canonicalBlockName(entity, requested) {
   return { name: requested, coercedFrom: null };
 }
 
-export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null, format = 'markdown') {
+export async function getDocumentBlockHandler({ identifier, blockType }, getSystems, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
     return {
@@ -130,7 +130,7 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
     // prop data, not the raw `sourceFiles` pointer a generic passthrough would.
     const lines = [`# ${found.name ?? found.identifier} — \`api\` block`,
       ...(coercedFrom ? [`> Read \`${coercedFrom}\` as \`api\`.`] : []), ''];
-    renderApi20(found, lines, propsConfig, format);
+    renderApi20(found, lines, propsConfig);
     if (lines.length === 2) lines.push('*No API data available for this entry.*', '');
     const notice = getUpdateNotice();
     if (notice) lines.push(notice);
@@ -196,12 +196,19 @@ export async function getDocumentBlockHandler({ identifier, blockType }, getSyst
     return { isError: true, content: [{ type: 'text', text: lines.join('\n') }] };
   }
 
+  // Serialise with borrowed content merged in. A pure pointer carries no
+  // statement of its own, so dumping the raw block hands the caller a link
+  // and nothing to act on — 0.21.1 makes resolving it the consumer's job.
+  const serialisable = Array.isArray(block.items)
+    ? { ...block, items: block.items.map((it) => hydrateSharedItem20(it, found.__sharedEntries)) }
+    : block;
+
   const lines = [
     `# ${found.name ?? found.identifier} — \`${blockType}\` block`,
     ...(coercedFrom ? ['', `> Read \`${coercedFrom}\` as \`${blockType}\`.`] : []),
     '',
     '```json',
-    JSON.stringify(block, null, 2),
+    JSON.stringify(serialisable, null, 2),
     '```',
   ];
 

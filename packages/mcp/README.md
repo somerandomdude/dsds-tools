@@ -9,7 +9,7 @@ Three use cases:
 
 The DSDS spec is bundled at the version listed below. The server checks for updates on startup and surfaces a notice in tool responses when a newer version is available.
 
-**Bundled spec version:** 0.21.0
+**Bundled spec version:** 0.21.1
 
 ---
 

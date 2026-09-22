@@ -1,7 +1,16 @@
-// schema-0.21.0/ is vendored verbatim from the upstream repo's 0.21.0 release
-// of somerandomdude/design-system-documentation-schema, replacing the v0.20.1
-// vendor. schema-0.20.0/ and schema-0.20.1/ stay for the tools that still
-// describe those models on request.
+// schema-0.21.1/ is vendored verbatim from the upstream repo's 0.21.1 release
+// of somerandomdude/design-system-documentation-schema. schema-0.20.0/,
+// schema-0.20.1/ and schema-0.21.0/ stay for the tools that still describe
+// those models on request.
+//
+// 0.21.1 is a patch with one relaxation: a section item carrying `refs` is
+// exempt from its kind's normally-required content fields — a `guidelines`
+// item no longer needs `level`, a `definitions` item no longer needs
+// `term`/`definition`, a `steps` item no longer needs `title`. Nothing valid
+// at 0.21.0 becomes invalid. The obligation lands on the consumer, and the
+// changelog says so outright: "these fields are no longer guaranteed
+// present. Resolve the same-as target to obtain them." resolveSharedItem20
+// in render-0.20.0.js is where this server does that.
 //
 // 0.21.0 is a minor with exactly one shape change an author feels: every
 // component trait now requires `traitType` (`variant` or `state`), a
@@ -20,7 +29,7 @@
 // Sibling modules keep their -0.20.0/-0.20.1 filenames: they implement the
 // 0.20.x *model*, which 0.21.0 extends rather than replaces. Only the
 // vendored schema and this constant are version-pinned.
-export const BUNDLED_VERSION = '0.21.0';
+export const BUNDLED_VERSION = '0.21.1';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

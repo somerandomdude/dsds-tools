@@ -71,21 +71,35 @@ describe('validateDoc20', () => {
     expect(errors).toEqual([]);
   });
 
-  // `checked` is the case 0.21.0 added `traitType` for: a state the consumer
-  // sets, so `setBy: consumer` says nothing about which kind of trait it is.
-  it('accepts a trait\'s `setBy` field (consumer vs component)', () => {
+  // 0.21.0 removed `setBy` from a trait — `traitType` answers the question
+  // people reached for, and carrying both invited drift. Both trait branches
+  // set `unevaluatedProperties: false`, so a leftover is a hard error now,
+  // not a warning. The two states below are exactly the pair `setBy` used to
+  // distinguish, and they validate on `traitType` alone.
+  it('accepts consumer-set and component-set states without `setBy`', () => {
     const doc = {
       id: 'switch',
       kind: 'component',
       name: 'Switch',
       description: 'A toggle control.',
       traits: [
-        { id: 'checked', kind: 'boolean', traitType: 'state', description: 'Whether the switch is on.', setBy: 'consumer' },
-        { id: 'loading', kind: 'boolean', traitType: 'state', description: 'Whether a pending action is in flight.', setBy: 'component' },
+        { id: 'checked', kind: 'boolean', traitType: 'state', description: 'Whether the switch is on.' },
+        { id: 'loading', kind: 'boolean', traitType: 'state', description: 'Whether a pending action is in flight.' },
       ],
     };
     const { errors } = validateDoc20(doc);
     expect(errors).toEqual([]);
+  });
+
+  it('rejects a leftover `setBy`, removed from a trait in 0.21.0', () => {
+    const doc = {
+      id: 'switch',
+      kind: 'component',
+      name: 'Switch',
+      description: 'A toggle control.',
+      traits: [{ id: 'checked', kind: 'boolean', traitType: 'state', description: 'Whether the switch is on.', setBy: 'consumer' }],
+    };
+    expect(validateDoc20(doc).errors.length).toBeGreaterThan(0);
   });
 
   it('rejects an invalid `setBy` value', () => {

@@ -135,13 +135,8 @@ export function createToolRuntime({
   feedbackDir = null,
   logsDir = null,
   enableFeedback = true,
-  outputFormat = 'markdown',
 }) {
   const propsConfig = getPropsConfig ?? (() => ({ propsExtractorDir: null, uiSourceRoot: null }));
-  // One transport-level choice, not a per-call argument: a conversation that
-  // flips format mid-way defeats the prompt cache and gives the model two
-  // shapes for the same thing. See render/table.js and plan 007.
-  const fmt = outputFormat === 'toon' ? 'toon' : 'markdown';
   const toolDefs = [
     contextBriefDef,
     specOverviewDef,
@@ -205,21 +200,21 @@ export function createToolRuntime({
       switch (name) {
         case 'dsds_context_brief':        return contextBriefHandler(args, getSystems, getSummaries);
         case 'dsds_spec_overview':        return specOverviewHandler(args);
-        case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args, getSystems, fmt);
+        case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args, getSystems);
         case 'dsds_spec_document_blocks': return specDocumentBlocksHandler(args, getSystems);
         case 'dsds_spec_scaffold':        return specScaffoldHandler(args, getSystems);
         case 'dsds_build_component':      return buildComponentHandler(args, getSystems, getSummaries);
         case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);
         case 'dsds_style_check':          return styleCheckHandler(args);
-        case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries, fmt);
-        case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig(), fmt);
-        case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries, fmt);
-        case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig(), fmt);
-        case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig(), fmt);
+        case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
+        case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig());
+        case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries);
+        case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
+        case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
-        case 'dsds_get_examples':         return getExamplesHandler(args, getGraph, getSummaries, fmt);
-        case 'dsds_get_variants':         return getVariantsHandler(args, getSystems, fmt);
+        case 'dsds_get_examples':         return getExamplesHandler(args, getGraph, getSummaries);
+        case 'dsds_get_variants':         return getVariantsHandler(args, getSystems);
         case 'dsds_get_dependents':       return getDependentsHandler(args, getGraph);
         case 'dsds_get_dependencies':     return getDependenciesHandler(args, getGraph);
         case 'dsds_get_alternatives':     return getAlternativesHandler(args, getGraph);

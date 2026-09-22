@@ -18,7 +18,7 @@ const component = (overrides = {}) => ({
     { id: 'tone', kind: 'enum', traitType: 'variant', description: 'Semantic colour.', values: [{ id: 'neutral' }, { id: 'critical' }] },
     { id: 'muted', kind: 'boolean', traitType: 'variant', description: 'Lower visual weight.' },
     { id: 'hovered', kind: 'boolean', traitType: 'state', description: 'Pointer over.' },
-    { id: 'disabled', kind: 'boolean', traitType: 'state', setBy: 'consumer', description: 'Blocks interaction.' },
+    { id: 'disabled', kind: 'boolean', traitType: 'state', description: 'Blocks interaction.' },
   ],
   ...overrides,
 });
@@ -59,10 +59,12 @@ describe('dsds_get_variants', () => {
     expect(text.indexOf('## Variants')).toBeLessThan(text.indexOf('## States'));
   });
 
-  // The reason `traitType` exists rather than reusing `setBy`.
-  it('shows setBy, which asks a different question', async () => {
+  // `setBy` was removed from a trait in 0.21.0, so the table no longer
+  // carries a column for it — `traitType` is the only classification left.
+  it('lists a state without a Set by column', async () => {
     const text = await textOf({ identifier: 'badge', include: 'states' });
-    expect(text).toMatch(/`disabled`.*consumer/);
+    expect(text).toContain('`disabled`');
+    expect(text).not.toContain('Set by');
   });
 
   it('falls back to variants for an unknown include value', async () => {
@@ -135,10 +137,6 @@ describe('dsds_get_variants', () => {
     expect(JSON.stringify(res.structuredContent)).toContain('badge');
   });
 
-  it('renders TOON when the surface is set to it', async () => {
-    const text = await textOf({ identifier: 'badge' }, [component()], 'toon');
-    expect(text).toMatch(/variants\[2\]\{trait,values,setBy,description\}:/);
-  });
 
   it('reports counts as structured data', async () => {
     const res = await run({ identifier: 'badge' });

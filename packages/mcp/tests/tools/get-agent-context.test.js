@@ -75,3 +75,55 @@ describe('getAgentContextHandler — real 0.20.0 (.dsds.yaml)', () => {
     expect(result.content[0].text).toContain('Limit each surface to one primary button');
   });
 });
+
+// Measured 2026-09-21 across 310 real get_agent_context calls: `$extensions`
+// was 19.5% of this tool's payload and 13.3% of ALL MCP payload in the run,
+// and 95.9% of that was v3-to-v5 migration guides shipped to agents building
+// something new. `renderExtensions20` sat outside the verbose branch, so the
+// "compact view by default" in the tool description applied to sections and
+// not to extensions. See plans/008-payload-audit.md.
+describe('extensions and the compact view', () => {
+  const EXT = {
+    'com.sanity.ui': {
+      implementationStatus: { implemented: false, availableIn: ['3.5.3'], context: 'Implementation status.' },
+      migrationGuide: { context: 'Migration guide.', codemod: 'Run the codemod.', guidance: 'Long porting prose.' },
+    },
+  };
+  // Must be the 0.20.x shape: the legacy `agentDocumentBlocks` branch never
+  // reaches renderExtensions20.
+  const systemsWith = ($extensions) => [{
+    entities: [{
+      identifier: 'widget', kind: 'component', name: 'Widget', description: 'A widget.',
+      __dsds20: true,
+      sections: [{ kind: 'guidelines', for: 'all', framing: 'how-to-use', items: [{ level: 'must', statement: 'A rule.' }] }],
+      $extensions,
+    }],
+  }];
+  const ctx = (args, $extensions = EXT) =>
+    getAgentContextHandler(args, () => systemsWith($extensions)).then((r) => r.content[0].text);
+
+  it('drops the migration guide from the compact view', async () => {
+    const out = await ctx({ identifier: 'widget' });
+    expect(out).not.toContain('Long porting prose.');
+    expect(out).not.toContain('Run the codemod.');
+  });
+
+  it('keeps `implemented: false` — the agent must know there is no v5 build', async () => {
+    expect(await ctx({ identifier: 'widget' })).toContain('Implemented: no');
+  });
+
+  it('says what it omitted rather than hiding it', async () => {
+    expect(await ctx({ identifier: 'widget' })).toMatch(/1 migration\/porting section\(s\) omitted/);
+  });
+
+  it('still delivers the guide in full when asked verbosely', async () => {
+    const out = await ctx({ identifier: 'widget', verbose: true });
+    expect(out).toContain('Long porting prose.');
+    expect(out).not.toMatch(/migration\/porting section\(s\) omitted/);
+  });
+
+  it('leaves no bare "Tool data" heading when compaction empties the block', async () => {
+    const out = await ctx({ identifier: 'widget' }, { 'com.sanity.ui': { migrationGuide: { guidance: 'Only prose.' } } });
+    expect(out).not.toMatch(/## Tool data\s*\n\s*(##|>|$)/);
+  });
+});

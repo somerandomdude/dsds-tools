@@ -257,12 +257,7 @@ async function toolCommand(argv) {
 // Shared execution path for `dsds tool` and every porcelain command: load the
 // runtime, dispatch through the registry, log, print, and map the exit code.
 async function executeTool(name, args, values, exitCodeFn = null) {
-  const fmt = normalizeFormat(values.format);
-  if (values.format !== undefined && fmt === null) {
-    process.stderr.write(`dsds: --format must be "markdown" or "toon", got "${values.format}".\n`);
-    return 1;
-  }
-  const { config, dispatch } = await createRuntime({ quiet: values.quiet, configPath: values.config, outputFormat: fmt });
+  const { config, dispatch } = await createRuntime({ quiet: values.quiet, configPath: values.config });
 
   const startedAt = Date.now();
   const result = await dispatch(name, args);
@@ -325,11 +320,3 @@ function unknownCommand(command) {
   return `unknown command "${command}".${hint} Run \`dsds help\` for the list.`;
 }
 
-// `--format` accepts exactly the two the renderer implements. An unknown
-// value is rejected rather than silently falling back to markdown, which
-// would quietly produce the format the caller did not ask for.
-function normalizeFormat(value) {
-  if (value === undefined || value === null) return null;
-  const v = String(value).trim().toLowerCase();
-  return v === 'toon' || v === 'markdown' ? v : null;
-}

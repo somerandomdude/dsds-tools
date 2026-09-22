@@ -52,18 +52,36 @@ export function resolveFileRef20(entityFilePath, ref) {
 // on a namespace at all, so another corpus may well use the flat form. Both
 // render, and an unrecognized sub-object still prints rather than vanishing —
 // the same rule as the namespace allowlist above.
-function renderSanityUiExtension(data, lines) {
+function renderSanityUiExtension(data, lines, { compact = false } = {}) {
   renderSanityUiFacts(data, lines);
+  let omitted = 0;
 
   for (const [key, value] of Object.entries(data)) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+
+    // The split that matters in compact mode is facts vs free text, not a
+    // hardcoded key name. `implementationStatus` is nothing but facts —
+    // `implemented: false` is how an agent learns a component has no v5
+    // equivalent, which is build-critical and costs one line. A
+    // `migrationGuide` is a codemod invocation plus pages of v3-to-v5 prose,
+    // which is only useful to something that has v3 code to port.
+    //
+    // Measured 2026-09-21 over 310 real get_agent_context calls: the guides
+    // are 95.9% of this block and 13.3% of ALL MCP payload, against 3.6% for
+    // implementation status. See plans/008-payload-audit.md.
+    const prose = Object.entries(value).filter(
+      ([k, v]) => !SANITY_UI_FACTS.has(k) && typeof v === 'string',
+    );
+    if (compact && prose.length) {
+      omitted += 1;
+      continue;
+    }
+
     lines.push('', `**${titleCase20(key)}**`, '');
     renderSanityUiFacts(value, lines);
-    for (const [k, v] of Object.entries(value)) {
-      if (SANITY_UI_FACTS.has(k) || typeof v !== 'string') continue;
-      lines.push('', asText20(v));
-    }
+    for (const [, v] of prose) lines.push('', asText20(v));
   }
+  return omitted;
 }
 
 const SANITY_UI_FACTS = new Set(['implemented', 'availableIn', 'tracking', 'context']);
@@ -95,18 +113,33 @@ function renderGenericExtension(namespace, data, lines) {
   lines.push('```json', JSON.stringify(data, null, 2), '```', '', '</details>');
 }
 
-/** Renders `$extensions` at any level (entity, section, or item). Empty/missing is a silent no-op; a populated unknown namespace is never dropped. */
-export function renderExtensions20(extensions, lines, { heading = null } = {}) {
+/**
+ * Renders `$extensions` at any level (entity, section, or item). Empty/missing
+ * is a silent no-op; a populated unknown namespace is never dropped.
+ *
+ * `compact` drops free-text sub-objects (migration guides) while keeping every
+ * fact. Returns how many were dropped, so the caller can say so.
+ */
+export function renderExtensions20(extensions, lines, { heading = null, compact = false } = {}) {
   const namespaces = Object.keys(extensions ?? {});
-  if (!namespaces.length) return;
+  if (!namespaces.length) return 0;
+  const start = lines.length;
   if (heading) lines.push(heading, '');
+  let omitted = 0;
   for (const ns of namespaces) {
     const data = extensions[ns];
-    if (ns === 'com.sanity.ui') renderSanityUiExtension(data, lines);
+    if (ns === 'com.sanity.ui') omitted += renderSanityUiExtension(data, lines, { compact });
     else if (ns === 'com.figma') renderFigmaExtension(data, lines);
     else renderGenericExtension(ns, data, lines);
   }
+  // Compact mode can empty the block out entirely. Leaving a bare heading
+  // reads as "this entity has no tool data", which is the opposite of true.
+  if (lines.length === start + (heading ? 2 : 0)) {
+    lines.length = start;
+    return omitted;
+  }
   lines.push('');
+  return omitted;
 }
 
 // ── Examples / showcase ──────────────────────────────────────────────────
@@ -138,24 +171,111 @@ function renderExample20(example, lines, filePath) {
 
 // ── shared[] / same-as resolution ───────────────────────────────────────
 //
-// A `rel: same-as` ref (`to: "<sharedId>#<itemId>"`) means this item pulls
-// its statement from a pooled `shared[]` entry instead of restating it —
-// resolve and inline that item's text rather than rendering a bare pointer.
+// A `rel: same-as` ref (`to: "<sharedId>#<itemId>"`) means this item takes
+// its content from a pooled `shared[]` entry instead of restating it.
+//
+// 0.21.1 turned this from a convenience into an obligation. Before it, an
+// item had to repeat the target's `level` alongside the pointer, and
+// DSDS-10 existed largely to police that the copy agreed with the original
+// — the schema forced the duplication, then validated it. Now a section
+// item carrying `refs` is exempt from its kind's required content fields:
+// a `guidelines` item needs no `level`, a `definitions` item no
+// `term`/`definition`, a `steps` item no `title`. The changelog puts the
+// consequence on consumers directly: "these fields are no longer
+// guaranteed present. Resolve the same-as target to obtain them."
+//
+// So this module distinguishes two shapes, and renders them differently:
+//
+//   Pure pointer  — the item declares no content of its own. The target IS
+//                   the item; resolve it and render it inline, so a reader
+//                   gets the rule rather than a link to go and find it.
+//   Sharpened     — the item states its own content AND points at a shared
+//                   rule (usually `rel: refines`). The local text is what
+//                   applies here; the pointer is shown alongside it so the
+//                   reader can trace what it narrows.
 
-function findSameAsTarget(item, sharedEntries) {
-  const sameAs = (item.refs ?? []).find((r) => r.rel === 'same-as' && typeof r.to === 'string');
-  if (!sameAs || !sharedEntries?.length) return null;
-  const hashIdx = sameAs.to.indexOf('#');
+const SAME_AS_RELS = new Set(['same-as']);
+
+/** The `{sharedId, itemId}` a ref addresses, or null if it isn't an anchored pointer. */
+function splitAnchor(to) {
+  if (typeof to !== 'string') return null;
+  const hashIdx = to.indexOf('#');
   if (hashIdx === -1) return null;
-  const sharedId = sameAs.to.slice(0, hashIdx);
-  const itemId = sameAs.to.slice(hashIdx + 1);
-  const sharedEntry = sharedEntries.find((s) => s.id === sharedId);
+  return { sharedId: to.slice(0, hashIdx), itemId: to.slice(hashIdx + 1) };
+}
+
+/** Look one item up in the `shared[]` pool. */
+function lookupSharedItem(to, sharedEntries) {
+  const anchor = splitAnchor(to);
+  if (!anchor || !sharedEntries?.length) return null;
+  const sharedEntry = sharedEntries.find((s) => s.id === anchor.sharedId);
   if (!sharedEntry) return null;
   for (const section of sharedEntry.sections ?? []) {
-    const found = (section.items ?? []).find((i) => i.id === itemId);
+    const found = (section.items ?? []).find((i) => i.id === anchor.itemId);
     if (found) return found;
   }
   return null;
+}
+
+function findSameAsTarget(item, sharedEntries) {
+  const sameAs = (item.refs ?? []).find((r) => SAME_AS_RELS.has(r.rel) && typeof r.to === 'string');
+  return sameAs ? lookupSharedItem(sameAs.to, sharedEntries) : null;
+}
+
+/**
+ * Resolve a section item against the shared pool.
+ *
+ * `contentFields` are the fields that make an item say something on its own
+ * — the ones 0.21.1 made optional in the presence of `refs`. An item with
+ * none of them set is a pure pointer.
+ *
+ * @returns {{pure: boolean, target: object|null, pointers: Array}}
+ *   `pure`      the item declares no content of its own
+ *   `target`    the resolved `same-as` item, when there is one
+ *   `pointers`  refs worth showing next to a sharpened item's own content
+ */
+export function resolveSharedItem20(item, sharedEntries, contentFields) {
+  const hasOwnContent = contentFields.some((f) => item?.[f] != null);
+  const target = findSameAsTarget(item, sharedEntries);
+  const pointers = (item?.refs ?? []).filter(
+    (r) => (SAME_AS_RELS.has(r.rel) || r.rel === 'refines') && typeof r.to === 'string' && splitAnchor(r.to),
+  );
+  return { pure: !hasOwnContent && Boolean(item?.refs?.length), target, pointers };
+}
+
+/**
+ * A section item with everything it borrows merged in.
+ *
+ * `resolveSharedItem20` answers "is this a pointer, and what does it point
+ * at" for the renderers. This is for callers that hand an item to something
+ * other than the renderer — `dsds_get_document_block` serialises the raw
+ * block as JSON, so without this an agent asking for a block gets
+ * `{"refs":[{"to":"shared-foundations#…","rel":"same-as"}]}` and no rule at
+ * all. That was already true before 0.21.1 (a pointer never carried a
+ * `statement`); the relaxation only removed the `level` crumb that made it
+ * look less empty than it was.
+ *
+ * Only a pure pointer is hydrated, and `refs` is kept, so provenance
+ * survives and a sharpened item's own wording is never overwritten.
+ */
+export function hydrateSharedItem20(item, sharedEntries, contentFields = ['statement', 'term', 'definition', 'title']) {
+  const { pure, target } = resolveSharedItem20(item, sharedEntries, contentFields);
+  return pure && target ? { ...target, ...item, refs: item.refs } : item;
+}
+
+/** `- Shared rule: …` trace line for a sharpened item. */
+function pushSharedPointers(pointers, lines, sharedEntries, indent = '  ') {
+  for (const r of pointers) {
+    const resolved = lookupSharedItem(r.to, sharedEntries);
+    const verb = r.rel === 'refines' ? 'Refines' : 'Shared rule';
+    const gist = resolved?.statement ? ` — ${truncateGist(asText20(resolved.statement))}` : '';
+    lines.push(`${indent}- ${verb}: \`${r.to}\`${gist}`);
+  }
+}
+
+function truncateGist(text, max = 140) {
+  const flat = String(text).replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
 function renderFreeform(freeform, lines, ctx = {}, depth = 3) {
@@ -183,7 +303,19 @@ function renderFreeform(freeform, lines, ctx = {}, depth = 3) {
 
 function renderDefinitions(section, lines, ctx) {
   for (const item of section.items ?? []) {
-    lines.push(`- **${item.term}**: ${asText20(item.definition)}`);
+    // 0.21.1 gave definitions a `refs` field, so a term declared once in
+    // `shared` can be borrowed instead of restated.
+    const { pure, target, pointers } = resolveSharedItem20(item, ctx.sharedEntries, ['term', 'definition']);
+    const source = pure && target ? target : item;
+    const term = source.term ?? item.term;
+    const definition = source.definition ?? item.definition;
+    if (term == null && definition == null) {
+      const pointer = (item.refs ?? []).find((r) => r.to || r.href);
+      lines.push(`- see ${pointer?.to ?? pointer?.href ?? '(refs)'}`);
+      continue;
+    }
+    lines.push(`- **${term}**: ${asText20(definition)}`);
+    if (!pure) pushSharedPointers(pointers, lines, ctx.sharedEntries);
   }
   lines.push('');
   renderFreeform(section.freeform, lines, ctx);
@@ -209,25 +341,41 @@ function isProseOnlyExample(example) {
  * callers turn off — internal verification-process metadata, not doc prose.
  */
 export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showChecklistExample = true, showCheckedBy = true, showAlternatives = true } = {}) {
-  const level = showLevel && item.level ? `**${item.level}** — ` : '';
-  const sameAsTarget = item.statement == null ? findSameAsTarget(item, ctx.sharedEntries) : null;
-  const text = item.statement ?? sameAsTarget?.statement ?? item.guidance;
+  const { pure, target, pointers } = resolveSharedItem20(item, ctx.sharedEntries, ['statement']);
+
+  // A pure pointer renders as the item it points at. Everything the reader
+  // needs — level, statement, checkedBy, alternatives, example — comes from
+  // the target, because 0.21.1 stopped requiring the item to restate any of
+  // it. A sharpened item keeps its own content and shows the pointer.
+  const source = pure && target ? target : item;
+  const effectiveLevel = item.level ?? (pure ? target?.level : undefined);
+  const level = showLevel && effectiveLevel ? `**${effectiveLevel}** — ` : '';
+  const text = source.statement ?? item.statement ?? target?.statement ?? item.guidance;
+
   if (text != null) {
     lines.push(`- ${level}${asText20(text)}`);
   } else {
-    // No statement, and no resolvable same-as target — the item points
-    // somewhere else instead (e.g. an external-link), see `refs`.
+    // Nothing to inline: either the pointer is external, or its target is
+    // outside the shared pool this render can see.
     const pointer = (item.refs ?? []).find((r) => r.rel === 'same-as' || r.rel === 'external-link');
     lines.push(`- ${level}${pointer ? `see ${pointer.to ?? pointer.href}` : '(see refs)'}`);
   }
-  if (item.checkedBy && showCheckedBy) lines.push(`  - Checked by: ${item.checkedBy}`);
+
+  const checkedBy = source.checkedBy ?? item.checkedBy;
+  if (checkedBy && showCheckedBy) lines.push(`  - Checked by: ${checkedBy}`);
   if (showAlternatives) {
-    for (const alt of item.alternatives ?? []) {
+    for (const alt of source.alternatives ?? item.alternatives ?? []) {
       lines.push(`  - Alternative: \`${alt.to ?? alt.href}\`${alt.rel ? ` (${alt.rel})` : ''}`);
     }
   }
-  const skipExample = isProseOnlyExample(item.example) && !showChecklistExample;
-  if (item.example && !skipExample) renderExample20(item.example, lines, ctx.filePath);
+  // Only a sharpened item shows where it came from. A pure pointer has been
+  // rendered as the shared rule itself, so a "shared rule:" line under it
+  // would just repeat what the reader has already been given.
+  if (!pure) pushSharedPointers(pointers, lines, ctx.sharedEntries);
+
+  const example = source.example ?? item.example;
+  const skipExample = isProseOnlyExample(example) && !showChecklistExample;
+  if (example && !skipExample) renderExample20(example, lines, ctx.filePath);
   renderExtensions20(item.$extensions, lines);
 }
 
@@ -255,11 +403,16 @@ function renderSteps(section, lines, ctx) {
   (section.items ?? []).forEach((item, i) => {
     const marker = isOrdered ? `${i + 1}.` : '-';
     const optional = item.optional ? ' *(optional)*' : '';
-    lines.push(`**${marker} ${item.title ?? item.label}**${optional}`, '');
+    // A step carrying `refs` needs no `title` of its own as of 0.21.1.
+    const { pure, target, pointers } = resolveSharedItem20(item, ctx.sharedEntries, ['title']);
+    const source = pure && target ? target : item;
+    const title = source.title ?? item.title ?? item.label;
+    lines.push(`**${marker} ${title ?? `see ${(item.refs ?? [])[0]?.to ?? '(refs)'}`}**${optional}`, '');
     // Spec field is `instruction`, but every corpus entry authored so far uses `description`
     // instead — accept both rather than silently drop every step's body text.
-    const body = item.description ?? item.instruction;
+    const body = source.description ?? source.instruction ?? item.description ?? item.instruction;
     if (body) lines.push(asText20(body), '');
+    if (!pure) pushSharedPointers(pointers, lines, ctx.sharedEntries, '');
     for (const example of item.examples ?? []) renderExample20(example, lines, ctx.filePath);
   });
   renderFreeform(section.freeform, lines, ctx);
@@ -355,9 +508,6 @@ function renderTrait20(trait, lines) {
   } else {
     lines.push(`- \`${trait.id}\` — boolean`);
   }
-  // `setBy` is a different question from `traitType` and worth stating when
-  // present: a `state` the consumer sets still becomes a prop.
-  if (trait.setBy) lines.push(`  - set by: ${trait.setBy}`);
   if (trait.description) lines.push(`  - ${asText20(trait.description)}`);
 }
 
@@ -484,7 +634,7 @@ const INTERACTIVE_TAGS = new Set([
   'a', 'button', 'details', 'dialog', 'input', 'option', 'select', 'summary', 'textarea',
 ]);
 
-export function renderEvents20(events, format = 'markdown', polymorphic = null) {
+export function renderEvents20(events, polymorphic = null) {
   const handlers = events?.handlers ?? [];
   if (!handlers.length) return [];
 
@@ -527,7 +677,7 @@ export function renderEvents20(events, format = 'markdown', polymorphic = null) 
       ''
     );
   }
-  out.push(...renderTable(rows, EVENT_COLUMNS, { format, name: 'events' }).split('\n'), '');
+  out.push(...renderTable(rows, EVENT_COLUMNS).split('\n'), '');
 
   // The table is a subset by design (DOMAttributes declares 84 events). Say
   // how big the rest is, so "not listed" never reads as "not accepted".
@@ -541,7 +691,7 @@ export function renderEvents20(events, format = 'markdown', polymorphic = null) 
   return out;
 }
 
-export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
+export function renderApi20(entity, lines, propsConfig) {
   const result = getApiForEntry(entity, propsConfig);
 
   switch (result.status) {
@@ -586,14 +736,14 @@ export function renderApi20(entity, lines, propsConfig, format = 'markdown') {
         lines.push('> *Freshness not verified against source (`uiSourceRoot` not configured).*', '');
       }
       if (props.length) {
-        lines.push(...renderTable(props.map(propRow), API_COLUMNS, { format, name: 'props' }).split('\n'), '');
+        lines.push(...renderTable(props.map(propRow), API_COLUMNS).split('\n'), '');
       } else {
         lines.push('This component has no props of its own.', '');
       }
       if (alsoAccepts.length) {
         lines.push(...renderAlsoAccepts(alsoAccepts));
       }
-      lines.push(...renderEvents20(events, format, result.props?.polymorphic));
+      lines.push(...renderEvents20(events, result.props?.polymorphic));
       return;
     }
   }

@@ -67,7 +67,6 @@ function toRow(trait, { labelled }) {
     trait: `\`${trait.id}\``,
     ...(labelled ? { type: trait.traitType ?? '—' } : {}),
     values,
-    setBy: trait.setBy ?? '—',
     description: trait.description ?? '',
   };
 }
@@ -76,7 +75,6 @@ const COLUMNS = (labelled) => [
   { key: 'trait', header: 'Trait' },
   ...(labelled ? [{ key: 'type', header: 'Type' }] : []),
   { key: 'values', header: 'Values' },
-  { key: 'setBy', header: 'Set by' },
   { key: 'description', header: 'Description' },
 ];
 
@@ -104,7 +102,6 @@ const isUnclassified = (t) => !isVariant(t) && !isState(t);
 export async function getVariantsHandler(
   { identifier, include },
   getSystems,
-  format = 'markdown',
 ) {
   const mode = INCLUDE.includes(include) ? include : 'variants';
   const systems = getSystems?.() ?? [];
@@ -189,10 +186,7 @@ export async function getVariantsHandler(
       continue;
     }
     lines.push(
-      renderTable(list.map(t => toRow(t, { labelled })), COLUMNS(labelled), {
-        format,
-        name: label.toLowerCase(),
-      }),
+      renderTable(list.map(t => toRow(t, { labelled })), COLUMNS(labelled)),
       '',
     );
   }

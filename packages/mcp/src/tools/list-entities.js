@@ -30,7 +30,7 @@ export const listEntitiesDef = {
   },
 };
 
-export async function listEntitiesHandler(args, getSystems, getSummaries, format = 'markdown') {
+export async function listEntitiesHandler(args, getSystems, getSummaries) {
   if (getSystems().length === 0) {
     return {
       isError: true,
@@ -90,7 +90,7 @@ export async function listEntitiesHandler(args, getSystems, getSummaries, format
     if (shown.length < entities.length) {
       tableRows.push({ identifier: `_…${entities.length - shown.length} more_`, status: '', summary: '' });
     }
-    lines.push(...renderTable(tableRows, cols, { format, name: toonName(kind) }).split('\n'));
+    lines.push(...renderTable(tableRows, cols).split('\n'));
     lines.push('');
   }
 
@@ -148,11 +148,6 @@ function humanizeKindPlural(kind) {
   const humanized = capitalize(kind.replace(/\./g, ' '));
   // Standard English pluralization: "entry" -> "entries", not "entrys".
   return /[^aeiou]y$/i.test(humanized) ? `${humanized.slice(0, -1)}ies` : `${humanized}s`;
-}
-
-// TOON names the array; the kind is the honest name for a per-kind group.
-function toonName(kind) {
-  return String(kind ?? 'entities').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'entities';
 }
 
 function truncate(str, max) {
