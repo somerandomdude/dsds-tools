@@ -172,8 +172,10 @@ function renderExample20(example, lines, filePath) {
 
 // ── shared[] / same-as resolution ───────────────────────────────────────
 //
-// A `rel: same-as` ref (`to: "<sharedId>#<itemId>"`) means this item takes
-// its content from a pooled `shared[]` entry instead of restating it.
+// A `rel: same-as` ref (`to: "<entryId>#<itemId>"`) means this item takes
+// its content from an item declared once elsewhere — in the base document's
+// `shared[]` or in any entry loaded with it (see loader.js) — instead of
+// restating it.
 //
 // 0.21.1 turned this from a convenience into an obligation. Before it, an
 // item had to repeat the target's `level` alongside the pointer, and
@@ -205,7 +207,7 @@ function splitAnchor(to) {
   return { sharedId: to.slice(0, hashIdx), itemId: to.slice(hashIdx + 1) };
 }
 
-/** Look one item up in the `shared[]` pool. */
+/** Look one item up in the resolvable pool (`shared[]` plus sibling entries). */
 function lookupSharedItem(to, sharedEntries) {
   const anchor = splitAnchor(to);
   if (!anchor || !sharedEntries?.length) return null;
@@ -274,6 +276,22 @@ function pushSharedPointers(pointers, lines, sharedEntries, indent = '  ') {
   }
 }
 
+/**
+ * What to print for an item with no content of its own and nothing to inline.
+ *
+ * A `same-as` that did not resolve is a broken ref and must not look like a
+ * working pointer — both used to print "see X", so a rule could disappear
+ * from a page with nothing on the page saying so. `dsds doctor` fails on the
+ * same condition ("item references"). Any other ref (an external link) is a
+ * legitimate pointer and keeps the plain "see X".
+ */
+function unresolvedLabel(item) {
+  const sameAs = (item.refs ?? []).find((r) => r.rel === 'same-as' && typeof r.to === 'string');
+  if (sameAs) return `**Unresolved reference:** \`${sameAs.to}\` — this rule could not be found.`;
+  const pointer = (item.refs ?? []).find((r) => r.rel === 'external-link') ?? (item.refs ?? []).find((r) => r.to || r.href);
+  return pointer ? `see ${pointer.to ?? pointer.href}` : '(see refs)';
+}
+
 function truncateGist(text, max = 140) {
   const flat = String(text).replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
@@ -311,8 +329,7 @@ function renderDefinitions(section, lines, ctx) {
     const term = source.term ?? item.term;
     const definition = source.definition ?? item.definition;
     if (term == null && definition == null) {
-      const pointer = (item.refs ?? []).find((r) => r.to || r.href);
-      lines.push(`- see ${pointer?.to ?? pointer?.href ?? '(refs)'}`);
+      lines.push(`- ${unresolvedLabel(item)}`);
       continue;
     }
     lines.push(`- **${term}**: ${asText20(definition)}`);
@@ -356,10 +373,12 @@ export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showCh
   if (text != null) {
     lines.push(`- ${level}${asText20(text)}`);
   } else {
-    // Nothing to inline: either the pointer is external, or its target is
-    // outside the shared pool this render can see.
-    const pointer = (item.refs ?? []).find((r) => r.rel === 'same-as' || r.rel === 'external-link');
-    lines.push(`- ${level}${pointer ? `see ${pointer.to ?? pointer.href}` : '(see refs)'}`);
+    // Nothing to inline. An external link is a legitimate pointer. A
+    // `same-as` that did not resolve is a broken ref, and must not look like
+    // a working one: both used to print "see X", so a rule could vanish from
+    // a page with nothing on the page saying so. `dsds doctor` fails on the
+    // same condition ("item references").
+    lines.push(`- ${level}${unresolvedLabel(item)}`);
   }
 
   const checkedBy = source.checkedBy ?? item.checkedBy;
@@ -408,7 +427,7 @@ function renderSteps(section, lines, ctx) {
     const { pure, target, pointers } = resolveSharedItem20(item, ctx.sharedEntries, ['title']);
     const source = pure && target ? target : item;
     const title = source.title ?? item.title ?? item.label;
-    lines.push(`**${marker} ${title ?? `see ${(item.refs ?? [])[0]?.to ?? '(refs)'}`}**${optional}`, '');
+    lines.push(`**${marker} ${title ?? unresolvedLabel(item)}**${optional}`, '');
     // Spec field is `instruction`, but every corpus entry authored so far uses `description`
     // instead — accept both rather than silently drop every step's body text.
     const body = source.description ?? source.instruction ?? item.description ?? item.instruction;

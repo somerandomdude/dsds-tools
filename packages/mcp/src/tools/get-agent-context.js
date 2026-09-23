@@ -102,19 +102,18 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig) {
       lines.push(`> ${omitted} human-only section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you need them.`, '');
     }
   }
-  // Same bargain as the sections above: the compact view keeps the facts and
-  // points at what it left out, rather than silently shipping a v3 migration
-  // guide to an agent building something new.
-  const droppedExt = renderExtensions20(found.$extensions, lines, {
-    heading: '## Tool data',
-    compact: !verbose,
-  });
-  if (droppedExt > 0) {
-    lines.push(
-      `> ${droppedExt} migration/porting section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you are porting v3 code.`,
-      '',
-    );
-  }
+  // Extensions render in full, including migration guides.
+  //
+  // These were gated behind `verbose` to save ~13% of payload, on the
+  // reasoning that a v3-to-v5 migration guide is useless to an agent building
+  // something new. Two runs afterwards failed to build on v3 prop names, and
+  // the correction for one of them — `flexGrow` for a v3 `flex` — existed
+  // only in the gated content. The payload saving is not worth removing the
+  // v3-to-v5 prop mapping from what an agent reads.
+  //
+  // `renderExtensions20` still takes `compact`; flip this to `!verbose` to
+  // restore the gate if a measurement says the saving was fine after all.
+  renderExtensions20(found.$extensions, lines, { heading: '## Tool data', compact: false });
 
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);

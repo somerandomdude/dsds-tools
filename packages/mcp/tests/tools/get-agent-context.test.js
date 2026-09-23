@@ -73,12 +73,14 @@ describe('getAgentContextHandler — real 0.20.0 (.dsds.yaml)', () => {
   });
 });
 
-// Measured 2026-09-21 across 310 real get_agent_context calls: `$extensions`
-// was 19.5% of this tool's payload and 13.3% of ALL MCP payload in the run,
-// and 95.9% of that was v3-to-v5 migration guides shipped to agents building
-// something new. `renderExtensions20` sat outside the verbose branch, so the
-// "compact view by default" in the tool description applied to sections and
-// not to extensions. See plans/008-payload-audit.md.
+// `$extensions` is ~19% of this tool's payload, almost all of it v3-to-v5
+// migration guides. Gating them behind `verbose` saved ~13% of all MCP
+// payload; it was reverted when two runs afterwards failed to build on v3
+// prop names and the correction for one — `flexGrow` for a v3 `flex` —
+// turned out to live only in the gated content.
+//
+// The gate itself still works and is unit-tested in tests/render/. What
+// these assert is the caller's choice: get_agent_context does not use it.
 describe('extensions and the compact view', () => {
   const EXT = {
     'com.sanity.ui': {
@@ -99,18 +101,18 @@ describe('extensions and the compact view', () => {
   const ctx = (args, $extensions = EXT) =>
     getAgentContextHandler(args, () => systemsWith($extensions)).then((r) => r.content[0].text);
 
-  it('drops the migration guide from the compact view', async () => {
+  it('delivers the migration guide in the compact view', async () => {
     const out = await ctx({ identifier: 'widget' });
-    expect(out).not.toContain('Long porting prose.');
-    expect(out).not.toContain('Run the codemod.');
+    expect(out).toContain('Long porting prose.');
+    expect(out).toContain('Run the codemod.');
   });
 
   it('keeps `implemented: false` — the agent must know there is no v5 build', async () => {
     expect(await ctx({ identifier: 'widget' })).toContain('Implemented: no');
   });
 
-  it('says what it omitted rather than hiding it', async () => {
-    expect(await ctx({ identifier: 'widget' })).toMatch(/1 migration\/porting section\(s\) omitted/);
+  it('omits nothing, so it has nothing to report omitting', async () => {
+    expect(await ctx({ identifier: 'widget' })).not.toMatch(/migration\/porting section\(s\) omitted/);
   });
 
   it('still delivers the guide in full when asked verbosely', async () => {

@@ -1,0 +1,25 @@
+# Fixture: a `same-as` into an ordinary sibling entry, not just `shared[]`.
+# `consumer` borrows one rule from shared[], one from the `pool-pattern`
+# sibling entry, and points at one item that does not exist.
+schemaVersion: 0.21.1
+name: Same-as pool fixture
+entries:
+  - kind: system
+    id: pool-system
+    name: Pool system
+    description: Fixture system.
+shared:
+  - id: shared-rules
+    name: Shared rules
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: from-shared
+            level: must
+            statement: Borrowed from the shared pool.
+refs:
+  - href: ./pool-pattern.dsds.yaml
+    rel: file
+  - href: ./consumer.dsds.yaml
+    rel: file

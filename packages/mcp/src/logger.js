@@ -8,7 +8,7 @@ import { join } from 'node:path';
  * triggered it. A no-op when `logsDir` is falsy (logging disabled). The entry is
  * stamped with an ISO `timestamp` unless it already carries one.
  *
- * Every entry SHOULD include a `type` discriminator ('tool' | 'access' | 'lint')
+ * Every entry SHOULD include a `type` discriminator ('tool' | 'access' | 'lint' | 'jev')
  * so log readers can classify it without inferring from shape. ('chunk' is the
  * pre-0.5 name for what 'access' now covers; readers still accept it.)
  */
@@ -94,4 +94,45 @@ export function accessRecord({ identifier, name, entityKind, sections, parts, om
   if (omitted) record.omitted = omitted;
   if (typeof chars === 'number') record.chars = chars;
   return record;
+}
+
+// ── Agent-evaluation records ─────────────────────────────────────────────────
+//
+// The MCP never calls an evaluator — the corpus emits questions and a caller
+// owns the key and the request. But the judgments belong in the same log as
+// everything else, so `dsds logs:top` can report on them beside tool use and
+// lint findings rather than each consumer inventing its own store.
+//
+// Written by Tools/dsds-jev-eval, not by this server. The shape is fixed here
+// because the reader (scripts/log-stats.js) is here.
+
+/**
+ * One evaluation record: a set of guideline judgments over one piece of code.
+ *
+ * @param {object} r
+ * @param {string} r.model - the model that answered, as it reported itself
+ * @param {string} [r.subject] - what was judged (a filename, a case name)
+ * @param {Array<{guideline: string, probability: number, verdict: string, label?: boolean|null}>} r.judgments
+ *   `label` is the known answer when there is one (a benchmark case), else null.
+ * @param {number} [r.inputTokens]
+ * @returns {object} an entry for writeLog
+ */
+export function jevRecord({ model, subject = null, judgments = [], inputTokens = null }) {
+  const scored = judgments.filter((j) => j.label != null);
+  return {
+    type: 'jev',
+    model,
+    subject,
+    questions: judgments.length,
+    // Only meaningful for labelled input; null for a judgment on real code.
+    correct: scored.length ? scored.filter((j) => (j.probability >= 0.8) === j.label).length : null,
+    scored: scored.length || null,
+    inputTokens,
+    judgments: judgments.map((j) => ({
+      guideline: j.guideline,
+      probability: j.probability,
+      verdict: j.verdict,
+      ...(j.label == null ? {} : { label: j.label }),
+    })),
+  };
 }

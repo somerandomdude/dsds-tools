@@ -38,9 +38,10 @@ function normalizeEntity20(entity, filePath, sharedEntries) {
   // file` that point at sibling non-YAML assets (e.g. a chunk's code file),
   // which are never followed/inlined by extractEntities20 below.
   entity.__filePath = filePath;
-  // The base document's `shared[]` pool this entity was loaded alongside —
-  // needed to resolve a `rel: same-as` ref (`to: "<sharedId>#<itemId>"`) at
-  // render time. Empty for a standalone entry file (no base doc, no pool).
+  // The pool a `rel: same-as` ref (`to: "<entryId>#<itemId>"`) resolves
+  // against at render time. Starts as the base document's `shared[]`;
+  // `loadYamlFile` widens it to every entry loaded alongside once they are
+  // all known. Empty for a standalone entry file (no base doc, no pool).
   entity.__sharedEntries = sharedEntries ?? [];
   return entity;
 }
@@ -64,7 +65,7 @@ function normalizeEntity20(entity, filePath, sharedEntries) {
  * rendered as an unresolved "see shared-foundations#..." pointer instead of
  * the pooled statement.
  */
-async function extractEntities20(doc, absPath, visited, rootSharedEntries = null) {
+async function extractEntities20(doc, absPath, visited, rootSharedEntries = null, failures = []) {
   const sharedEntries = rootSharedEntries ?? (isBaseDoc20(doc) ? (doc.shared ?? []) : []);
   const here = isBaseDoc20(doc)
     ? entriesIn20(doc).map(e => normalizeEntity20(e, absPath, sharedEntries))
@@ -90,11 +91,14 @@ async function extractEntities20(doc, absPath, visited, rootSharedEntries = null
     try {
       const raw = await readFile(siblingPath, 'utf-8');
       const siblingDoc = loadYaml20(raw);
-      rest.push(...await extractEntities20(siblingDoc, siblingPath, visited, sharedEntries));
-    } catch {
-      // A missing/unreadable sibling is silently skipped, same as the
-      // a bad sibling file shouldn't take
-      // the whole server down.
+      rest.push(...await extractEntities20(siblingDoc, siblingPath, visited, sharedEntries, failures));
+    } catch (err) {
+      // A bad sibling must not take the whole server down, so it is still
+      // skipped — but no longer silently. It used to vanish with nothing
+      // reported: an unparseable `glossary.dsds.yaml` dropped the entire
+      // glossary from the MCP while `dsds doctor` printed "all checks
+      // passed". Recorded here, surfaced by `loadSystems` as an error.
+      failures.push({ path: siblingPath, error: err.message, sibling: true });
     }
   }
   return [...here, ...rest];
@@ -104,8 +108,19 @@ async function loadYamlFile(filePath) {
   const absPath = resolve(filePath);
   const raw = await readFile(absPath, 'utf-8');
   const document = loadYaml20(raw);
-  const entities = await extractEntities20(document, absPath, new Set([absPath]));
-  return { filePath: absPath, document, entities };
+  const failures = [];
+  const entities = await extractEntities20(document, absPath, new Set([absPath]), null, failures);
+  // Widen the `same-as` pool from the base document's `shared[]` to every
+  // entry loaded with it. DSDS-05 already treats `entryId#itemId` as a
+  // resolvable ref form — "the named entry or shared entry must exist" — but
+  // this loader only ever pooled `shared[]`, so a `same-as` into an ordinary
+  // entry (a `forms` pattern holding rules its form components share)
+  // rendered as a bare "see forms#…" line indistinguishable from a broken
+  // ref. `shared[]` comes first so it wins any id collision.
+  const shared = isBaseDoc20(document) ? (document.shared ?? []) : [];
+  const pool = [...shared, ...entities.filter((e) => e && typeof e === 'object')];
+  for (const e of entities) if (e && typeof e === 'object') e.__sharedEntries = pool;
+  return { filePath: absPath, document, entities, failures };
 }
 
 
@@ -168,7 +183,11 @@ export async function loadSystems(paths) {
   await Promise.all(
     paths.map(async p => {
       try {
-        systems.push(await loadFile(p));
+        const system = await loadFile(p);
+        systems.push(system);
+        // A sibling that failed to load is an error too: the rest of the
+        // system still loads, but the caller must be able to see the gap.
+        errors.push(...(system.failures ?? []));
       } catch (err) {
         errors.push({ path: p, error: err.message });
       }

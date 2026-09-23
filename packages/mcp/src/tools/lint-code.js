@@ -293,7 +293,7 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
             `"${file.path}" was not found (looked in ${lintDir}). ` +
             'This tool reads files; it does not create them. ' +
             'Make sure whatever process manages your files has persisted this one to disk, then re-run with just the path. ' +
-            'Do not pass the file contents here — a by-path call only reads from disk (to lint a string without a file, use dsds_lint_inline).',
+            'Do not pass the file contents here — a `path` entry only reads from disk (to lint a string without a file, pass `code` instead of `path`).',
         });
         continue;
       }
@@ -318,7 +318,7 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     if (!file.code) {
       fileResults.push({
         filename, messages: [], fixedCode: null, fixed: false, cacheKey: null,
-        error: 'Provide either `code` (source) or `cacheKey` (from a previous dsds_linte call).',
+        error: 'Provide either `code` (source) or `cacheKey` (from a previous dsds_lint call).',
       });
       continue;
     }
@@ -505,8 +505,8 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     const chars = filesToLint.reduce((n, f) => n + (typeof f.code === 'string' ? f.code.length : 0), 0);
     lines.push(
       '',
-      `> Checked ${chars} character${chars === 1 ? '' : 's'} in memory. No file was read or written — dsds_lint_inline does not persist anything. ` +
-      'To save a file, write it through whatever process manages your project; to lint a file already on disk, use dsds_lint_by_path.',
+      `> Checked ${chars} character${chars === 1 ? '' : 's'} in memory. No file was read or written — dsds_lint never persists anything. ` +
+      'To save a file, write it through whatever process manages your project; to lint a file already on disk, pass `path` instead of `code`.',
     );
   }
 

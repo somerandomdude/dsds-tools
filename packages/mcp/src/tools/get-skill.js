@@ -28,7 +28,7 @@ export const getSkillDef = {
 // identical to its source and doesn't drift from it over time.
 const ADAPTER_NOTE = `
 ---
-> **Using this skill through dsds-mcp:** the commands above (\`npm run validate -w packages/specs\`, etc.) describe the upstream spec repo's own workflow. Through this MCP server, use \`dsds_validate\` in place of \`npm run validate\`, and \`dsds_spec_scaffold\`/\`dsds_author_component_doc\` in place of hand-writing a new file from the templates above.`;
+> **Using this skill through dsds-mcp:** the commands above (\`npm run validate -w packages/specs\`, etc.) describe the upstream spec repo's own workflow. Through this MCP server, use \`dsds_validate\` in place of \`npm run validate\`. There is no scaffolding or authoring tool on this server — write a new file from the templates above by hand, then validate it.`;
 
 // Several skills state that the style-guide rules run only in the spec repo
 // and that "nothing in your project will check this" — true of the published

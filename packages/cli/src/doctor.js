@@ -86,6 +86,70 @@ function collectRefFiles(rootDoc, rootPath) {
     .map(rel => resolve(base, rel));
 }
 
+/**
+ * DSDS-05 across the whole corpus: every `entryId#itemId` ref on a section
+ * item must name an entry (or `shared[]` entry) that exists, and an item id
+ * inside it.
+ *
+ * The relationship-graph check above only sees entry-level refs, so refs on
+ * individual guideline items — where every `same-as` lives — were never
+ * checked. A `same-as` to a missing id passed doctor and rendered as a bare
+ * "see X" line, identical to a working pointer. Found by migrating form
+ * guidance to a `forms` pattern and watching every rule vanish from the
+ * component pages with no error anywhere.
+ *
+ * @param {object[]} entities - loaded entities; each carries the resolvable
+ *   pool on `__sharedEntries` (shared[] plus every sibling entry).
+ * @returns {string[]} one line per unresolved ref
+ */
+export function checkItemRefs(entities) {
+  const pool = new Map();
+  for (const e of entities) {
+    for (const p of e.__sharedEntries ?? []) if (p?.id && !pool.has(p.id)) pool.set(p.id, p);
+    if (e?.id && !pool.has(e.id)) pool.set(e.id, e);
+  }
+  const itemIds = new Map();
+  const idsIn = (entry) => {
+    if (itemIds.has(entry.id)) return itemIds.get(entry.id);
+    const ids = new Set();
+    const walk = (o) => {
+      if (Array.isArray(o)) return o.forEach(walk);
+      if (!o || typeof o !== 'object') return;
+      if (typeof o.id === 'string' && o !== entry) ids.add(o.id);
+      for (const v of Object.values(o)) walk(v);
+    };
+    walk(entry.sections ?? []);
+    itemIds.set(entry.id, ids);
+    return ids;
+  };
+  const REF_KEYS = ['refs', 'related', 'alternatives'];
+  const problems = [];
+  for (const entity of entities) {
+    const walk = (o, path) => {
+      if (Array.isArray(o)) return o.forEach((x, i) => walk(x, `${path}[${i}]`));
+      if (!o || typeof o !== 'object') return;
+      for (const key of REF_KEYS) {
+        for (const [i, ref] of (Array.isArray(o[key]) ? o[key] : []).entries()) {
+          if (typeof ref?.to !== 'string') continue;
+          const hash = ref.to.indexOf('#');
+          if (hash === -1) {
+            if (ref.rel === 'same-as') problems.push(`${entity.id} ${path}.${key}[${i}]: same-as "${ref.to}" has no #itemId to borrow from`);
+            continue;
+          }
+          const entryId = ref.to.slice(0, hash);
+          const itemId = ref.to.slice(hash + 1);
+          const target = pool.get(entryId);
+          if (!target) problems.push(`${entity.id} ${path}.${key}[${i}]: "${ref.to}" — no entry "${entryId}"`);
+          else if (!idsIn(target).has(itemId)) problems.push(`${entity.id} ${path}.${key}[${i}]: "${ref.to}" — "${entryId}" has no item "${itemId}"`);
+        }
+      }
+      for (const [k, v] of Object.entries(o)) if (!REF_KEYS.includes(k)) walk(v, `${path}.${k}`);
+    };
+    walk(entity.sections ?? [], 'sections');
+  }
+  return problems;
+}
+
 export async function runDoctor({ json = false, configPath = null } = {}) {
   const checks = [];
   const add = (name, status, details = []) => checks.push({ name, status, details });
@@ -206,6 +270,16 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
       'relationship graph',
       gi.hasProblems ? 'fail' : 'pass',
       gi.hasProblems ? details : [`${graph.nodes.size} nodes, no unresolved targets, no cycles`]
+    );
+  }
+
+  // ── Item references (DSDS-05, corpus-wide) ─────────────────────────────────
+  if (allEntities.length > 0) {
+    const problems = checkItemRefs(allEntities);
+    add(
+      'item references',
+      problems.length ? 'fail' : 'pass',
+      problems.length ? problems : ['every entryId#itemId ref on a section item resolves'],
     );
   }
 

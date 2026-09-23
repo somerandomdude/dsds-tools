@@ -11,7 +11,7 @@
  *   npm run logs:top [-- options]
  *
  * Options:
- *   --section NAME      kinds|entries|sections|tools|errors|lint|days|all  (default: all)
+ *   --section NAME      kinds|entries|sections|tools|errors|lint|jev|days|all  (default: all)
  *   --kind NAME         Restrict entry/section rankings to one entity kind
  *   --entry ID          Restrict the section ranking to one entry
  *   --top N             Rows per ranking (default: 20, 0 = no limit)
@@ -43,7 +43,7 @@ const DEFAULT_DIRS = [
   process.env.DSDS_LOGS_DIR ? resolve(process.env.DSDS_LOGS_DIR) : null,
 ].filter(Boolean);
 
-const SECTIONS = ['kinds', 'entries', 'sections', 'tools', 'errors', 'lint', 'days'];
+const SECTIONS = ['kinds', 'entries', 'sections', 'tools', 'errors', 'lint', 'jev', 'days'];
 
 // ─── ANSI helpers ────────────────────────────────────────────────────────────
 
@@ -145,7 +145,7 @@ async function loadRecords(dirs) {
  * Jun–Jul history is not silently dropped from the counts.
  */
 function classify(e) {
-  if (e.type === 'tool' || e.type === 'chunk' || e.type === 'lint') return e.type;
+  if (e.type === 'tool' || e.type === 'chunk' || e.type === 'lint' || e.type === 'jev') return e.type;
   if (e.identifier) return 'chunk';
   if (typeof e.filesLinted === 'number') return 'lint';
   if (e.tool) return 'tool';
@@ -174,6 +174,9 @@ function aggregate(records) {
   const secs    = new Map();   // "entry/section-label" -> { count, entry, label, tools:Set }
   const bare    = new Map();   // section-label -> count, across all entries
   const surfaces = new Map();  // 'mcp'|'cli' -> count
+  const jev     = new Map();   // guideline -> { n, violations, review, scored, correct }
+  let jevCalls = 0;
+  let jevTokens = 0;
 
   for (const { date, entry } of records) {
     const type = classify(entry);
@@ -239,6 +242,23 @@ function aggregate(records) {
       }
     }
 
+    if (type === 'jev' && Array.isArray(entry.judgments)) {
+      jevCalls++;
+      jevTokens += entry.inputTokens || 0;
+      for (const j of entry.judgments) {
+        const g = j.guideline || '(unnamed)';
+        const row = jev.get(g) || { n: 0, violations: 0, review: 0, scored: 0, correct: 0 };
+        row.n++;
+        if (j.probability >= 0.8) row.violations++;
+        else if (j.probability > 0.2) row.review++;
+        if (j.label != null) {
+          row.scored++;
+          if ((j.probability >= 0.8) === j.label) row.correct++;
+        }
+        jev.set(g, row);
+      }
+    }
+
     if (type === 'lint' && Array.isArray(entry.files)) {
       for (const f of entry.files) {
         for (const v of f.violations || []) {
@@ -249,7 +269,7 @@ function aggregate(records) {
     }
   }
 
-  return { entries, tools, errors, rules, days, surfaces, secs, bare, kinds };
+  return { entries, tools, errors, rules, days, surfaces, secs, bare, kinds, jev, jevCalls, jevTokens };
 }
 
 /** Collapse an error to its first line so variants of one failure group. */
@@ -399,6 +419,18 @@ function rankErrors(agg) {
   });
 }
 
+function rankJev(agg) {
+  const rows = [...(agg.jev || new Map())].sort((a, b) => b[1].n - a[1].n);
+  heading('Agent evaluations (Jev)',
+    `${(agg.jevCalls || 0).toLocaleString()} call(s) · ${rows.reduce((s, [, r]) => s + r.n, 0).toLocaleString()} judgments · ${(agg.jevTokens || 0).toLocaleString()} input tokens`);
+  if (!rows.length) return console.log(c.dim('   no evaluation records in range'));
+  console.log(c.dim(`   ${'guideline'.padEnd(42)}${'judged'.padStart(7)}${'viol'.padStart(6)}${'review'.padStart(8)}${'agree'.padStart(8)}`));
+  limit(rows).forEach(([g, r]) => {
+    const agree = r.scored ? `${(100 * r.correct / r.scored).toFixed(0)}%` : '—';
+    console.log(`   ${c.yellow(g.padEnd(42))}${String(r.n).padStart(7)}${String(r.violations).padStart(6)}${String(r.review).padStart(8)}${agree.padStart(8)}`);
+  });
+}
+
 function rankLint(agg) {
   const rows = [...agg.rules].sort((a, b) => b[1] - a[1]);
   const total = rows.reduce((s, [, n]) => s + n, 0);
@@ -474,6 +506,7 @@ if (opts.json) {
     tools:   toRows(agg.tools,   v => v.count),
     errors:  toRows(agg.errors,  v => v.count),
     lintRules: [...agg.rules].sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, count })),
+    jev: [...(agg.jev || new Map())].map(([guideline, r]) => ({ guideline, ...r })),
     byDay: [...agg.days].sort((a, b) => a[0].localeCompare(b[0])).map(([date, count]) => ({ date, count })),
   }, null, 2));
   // No process.exit here: stdout to a pipe is async in Node, and exiting
@@ -490,6 +523,7 @@ if (opts.json) {
   if (want.includes('tools'))    rankTools(agg);
   if (want.includes('errors'))   rankErrors(agg);
   if (want.includes('lint'))     rankLint(agg);
+  if (want.includes('jev'))      rankJev(agg);
   if (want.includes('days'))     rankDays(agg);
   console.log('');
 }

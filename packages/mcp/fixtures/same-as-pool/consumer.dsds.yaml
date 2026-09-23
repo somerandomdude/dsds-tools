@@ -1,0 +1,18 @@
+kind: component
+id: consumer
+name: Consumer
+description: Borrows rules by reference.
+sections:
+  - kind: guidelines
+    for: all
+    framing: how-to-use
+    items:
+      - refs:
+          - to: shared-rules#from-shared
+            rel: same-as
+      - refs:
+          - to: pool-pattern#from-pattern
+            rel: same-as
+      - refs:
+          - to: pool-pattern#does-not-exist
+            rel: same-as

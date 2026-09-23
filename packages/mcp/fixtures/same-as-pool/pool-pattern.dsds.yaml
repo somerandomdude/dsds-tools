@@ -1,0 +1,12 @@
+kind: sanity.pattern
+id: pool-pattern
+name: Pool pattern
+description: An ordinary entry that holds a rule other entries borrow.
+sections:
+  - kind: guidelines
+    for: all
+    framing: how-to-use
+    items:
+      - id: from-pattern
+        level: must-not
+        statement: Borrowed from a sibling pattern entry.

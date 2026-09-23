@@ -74,7 +74,13 @@ describe('dsds_lint — files on disk (harness gate)', () => {
       const text = result.content[0].text;
       expect(text).toContain('was not found');
       expect(text).toContain('does not create them');
-      expect(text).toContain('dsds_lint_inline');
+      // Points at THIS tool's `code` argument, not at the removed
+      // `dsds_lint_inline`. Asserting a tool name that no longer exists is
+      // what let the rename ship with the old names still in the coaching
+      // text — an agent hitting this error was told to call a missing tool.
+      expect(text).toContain('pass `code` instead of `path`');
+      expect(text).not.toContain('dsds_lint_inline');
+      expect(text).not.toContain('dsds_lint_by_path');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -158,13 +158,17 @@ describe('the other two kinds 0.21.1 relaxed', () => {
 describe('when the target cannot be resolved', () => {
   it('falls back to naming the pointer rather than rendering an empty bullet', () => {
     const out = render(guidelines([{ refs: [{ to: 'somewhere-else#nope', rel: 'same-as' }] }]));
-    expect(out).toContain('see somewhere-else#nope');
+    expect(out).toContain('`somewhere-else#nope`');
+    // …and says it is broken. A plain "see X" read exactly like a working
+    // pointer, so a rule could vanish from a page with nothing saying so.
+    expect(out).toContain('**Unresolved reference:**');
+    expect(out).not.toMatch(/^- see somewhere-else#nope$/m);
   });
 
   it('does the same when no shared pool was supplied at all', () => {
     const lines = [];
     renderSections20(guidelines([{ refs: [POINTER] }]), lines, {});
-    expect(lines.join('\n')).toContain('see shared-foundations#never-disable-error');
+    expect(lines.join('\n')).toContain('**Unresolved reference:** `shared-foundations#never-disable-error`');
   });
 });
 
