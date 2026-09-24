@@ -15,13 +15,15 @@ export const getAgentContextDef = {
   description:
     'Get the agent-facing context for an entity — its agent-only document blocks (agentDocumentBlocks), the props table, and the hard constraints from its guidelines. ' +
     'This is the most LLM-optimized content in a DSDS document. Use it to understand the rules and edge cases for an entity before building with it. ' +
-    'Returns a compact view by default (agent rules + props); pass verbose:true only if you need the full human documentation (use-case prose, sections, code examples).',
+    'Returns a compact view by default (agent rules + props); pass verbose:true only if you need the full human documentation (use-case prose, sections, code examples). ' +
+    'Pass every component you are about to use in one call: `identifier` takes a list, and each entity is returned in its own section.',
   inputSchema: {
     type: 'object',
     properties: {
       identifier: {
-        type: 'string',
-        description: 'The entity identifier or name.',
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Entity identifiers or names, e.g. ["button", "card", "text"]. A single string is accepted too.',
       },
       verbose: {
         type: 'boolean',
@@ -48,7 +50,7 @@ const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
 // Compact (default) renders `for: agent`/`for: all` sections only — a
 // `for: human` section is prose for people, not something an agent needs
 // to spend context on before writing code. Verbose renders everything.
-function renderAgentContext20(found, verbose, getGraph, propsConfig) {
+function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = true } = {}) {
   const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
   if (found.description) lines.push(asText(found.description), '');
 
@@ -115,8 +117,8 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig) {
   // restore the gate if a measurement says the saving was fine after all.
   renderExtensions20(found.$extensions, lines, { heading: '## Tool data', compact: false });
 
-  const notice = getUpdateNotice();
-  if (notice) lines.push(notice);
+  const update = notice ? getUpdateNotice() : null;
+  if (update) lines.push(update);
   const text = lines.join('\n');
   return {
     content: [{ type: 'text', text }],
@@ -133,7 +135,27 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig) {
   };
 }
 
-/** An entry rendered for an agent: its rules and props, audience-filtered, compact by default. */
+function findEntity(systems, identifier) {
+  const needle = String(identifier).toLowerCase();
+  for (const system of systems) {
+    const entity = system.entities.find(
+      e => e.identifier?.toLowerCase() === needle || e.name?.toLowerCase() === needle
+    );
+    if (entity) return entity;
+  }
+  return null;
+}
+
+/**
+ * Entries rendered for an agent: rules and props, audience-filtered, compact
+ * by default.
+ *
+ * `identifier` takes one id or a list. The list exists because the lookup is
+ * mandatory per component: in the 2026-09-23 14.22 run agents made 15–17 of
+ * these calls per iteration, one component at a time, and imported 87–96% of
+ * what they looked up. The cost was round-trips, not wasted reads. A list
+ * turns those into one call, with each entity in its own section.
+ */
 export async function getAgentContextHandler({ identifier, verbose = false }, getSystems, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
@@ -143,24 +165,55 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
     };
   }
 
-  const needle = identifier.toLowerCase();
-  let found = null;
+  const requested = [...new Set((Array.isArray(identifier) ? identifier : [identifier])
+    .filter((id) => typeof id === 'string' && id.trim())
+    .map((id) => id.trim()))];
 
-  for (const system of systems) {
-    const entity = system.entities.find(
-      e => e.identifier?.toLowerCase() === needle || e.name?.toLowerCase() === needle
-    );
-    if (entity) { found = entity; break; }
+  if (requested.length <= 1) {
+    const one = requested[0] ?? '';
+    const found = findEntity(systems, one);
+    if (!found) {
+      return notFoundError({
+        label: 'Entity',
+        input: one,
+        candidates: entityIdentifiers(systems),
+        listHint: '`dsds_list_entities`',
+      });
+    }
+    return renderAgentContext20(found, verbose, getGraph, propsConfig);
   }
 
-  if (!found) {
-    return notFoundError({
-      label: 'Entity',
-      input: identifier,
-      candidates: entityIdentifiers(systems),
-      listHint: '`dsds_list_entities`',
-    });
+  // A batch never fails as a whole: a typo in one id must not cost the agent
+  // the other fifteen. Misses are listed at the top, with suggestions, so they
+  // are seen before the agent writes code against a component it never read.
+  const rendered = [];
+  const missing = [];
+  const seen = new Set();
+  for (const id of requested) {
+    const found = findEntity(systems, id);
+    if (!found) { missing.push(id); continue; }
+    if (seen.has(found.identifier)) continue;
+    seen.add(found.identifier);
+    rendered.push({ id, ...renderAgentContext20(found, verbose, getGraph, propsConfig, { notice: false }) });
   }
 
-  return renderAgentContext20(found, verbose, getGraph, propsConfig);
+  const out = [];
+  if (missing.length) {
+    const candidates = entityIdentifiers(systems);
+    out.push(`> **Not found (${missing.length}):**`);
+    for (const id of missing) {
+      out.push(`> - \`${id}\` — ${notFoundMessage({ label: 'Entity', input: id, candidates, listHint: '`dsds_list_entities`' }).replace(/\n+/g, ' ')}`);
+    }
+    out.push('');
+  }
+  out.push(`Agent context for ${rendered.length} entit${rendered.length === 1 ? 'y' : 'ies'}: ${rendered.map((r) => `\`${r.access.identifier}\``).join(', ')}.`, '');
+  for (const r of rendered) out.push('---', '', r.content[0].text, '');
+  const update = getUpdateNotice();
+  if (update) out.push(update);
+
+  return {
+    ...(rendered.length === 0 ? { isError: true } : {}),
+    content: [{ type: 'text', text: out.join('\n') }],
+    access: rendered.map((r) => ({ ...r.access, ...(r.id.toLowerCase() !== String(r.access.identifier).toLowerCase() ? { requested: r.id } : {}), batch: requested.length })),
+  };
 }

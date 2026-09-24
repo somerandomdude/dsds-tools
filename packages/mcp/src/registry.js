@@ -158,7 +158,10 @@ export function createToolRuntime({
     if (result?.access) {
       const access = result.access;
       delete result.access;
-      if (logsDir) writeLog(logsDir, { type: 'access', tool: name, ...access });
+      // A batched lookup serves several entries in one call; each still gets
+      // its own record, so per-entity access counts stay comparable with
+      // runs from before batching.
+      if (logsDir) for (const a of Array.isArray(access) ? access : [access]) writeLog(logsDir, { type: 'access', tool: name, ...a });
     }
 
     return result;

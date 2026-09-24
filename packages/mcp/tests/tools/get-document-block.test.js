@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { fingerprintFor } from '../../src/spec/prop-extractor.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -66,7 +67,8 @@ describe('getDocumentBlockHandler — "api" on a real 0.20.0 entity (the HARD RU
     writeFileSync(join(uiSourceRoot, 'src/Button.tsx'), fileContent);
     mkdirSync(join(uiSourceRoot, 'packages/ui'), { recursive: true });
     writeFileSync(join(uiSourceRoot, 'packages/ui/package.json'), JSON.stringify({ version: '5.0.0' }));
-    const fingerprint = sha256(`5.0.0:${sha256(fileContent)}`);
+    const button = systems.flatMap((sys) => sys.entities).find((e) => e.identifier === 'button');
+    const fingerprint = fingerprintFor(button, { uiSourceRoot, propsExtractorDir: extractorDir });
     writeFileSync(
       join(extractorDir, 'out', 'props-0.20.0.cache.json'),
       JSON.stringify({ button: { fingerprint, props: { props: [{ name: 'text', kind: 'string', required: true, description: 'Button label', type: 'string' }] } } })

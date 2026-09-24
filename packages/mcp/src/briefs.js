@@ -94,7 +94,8 @@ Call \`dsds_list_entities\` once to see everything documented, grouped by kind, 
 ### 3 — Look up every component you are about to use (no exceptions)
 
 MUST: call \`dsds_get_agent_context(identifier)\` for a component before you write a single
-JSX usage of it — including one you are confident about, used earlier this session, or saw
+JSX usage of it. Batch them: \`identifier\` takes a list, so look up every component you
+plan to use in one call — including one you are confident about, used earlier this session, or saw
 inside a chunk. There is no "I already know this one" exception. Skipping it for even one
 component is the single most common cause of otherwise-avoidable build failures: missing
 required props, renamed or removed props, props typed \`never\`. This system's API often

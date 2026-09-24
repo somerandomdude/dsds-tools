@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { getApiForEntry } from '../../src/spec/prop-extractor.js';
+import { getApiForEntry, fingerprintFor } from '../../src/spec/prop-extractor.js';
 import { renderApi20 } from '../../src/spec/render.js';
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
@@ -44,8 +44,7 @@ function writeCache(fingerprint, props = { props: [{ name: 'as', kind: 'string',
 }
 
 function realFingerprint() {
-  const fileContent = BOX_SOURCE;
-  return sha256(`5.0.0:${sha256(fileContent)}`);
+  return fingerprintFor(boxEntity, { uiSourceRoot, propsExtractorDir: extractorDir });
 }
 
 describe('getApiForEntry', () => {
@@ -162,5 +161,24 @@ describe('renderApi20', () => {
     const text = lines.join('\n');
     expect(text).toContain('(from `PositionProps`)');
     expect(text).toContain("Also accepts native attributes from `React.ComponentProps<'div'>`");
+  });
+});
+
+describe('fingerprintFor', () => {
+  // The table comes from the sibling *.props.ts and from the extractor, not
+  // only from the .tsx that sourceFiles names. A change to either must stop
+  // the old table being served as fresh.
+  it('changes when a sibling props file changes', () => {
+    const before = fingerprintFor(boxEntity, { uiSourceRoot, propsExtractorDir: extractorDir });
+    writeFileSync(join(uiSourceRoot, 'packages/ui/src/components/box/box.props.ts'), 'export const boxProps = {}');
+    expect(fingerprintFor(boxEntity, { uiSourceRoot, propsExtractorDir: extractorDir })).not.toBe(before);
+  });
+
+  it("changes when the extractor's own code changes", () => {
+    mkdirSync(join(extractorDir, 'src'), { recursive: true });
+    writeFileSync(join(extractorDir, 'src', 'extract.mjs'), '// v1');
+    const before = fingerprintFor(boxEntity, { uiSourceRoot, propsExtractorDir: extractorDir });
+    writeFileSync(join(extractorDir, 'src', 'extract.mjs'), '// v2');
+    expect(fingerprintFor(boxEntity, { uiSourceRoot, propsExtractorDir: extractorDir })).not.toBe(before);
   });
 });

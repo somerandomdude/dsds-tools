@@ -7,7 +7,7 @@
 // or otherwise serves the entry with NO table and a loud staleness warning.
 // A missing table is acceptable; a stale one silently served is not.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -34,13 +34,31 @@ function extractorOutputPath(propsExtractorDir) {
   return join(propsExtractorDir, 'out', 'dsds-extensions.json');
 }
 
+/** Hash of every `.ts`/`.tsx`/`.mjs` file directly in `dir`, in name order; '' if unreadable. */
+function hashDir(dir, pattern) {
+  try {
+    const names = readdirSync(dir).filter((f) => pattern.test(f)).sort();
+    return sha256(names.map((f) => `${f}\0${readFileSync(join(dir, f), 'utf-8')}`).join('\0'));
+  } catch {
+    return '';
+  }
+}
+
 /**
- * Resolves the first sourceFiles entry's real file content plus the
- * design system's currently-checked-out version, for fingerprinting.
- * Returns null if either can't be read — freshness can't be verified, but
+ * Resolves what an entry's props table is derived from, for fingerprinting:
+ * the design system's version, the entry's source file, the rest of its
+ * component folder, and the extractor's own code.
+ *
+ * The first two alone missed real changes. The props live in the sibling
+ * `*.props.ts`, not the `.tsx` that `sourceFiles` names, and a fix to the
+ * extractor changes every table without touching either. Both left the old
+ * table served as "fresh" — on 2026-09-24 that kept Dialog's `onClose` out of
+ * the table after the extractor had learned to read it.
+ *
+ * Returns null if the source can't be read — freshness can't be verified, but
  * that's distinct from "never extracted" (see getApiForEntry).
  */
-function resolveCurrentSource(entity, uiSourceRoot) {
+function resolveCurrentSource(entity, uiSourceRoot, propsExtractorDir) {
   const sourceFile = entity.sourceFiles?.[0]?.file;
   if (!sourceFile || !uiSourceRoot) return null;
   try {
@@ -48,14 +66,29 @@ function resolveCurrentSource(entity, uiSourceRoot) {
     const fileContent = readFileSync(filePath, 'utf-8');
     const pkgJson = readJsonSafe(join(uiSourceRoot, 'packages/ui/package.json'));
     const version = pkgJson?.version ?? '(unknown)';
-    return { version, fileHash: sha256(fileContent) };
+    return {
+      version,
+      fileHash: sha256(fileContent),
+      dirHash: hashDir(dirname(filePath), /\.tsx?$/),
+      extractorHash: propsExtractorDir ? hashDir(join(propsExtractorDir, 'src'), /\.m?js$/) : '',
+    };
   } catch {
     return null;
   }
 }
 
 function computeFingerprint(current) {
-  return sha256(`${current.version}:${current.fileHash}`);
+  return sha256(`${current.version}:${current.fileHash}:${current.dirHash}:${current.extractorHash}`);
+}
+
+/**
+ * The fingerprint an entry's cached table must carry to be served as fresh,
+ * or null when the source can't be read. Exported so a cache warm-up and the
+ * tests compute it the one way this module does.
+ */
+export function fingerprintFor(entity, { uiSourceRoot, propsExtractorDir } = {}) {
+  const current = resolveCurrentSource(entity, uiSourceRoot, propsExtractorDir);
+  return current ? computeFingerprint(current) : null;
 }
 
 /** True if the extractor's Node toolchain (>=22.6, --experimental-strip-types) is usable. */
@@ -116,7 +149,7 @@ export function getApiForEntry(entity, config) {
   const entryId = entity.identifier ?? entity.id;
   const cache = readJsonSafe(cachePath(propsExtractorDir)) ?? {};
   const cached = cache[entryId];
-  const current = resolveCurrentSource(entity, uiSourceRoot);
+  const current = resolveCurrentSource(entity, uiSourceRoot, propsExtractorDir);
 
   if (cached && current == null) {
     // Can't verify freshness (no uiSourceRoot) — serve what we have, labeled.

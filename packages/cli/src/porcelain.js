@@ -103,13 +103,13 @@ export const PORCELAIN = {
 
   context: {
     summary: 'LLM-optimized rules and constraints for an entity',
-    usage: 'dsds context <identifier> [--verbose]',
+    usage: 'dsds context <identifier…> [--verbose]',
     options: { verbose: { type: 'boolean', description: 'Include full detail' } },
     schemaKeys: ['identifier'],
-    positionals: { min: 1, max: 1, label: '<identifier>' },
-    build: ([identifier], values) => ({
+    positionals: { min: 1, max: Infinity, label: '<identifier…>' },
+    build: (ids, values) => ({
       tool: 'dsds_get_agent_context',
-      args: { identifier, ...pick(values, 'verbose') },
+      args: { identifier: ids.length === 1 ? ids[0] : ids, ...pick(values, 'verbose') },
     }),
   },
 

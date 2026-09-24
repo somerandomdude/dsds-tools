@@ -37,7 +37,8 @@ export const BASE_INSTRUCTIONS = `
 DSDS MCP — Design System Documentation Spec v${BUNDLED_VERSION}
 
 HARD RULE — before using ANY component from this design system in code, you MUST call
-dsds_get_agent_context(identifier) for it. This applies even if you already called
+dsds_get_agent_context(identifier) for it. Pass every component you are about to use in one
+call — identifier takes a list: dsds_get_agent_context(["button", "card", "text"]). This applies even if you already called
 dsds_context_brief this session, even for a component you are confident about, and even
 for one you already used earlier in the same file or a chunk. Skipping this check for
 even one component is the single most common cause of avoidable build failures — do not
