@@ -1,6 +1,6 @@
 {
   "name": "dsds-mcp",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "MCP server for the Design System Documentation Spec (DSDS)",
   "type": "module",
   "bin": {

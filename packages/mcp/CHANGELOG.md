@@ -6,7 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-10-09
+## [0.5.1] - 2026-10-09
+
+The first release that supports DSDS 0.22.0. 0.5.0 was never published: npm kept the
+version number reserved after a staged publish that never went live, so this release
+uses the next one. The content is what 0.5.0 would have been.
 
 Supports DSDS 0.22.0, and only 0.22.x: a 0.21 document fails validation until it's
 migrated with the spec's `scripts/tools/migrate-to-0.22.js`. Use dsds-mcp 0.4.0 for
