@@ -7,32 +7,17 @@ const ids = (doc) => checkStyle20(loadYaml20(doc)).map((f) => f.id);
 const text = async (document, opts = {}) => (await styleCheckHandler({ document, ...opts })).content[0].text;
 
 describe('style-guide catalog binding', () => {
-  it('binds all seven STYLE_GUIDE.md rules to an implementation', () => {
+  // 0.22.0 retired the four field-order rules (DSDS-17, -20, -22, -23):
+  // dsds-format applies that order instead. The three reading-order rules stay.
+  it('binds the three STYLE_GUIDE.md reading-order rules to an implementation', () => {
     const rules = styleRules();
-    expect(rules.map((r) => r.id).sort()).toEqual([
-      'DSDS-17', 'DSDS-18', 'DSDS-19', 'DSDS-20', 'DSDS-21', 'DSDS-22', 'DSDS-23',
-    ]);
+    expect(rules.map((r) => r.id).sort()).toEqual(['DSDS-18', 'DSDS-19', 'DSDS-21']);
     for (const r of rules) expect(typeof r.check, `${r.id} has no check`).toBe('function');
   });
 
   it('carries the catalog title, so findings can name the rule in prose', () => {
-    const r = styleRules().find((x) => x.id === 'DSDS-17');
-    expect(r.title).toMatch(/field order/i);
-  });
-});
-
-describe('DSDS-17 entry field order', () => {
-  it('flags a field that comes before one the schema declares earlier', () => {
-    expect(ids('kind: component\nid: b\ndescription: d\nname: B\n')).toContain('DSDS-17');
-  });
-
-  it('accepts the schema order', () => {
-    expect(ids('kind: component\nid: b\nname: B\ndescription: d\npurpose: p\n')).not.toContain('DSDS-17');
-  });
-
-  it('never flags a field merely for being absent', () => {
-    // name/purpose omitted entirely — the remaining fields are still in order.
-    expect(ids('kind: component\nid: b\ndescription: d\n')).not.toContain('DSDS-17');
+    const r = styleRules().find((x) => x.id === 'DSDS-21');
+    expect(r.title).toMatch(/entries/i);
   });
 });
 
@@ -71,22 +56,19 @@ describe('DSDS-18 section order', () => {
     expect(ids(doc)).toContain('DSDS-18');
   });
 
-  it('treats a section that declares `tags` as the narrowest tier', () => {
-    // Two how-to-use sections; the tag-scoped one must come last. Here it
-    // comes first, so it is an inversion even though both are how-to-use.
+  // 0.22.0: `tags` only classify a section. Neither a section's tags nor its
+  // items' tags say anything about its position.
+  it('does not rank a section by its tags', () => {
     const doc = [
       'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
       '  - kind: guidelines', '    tags: [accessibility]',
       '    items: [{level: must, statement: A}]',
       '  - kind: guidelines', '    items: [{level: must, statement: C}]',
     ].join('\n');
-    expect(ids(doc)).toContain('DSDS-18');
+    expect(ids(doc)).not.toContain('DSDS-18');
   });
 
-  // 0.21.0 moved this tier from inference to declaration. Item tags relate one
-  // rule across categories; they no longer say anything about the section's
-  // own position, however many of them agree.
-  it('does not infer the tier from item tags', () => {
+  it('does not infer a tier from item tags', () => {
     const doc = [
       'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
       '  - kind: guidelines', '    items:',
@@ -97,27 +79,6 @@ describe('DSDS-18 section order', () => {
     expect(ids(doc)).not.toContain('DSDS-18');
   });
 
-  // The old rule needed two items before a section counted. A declared tag
-  // needs no items at all beyond the one the schema requires.
-  it('counts a one-item section that declares a tag', () => {
-    const doc = [
-      'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
-      '  - kind: guidelines', '    tags: [accessibility]',
-      '    items: [{level: must, statement: A}]',
-      '  - kind: guidelines', '    items: [{level: must, statement: C}]',
-    ].join('\n');
-    expect(ids(doc)).toContain('DSDS-18');
-  });
-
-  it('is clean when the tag-scoped section comes last', () => {
-    const doc = [
-      'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
-      '  - kind: guidelines', '    items: [{level: must, statement: C}]',
-      '  - kind: guidelines', '    tags: [accessibility]',
-      '    items: [{level: must, statement: A}]',
-    ].join('\n');
-    expect(ids(doc)).not.toContain('DSDS-18');
-  });
 });
 
 describe('DSDS-19 guideline item level order', () => {
@@ -153,6 +114,76 @@ describe('DSDS-19 guideline item level order', () => {
     ].join('\n');
     expect(ids(doc)).not.toContain('DSDS-19');
   });
+
+  // A pointer: no level of its own, a same-as ref to a rule elsewhere.
+  const withPointerAfterMustNot = [
+    'kind: component', 'id: b', 'name: B', 'description: d', 'sections:',
+    '  - kind: guidelines', '    items:',
+    '      - {level: must-not, statement: Never}',
+    '      - refs: [{to: "shared#tone-rule", rel: same-as}]',
+  ].join('\n');
+
+  it('skips a pointer it cannot resolve', () => {
+    expect(ids(withPointerAfterMustNot)).not.toContain('DSDS-19');
+  });
+
+  it('ranks a pointer at the level of the rule it points to', () => {
+    const levels = new Map([['shared#tone-rule', 'must']]);
+    const findings = checkStyle20(loadYaml20(withPointerAfterMustNot), { levels });
+    const f = findings.find((x) => x.id === 'DSDS-19');
+    expect(f, 'a must pointer after a must-not item is an inversion').toBeTruthy();
+    expect(f.message).toContain('pointer to shared#tone-rule (level: must)');
+  });
+
+  it('accepts a pointer placed in its own level group', () => {
+    const levels = new Map([['shared#tone-rule', 'must-not']]);
+    expect(checkStyle20(loadYaml20(withPointerAfterMustNot), { levels }).map((f) => f.id)).not.toContain('DSDS-19');
+  });
+
+  it('resolves pointers to the same document\'s shared[] without a corpus index', () => {
+    const doc = [
+      'schemaVersion: 0.20.1',
+      'entries:',
+      '  - kind: component', '    id: b', '    name: B', '    description: d', '    sections:',
+      '      - kind: guidelines', '        items:',
+      '          - {level: must-not, statement: Never}',
+      '          - refs: [{to: "pool#tone-rule", rel: same-as}]',
+      'shared:',
+      '  - id: pool', '    sections:',
+      '      - kind: guidelines', '        items:',
+      '          - {id: tone-rule, level: must, statement: Tone signals state}',
+    ].join('\n');
+    expect(ids(doc)).toContain('DSDS-19');
+  });
+});
+
+describe('DSDS-19 across a corpus', () => {
+  it('ranks pointers through the shared pool every entity carries', async () => {
+    const { checkLevelOrderAcross } = await import('../../src/spec/style-guide.js');
+    const pool = [
+      {
+        id: 'shared-foundations',
+        sections: [{ kind: 'guidelines', items: [{ id: 'tone-rule', level: 'must', statement: 'Tone signals state' }] }],
+      },
+    ];
+    const card = {
+      id: 'card',
+      __filePath: '/docs/components/card.dsds.yaml',
+      __sharedEntries: pool,
+      sections: [
+        {
+          kind: 'guidelines',
+          items: [
+            { level: 'should', statement: 'Use density' },
+            { refs: [{ to: 'shared-foundations#tone-rule', rel: 'same-as' }] },
+          ],
+        },
+      ],
+    };
+    const findings = checkLevelOrderAcross([card]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ entry: 'card', file: '/docs/components/card.dsds.yaml', pointer: '/sections/0/items' });
+  });
 });
 
 describe('DSDS-21 entry order in a base document', () => {
@@ -170,38 +201,33 @@ describe('DSDS-21 entry order in a base document', () => {
   });
 });
 
-describe('DSDS-23 combo order', () => {
-  const withCombos = (combos) =>
-    ['kind: component', 'id: b', 'name: B', 'description: d', 'combos:'].concat(combos).join('\n');
-
-  it('flags combos out of subject order', () => {
-    expect(ids(withCombos(['  - {subject: z, level: must, items: [a]}', '  - {subject: a, level: must, items: [b]}']))).toContain('DSDS-23');
-  });
-
-  it('flags a level inversion within one subject', () => {
-    expect(ids(withCombos(['  - {subject: a, level: should, items: [x]}', '  - {subject: a, level: must, items: [y]}']))).toContain('DSDS-23');
-  });
-
-  it('accepts subject-then-level order', () => {
-    expect(ids(withCombos(['  - {subject: a, level: must, items: [x]}', '  - {subject: a, level: should, items: [y]}', '  - {subject: b, level: must, items: [z]}']))).not.toContain('DSDS-23');
-  });
-});
-
 describe('dsds_style_check tool', () => {
   it('reports a clean document', async () => {
     expect(await text('kind: component\nid: b\nname: B\ndescription: d\n')).toContain('Style guide: clean');
   });
 
-  it('suggests a corrected field order for DSDS-17', async () => {
+  it('returns the document in field order, from the vendored dsds-format', async () => {
     const out = await text('kind: component\nid: b\ndescription: d\nname: B\n');
-    expect(out).toContain('DSDS-17');
-    expect(out).toContain('Suggested order: `kind, id, name, description`');
+    expect(out).toContain('Field order (dsds-format)');
+    expect(out).toContain('kind: component\nid: b\nname: B\ndescription: d');
   });
 
-  it('omits suggestions when asked', async () => {
+  it('keeps comments when it reorders', async () => {
+    const out = await text('kind: component\nid: b\n# why it exists\ndescription: d\nname: B\n');
+    expect(out).toContain('# why it exists');
+  });
+
+  it('omits the reordered document when asked', async () => {
     const out = await text('kind: component\nid: b\ndescription: d\nname: B\n', { suggest: false });
-    expect(out).toContain('DSDS-17');
-    expect(out).not.toContain('Suggested order');
+    expect(out).toContain('Field order (dsds-format)');
+    expect(out).not.toContain('```yaml');
+  });
+
+  it('groups combos by subject, which a retired rule used to report', async () => {
+    const doc = ['kind: component', 'id: b', 'name: B', 'description: d', 'combos:',
+      '  - {subject: a, level: must, items: [x]}', '  - {subject: z, level: must, items: [y]}',
+      '  - {subject: a, level: should, items: [w]}'].join('\n');
+    expect(await text(doc)).toContain('Field order (dsds-format)');
   });
 
   it('states plainly that findings never affect validity', async () => {

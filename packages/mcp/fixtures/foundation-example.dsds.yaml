@@ -1,5 +1,5 @@
-id: example-foundation
 kind: sanity.foundation
+id: example-foundation
 name: Example Foundation
 description: A representative sanity.foundation fixture for conformance testing.
 sections:

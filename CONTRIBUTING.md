@@ -54,9 +54,35 @@ See the README for the full list of environment variables (`DSDS_PATHS`,
 ```sh
 npm test                 # vitest unit + integration suite
 npm run check:integrity  # DSDS reference-integrity guard
+npm run lint:complexity  # function complexity and nesting limits
 ```
 
-Both run in CI on every pull request. Please make sure they pass before opening one.
+All three run in CI on every pull request. Please make sure they pass before opening one.
+
+### Complexity check
+
+`npm run lint:complexity` runs ESLint with two rules, set in `eslint.config.js`:
+
+- `complexity`: at most 15 paths through a function.
+- `max-depth`: blocks nested at most 4 deep.
+
+It covers the first-party source. Tests, agent worktrees and the vendored spec in
+`packages/mcp/src/spec/dsds-*` are left out.
+
+Functions that were already over the limits when the check was added are recorded in
+`eslint-suppressions.json`, so they don't fail the build. A new violation does: split
+the function rather than adding it to the file.
+
+When you bring a recorded function under the limits, the check fails until you remove
+its entry:
+
+```sh
+npm run lint:complexity:prune
+```
+
+Commit the smaller `eslint-suppressions.json` with your change. The file should only
+shrink. `npm run lint:complexity:baseline` re-records every current violation; use it
+only if the limits change.
 
 - Add or update tests for any behavior change.
 - Keep the server **generic**: do not hard-code design-system–specific names,

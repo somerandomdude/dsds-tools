@@ -11,7 +11,8 @@ import { resolve, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadSystems } from 'dsds-mcp/src/loader.js';
 import { resolveConfig } from 'dsds-mcp/src/config.js';
-import { entityToMarkdown } from './render.js';
+import { resolveTokenRefs, tokenMap } from 'dsds-mcp/src/token-refs.js';
+import { entityToMarkdown as renderEntity } from './render.js';
 
 const USAGE = `Usage: dsds-markdown [options]
 
@@ -58,6 +59,11 @@ if (entities.length === 0) {
   process.stderr.write('dsds-markdown: loaded no entries.\n');
   process.exit(1);
 }
+
+// `{space-3}` in the YAML publishes as "`space-3` (12px)", the same text an
+// agent is served, with the value read from the token file.
+const tokens = tokenMap(systems);
+const entityToMarkdown = (...args) => resolveTokenRefs(renderEntity(...args), tokens);
 
 const propsConfig = { propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot };
 const options = { includeAgentContent: values['agent-content'] };

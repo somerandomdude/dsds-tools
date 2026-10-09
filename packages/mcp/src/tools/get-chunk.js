@@ -6,23 +6,25 @@ import { ERROR_CODES, notFoundError } from '../errors.js';
 const CHUNK_KINDS = ['chunk', 'blueprint', 'sanity.chunk'];
 
 /**
- * A real 0.20.0 chunk names its code file via `refs`/`related` (`rel: file`,
- * usually `role: source`) rather than inlining it — resolve and read it
- * relative to the chunk's own file (see loader.js's `__filePath`), the same
- * mechanism an inline example's code ref uses.
+ * A chunk names its code file in `refs` rather than inlining it: `rel: source`
+ * since 0.22.0, `rel: file` before. Resolve and read it relative to the
+ * chunk's own file (see loader.js's `__filePath`), the same mechanism an
+ * inline example's code ref uses. The first ref that reads as a local file wins.
  */
 function resolveChunkCode20(chunk) {
-  const fileRef = [...(chunk.related ?? []), ...(chunk.refs ?? [])].find(
-    r => r?.rel === 'file' && typeof r.href === 'string'
-  );
-  return resolveFileRef20(chunk.__filePath, fileRef);
+  for (const ref of chunk.refs ?? []) {
+    if (/\.ya?ml$/i.test(ref?.href ?? '')) continue; // another document, not code
+    const resolved = resolveFileRef20(chunk.__filePath, ref);
+    if (resolved) return resolved;
+  }
+  return null;
 }
 
 export const getChunkDef = {
   name: 'dsds_get_chunk',
   description:
     'Get a chunk by identifier, rendered for agent use. Returns the code block (ready to copy), ' +
-    'guidelines, use cases, and its relationships (composes / depends-on / alternative-to edges). ' +
+    'guidelines, use cases, and its relationships (uses / alternative-to edges). ' +
     'Use this instead of dsds_get_entity when working with chunk entities.',
   inputSchema: {
     type: 'object',
@@ -95,9 +97,8 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
   const status20 = chunk.metadata?.status?.status;
   if (status20) lines.push(`**Status:** ${status20}`, '');
 
-  // Real 0.20.0: the code isn't inlined on the entity — it's a sibling
-  // file named via `related`/`refs` (`rel: file`). Guidance lives in
-  // `sections`.
+  // The code isn't inlined on the entity — it's a sibling file named in
+  // `refs` (`rel: source`). Guidance lives in `sections`.
   const resolved = resolveChunkCode20(chunk);
   const parts = [];
   if (resolved) parts.push('code');
@@ -106,7 +107,7 @@ export async function getChunkHandler({ identifier }, getSystems, logsDir = null
     '',
     resolved
       ? `\`\`\`${resolved.language}\n${resolved.code}\`\`\``
-      : '*No code file found for this chunk — check its `related`/`refs` for a `rel: file` pointer.*',
+      : '*No code file found for this chunk — check its `refs` for a `rel: source` pointer to a local file.*',
     ''
   );
 

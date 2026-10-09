@@ -2,17 +2,14 @@
 //
 // Three changes, pulling in different directions: `traitType` is required, so
 // it breaks documents; `tags` on a section is optional, so it breaks none;
-// and `rel: agent-test` widens what DSDS-03 accepts, so it un-breaks
-// documents that were previously rejected. The tests below pin all three,
-// plus the places this server reacts to them — the renderer groups traits by
-// the new field, and the validate tool explains the one error a 0.20.x corpus
-// is guaranteed to hit.
+// and `rel: agent-test` widened what DSDS-03 accepts. The tests below pin the
+// first two, and the renderer grouping traits by the new field. 0.22.0
+// replaced the third (a check's kind is its `role` now, with no `rel`) and
+// the 0.21 migration hint; release-0.22.0.test.js covers both.
 
 import { describe, expect, it } from 'vitest';
 import { validateDoc20 } from '../../src/spec/validator.js';
 import { renderTraits20 } from '../../src/spec/render.js';
-import { validateHandler } from '../../src/tools/validate.js';
-import { BUNDLED_VERSION } from '../../src/spec/version.js';
 
 const component = (traits) => ({
   id: 'badge',
@@ -124,74 +121,5 @@ describe('section tags — optional, so nothing breaks', () => {
       sections: [{ kind: 'guidelines', for: 'all', items: [{ level: 'must', statement: 'Give it an accessible name.' }] }],
     });
     expect(errors).toEqual([]);
-  });
-});
-
-describe('the migration hint', () => {
-  const doc = [
-    'kind: component', 'id: badge', 'name: Badge', 'description: A small status label.',
-    'traits:', '  - kind: boolean', '    id: loading', '    description: Pending.',
-  ].join('\n');
-
-  it('explains the one error a 0.20.x document hits', async () => {
-    const text = (await validateHandler({ document: doc })).content[0].text;
-    expect(text).toContain(`### Migrating to ${BUNDLED_VERSION}`);
-    expect(text).toContain('1 trait here is missing it');
-    expect(text).toMatch(/variant.*caller configures/);
-    expect(text).toContain('migrate-to-0.21.js');
-  });
-
-  it('says nothing when traits are fine', async () => {
-    const ok = doc.replace('  - kind: boolean', '  - kind: boolean\n    traitType: state');
-    const text = (await validateHandler({ document: ok })).content[0].text;
-    expect(text).not.toContain('### Migrating to');
-  });
-});
-
-// DSDS-03 (CHECKED_BY_NEEDS_REF) asks that `checkedBy: automated` point at
-// something that runs. 0.21.0 added `agent-test` to the two rels that
-// satisfy it. The validator hardcoded the old pair, so a conforming 0.21.0
-// document was rejected — a false positive, the kind that blocks valid work.
-describe('rel: agent-test — DSDS-03 evidence', () => {
-  const withCheck = (rel) => ({
-    id: 'badge',
-    kind: 'component',
-    name: 'Badge',
-    description: 'A small status label.',
-    sections: [{
-      kind: 'guidelines',
-      for: 'all',
-      items: [{
-        level: 'must',
-        statement: 'Give it an accessible name.',
-        checkedBy: 'automated',
-        checks: [{ to: 'some-check', rel }],
-      }],
-    }],
-  });
-
-  it.each(['test', 'lint-rule', 'agent-test'])('accepts rel: %s as evidence', (rel) => {
-    expect(validateDoc20(withCheck(rel)).errors).toEqual([]);
-  });
-
-  it('still rejects checkedBy: automated with no check ref at all', () => {
-    const doc = withCheck('test');
-    delete doc.sections[0].items[0].checks;
-    expect(validateDoc20(doc).errors.join(' ')).toMatch(/checkedBy: automated but has no refs\/checks entry/);
-  });
-
-  it('names every accepted rel in the error, so the fix is in the message', () => {
-    const doc = withCheck('see-also');
-    const message = validateDoc20(doc).errors.join(' ');
-    for (const rel of ['test', 'lint-rule', 'agent-test']) expect(message).toContain(rel);
-  });
-
-  it('matches the rel enum the vendored schema actually ships', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { SCHEMA_DIR } = await import('../../src/spec/schema-order.js');
-    const yaml = (await import('js-yaml')).default;
-    const ref = yaml.load(readFileSync(`${SCHEMA_DIR}/common/ref.schema.yaml`, 'utf8'));
-    const rels = JSON.stringify(ref).match(/"agent-test"/);
-    expect(rels, 'schema-<bundled>/common/ref.schema.yaml should list agent-test').not.toBeNull();
   });
 });

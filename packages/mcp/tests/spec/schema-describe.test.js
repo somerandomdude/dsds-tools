@@ -3,7 +3,7 @@
 //
 // Two bugs this covers. The 0.20.x branch printed field names and nothing
 // else, from a hand-kept list, while the meanings sat unread in
-// schema-0.21.0/ (most declared properties carry a `description`). And `spec`
+// schema-<BUNDLED_VERSION>/ (most declared properties carry a `description`). And `spec`
 // defaulted to legacy 0.15.2, so the no-argument call against a 0.20.1
 // document described `identifier`/`documentBlocks`/`agentDocumentBlocks` —
 // none of which exist in the files being read.
@@ -50,7 +50,7 @@ describe('describeEntryFields', () => {
 
   it('gives a type for $ref-only fields instead of a dash', () => {
     const byName = Object.fromEntries(describeEntryFields('component').map(f => [f.name, f]));
-    for (const n of ['metadata', 'extends', 'related', 'refs']) {
+    for (const n of ['metadata', 'uses', 'extends', 'alternatives', 'refs']) {
       expect(byName[n].type, n).toBeTruthy();
     }
   });

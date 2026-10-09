@@ -14,7 +14,8 @@ import { createRequire } from 'node:module';
 import { resolveConfig } from 'dsds-mcp/src/config.js';
 import { loadSystems, loadIntroEntities, summarizeEntities } from 'dsds-mcp/src/loader.js';
 import { createSurface } from 'dsds-mcp/src/surface.js';
-import { looksLike20, validateDoc20 } from 'dsds-mcp/src/spec/validator.js';
+import { looksLike20, sourceRootOf20, validateDoc20 } from 'dsds-mcp/src/spec/validator.js';
+import { VENDOR_DIR } from 'dsds-mcp/src/spec/schema-order.js';
 import { loadYaml20 } from 'dsds-mcp/src/spec/dsds-lib.js';
 import { buildGraph, createGraphGetter, integrity as graphIntegrity } from 'dsds-mcp/src/graph.js';
 import {
@@ -25,7 +26,13 @@ import {
   parseIconExports,
 } from 'dsds-mcp/src/integrity.js';
 import { BUILD_BRIEF } from 'dsds-mcp/src/briefs.js';
+import { checkLevelOrderAcross } from 'dsds-mcp/src/spec/style-guide.js';
 import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
+import { findTokenRefs, tokenMap, TOKEN_REF_SHAPE } from 'dsds-mcp/src/token-refs.js';
+import { didYouMean } from 'dsds-mcp/src/suggest.js';
+
+// Upstream's item-address model (processing model §2), from the vendored lib.js.
+const { itemAddresses, resolveAddress } = createRequire(import.meta.url)(join(VENDOR_DIR, 'scripts/lib.js'));
 
 /**
  * Validate one document, or report that it is not a DSDS document at all.
@@ -35,9 +42,9 @@ import { BUNDLED_VERSION } from 'dsds-mcp/src/spec/version.js';
  * real `filePath` and a dangling file reference is exactly the build-health
  * problem it exists to catch — so it is promoted here.
  */
-function validateAny(doc, filePath) {
+function validateAny(doc, filePath, { siblings, sourceRoot } = {}) {
   if (looksLike20(doc)) {
-    const { errors, warnings } = validateDoc20(doc, { filePath });
+    const { errors, warnings } = validateDoc20(doc, { filePath, siblings, sourceRoot });
     const fileRefWarnings = warnings.filter((w) => w.startsWith('[DSDS-11]'));
     return {
       valid: errors.length === 0 && fileRefWarnings.length === 0,
@@ -108,21 +115,16 @@ export function checkItemRefs(entities) {
     for (const p of e.__sharedEntries ?? []) if (p?.id && !pool.has(p.id)) pool.set(p.id, p);
     if (e?.id && !pool.has(e.id)) pool.set(e.id, e);
   }
-  const itemIds = new Map();
-  const idsIn = (entry) => {
-    if (itemIds.has(entry.id)) return itemIds.get(entry.id);
-    const ids = new Set();
-    const walk = (o) => {
-      if (Array.isArray(o)) return o.forEach(walk);
-      if (!o || typeof o !== 'object') return;
-      if (typeof o.id === 'string' && o !== entry) ids.add(o.id);
-      for (const v of Object.values(o)) walk(v);
-    };
-    walk(entry.sections ?? []);
-    itemIds.set(entry.id, ids);
-    return ids;
+  // Upstream's address model: an item's `id`, or the id derived from its
+  // text when it has none, plus traits and trait values.
+  const addressBooks = new Map();
+  const addressesOf = (entry) => {
+    if (!addressBooks.has(entry.id)) addressBooks.set(entry.id, itemAddresses(entry));
+    return addressBooks.get(entry.id);
   };
-  const REF_KEYS = ['refs', 'related', 'alternatives'];
+  // Every field a `to` pointer can sit in on a section item: `refs`, and the
+  // 0.22.0 named pointer fields. `related` is read for a document that predates them.
+  const REF_KEYS = ['refs', 'uses', 'alternatives', 'refines', 'checks', 'evidence', 'related'];
   const problems = [];
   for (const entity of entities) {
     const walk = (o, path) => {
@@ -140,7 +142,7 @@ export function checkItemRefs(entities) {
           const itemId = ref.to.slice(hash + 1);
           const target = pool.get(entryId);
           if (!target) problems.push(`${entity.id} ${path}.${key}[${i}]: "${ref.to}" — no entry "${entryId}"`);
-          else if (!idsIn(target).has(itemId)) problems.push(`${entity.id} ${path}.${key}[${i}]: "${ref.to}" — "${entryId}" has no item "${itemId}"`);
+          else if (!resolveAddress(addressesOf(target), itemId).candidate) problems.push(`${entity.id} ${path}.${key}[${i}]: "${ref.to}" — "${entryId}" has no item "${itemId}"`);
         }
       }
       for (const [k, v] of Object.entries(o)) if (!REF_KEYS.includes(k)) walk(v, `${path}.${k}`);
@@ -148,6 +150,138 @@ export function checkItemRefs(entities) {
     walk(entity.sections ?? [], 'sections');
   }
   return problems;
+}
+
+// ── Token references and hardcoded token values ───────────────────────────
+
+/** Every prose string on an entity, with a readable path. Code is skipped later. */
+function entityStrings(entity, visit) {
+  const walk = (o, path) => {
+    if (typeof o === 'string') return visit(o, path);
+    if (Array.isArray(o)) return o.forEach((x, i) => walk(x, `${path}[${i}]`));
+    if (!o || typeof o !== 'object') return;
+    for (const [k, v] of Object.entries(o)) {
+      if (k.startsWith('__') || k === 'source' || k === 'refs' || k === 'related' || k === 'id') continue;
+      walk(v, path ? `${path}.${k}` : k);
+    }
+  };
+  walk(entity, '');
+}
+
+/**
+ * `{name}` references that look like a token but name none.
+ *
+ * Only token-shaped names are reported (`space-33`, `content.action.delet`).
+ * A single word in braces is usually quoted JSX (`{true}`), so it is left
+ * alone even when it resolves to nothing.
+ *
+ * @returns {string[]} one line per broken reference
+ */
+export function checkTokenRefs(entities, tokens) {
+  const names = [...tokens.keys()];
+  const problems = [];
+  for (const entity of entities) {
+    entityStrings(entity, (text, path) => {
+      for (const name of findTokenRefs(text)) {
+        if (tokens.has(name) || !TOKEN_REF_SHAPE.test(name)) continue;
+        const near = didYouMean(name, names, { limit: 3 });
+        problems.push(`${entity.id} ${path}: {${name}} names no token${near.length ? ` — did you mean ${near.map(n => `{${n}}`).join(', ')}?` : ''}`);
+      }
+    });
+  }
+  return problems;
+}
+
+// Words before a value that say which scale it belongs to.
+const FAMILY_HINTS = [
+  { family: 'radius', re: /radius|corner|round/ },
+  { family: 'typography', re: /font|text|type|heading|body|label|eyebrow|code|line.height|size\b/ },
+  { family: 'container', re: /container|max-?width|measure|reading width/ },
+  { family: 'space', re: /padding|margin|gap|spac|inset|density|step|offset/ },
+];
+
+// Words near a value that mark it as something other than a token: WCAG's
+// 320px reflow width and 19px-bold large-text threshold, a 24px touch
+// target, a viewport breakpoint, a component's minimum size, an icon size
+// (set in the component's own CSS, not in a token file).
+const NOT_A_TOKEN = /viewport|breakpoint|wcag|reflow|overflow|touch|target|screen|device|media|zoom|contrast|large text|\bbold|minimum|min(?:imum)?[- ]?(?:size|height|width)|icon size|\(all\)|means \d|stacks|horizontal scroll/;
+
+// A column header that marks every cell under it as not a token value.
+const NOT_A_TOKEN_COLUMN = /icon|height|width|breakpoint|min-?width|minimum/i;
+
+/** The header of the markdown table column a character offset sits in, or null. */
+function columnHeaderAt(text, offset) {
+  const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
+  const lineEnd = text.indexOf('\n', offset);
+  const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+  if (!line.trim().startsWith('|')) return null;
+  const col = (line.slice(0, offset - lineStart).match(/\|/g) ?? []).length;
+  const lines = text.slice(0, lineStart).split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  for (let i = lines.length - 1; i > 0; i--) {
+    if (/^\s*\|[\s:|-]+\|\s*$/.test(lines[i]) && lines[i].includes('-')) {
+      return lines[i - 1].split('|')[col]?.trim() ?? null;
+    }
+    if (!lines[i].trim().startsWith('|')) break;
+  }
+  return null;
+}
+
+function familyOf(token) {
+  if (token.type === 'typography') return 'typography';
+  return String(token.file).toLowerCase();
+}
+
+function pxOf(token) {
+  const v = token.value;
+  if (token.type === 'dimension' && v && typeof v === 'object' && v.unit === 'px') return v.value;
+  if (token.type === 'typography' && v?.fontSize?.unit === 'px') return v.fontSize.value;
+  return null;
+}
+
+/**
+ * Pixel values written into prose that equal a token's value.
+ *
+ * A match is a suggestion, not a verdict: a 12px width is not necessarily
+ * `space-3`. The words just before the value pick the scale when they can
+ * ("padding" → space, "radius" → radius); otherwise every candidate is
+ * listed. Values inside code spans and blocks are skipped — `width="300px"`
+ * is a sizing example, not a token.
+ *
+ * @returns {{hits: string[], count: number}}
+ */
+export function findHardcodedTokenValues(entities, tokens) {
+  const byPx = new Map();
+  for (const t of tokens.values()) {
+    const px = pxOf(t);
+    if (px == null) continue;
+    const key = String(px);
+    if (!byPx.has(key)) byPx.set(key, []);
+    byPx.get(key).push(t);
+  }
+  const hits = [];
+  for (const entity of entities) {
+    entityStrings(entity, (text, path) => {
+      if (!/\dpx\b/.test(text)) return;
+      const prose = text.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((p, i) => (i % 2 ? ' '.repeat(p.length) : p)).join('');
+      // A negative offset (−7px) and a border width (1px border) are never tokens.
+      for (const m of prose.matchAll(/(?<![−\-\d.])(\d+(?:\.\d+)?)px\b(?!\s*(?:solid|border|stroke|outline|hairline))/g)) {
+        let candidates = byPx.get(String(Number(m[1]))) ?? [];
+        if (!candidates.length) continue;
+        const before = prose.slice(Math.max(0, m.index - 60), m.index).toLowerCase();
+        const after = prose.slice(m.index, m.index + 40).toLowerCase();
+        if (NOT_A_TOKEN.test(before.slice(-30) + after)) continue;
+        const header = columnHeaderAt(prose, m.index);
+        if (header && NOT_A_TOKEN_COLUMN.test(header)) continue;
+        if (candidates.length > 1) {
+          const hint = FAMILY_HINTS.find(h => h.re.test(before) && candidates.some(c => familyOf(c) === h.family));
+          if (hint) candidates = candidates.filter(c => familyOf(c) === hint.family);
+        }
+        hits.push(`${entity.id} ${path}: ${m[0]} → ${candidates.map(c => `{${c.name}}`).join(' or ')}`);
+      }
+    });
+  }
+  return { hits, count: hits.length };
 }
 
 export async function runDoctor({ json = false, configPath = null } = {}) {
@@ -216,11 +350,28 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
     const problems = [];
     let filesChecked = 0;
     for (const system of systems) {
-      filesChecked += 1;
-      const rootResult = validateAny(loadFreshForValidation(system.filePath), system.filePath);
-      if (!rootResult.valid) {
-        const first = rootResult.errors[0];
-        problems.push(`${basename(system.filePath)}: ${rootResult.errors.length} schema error(s) — first: ${first.path}: ${first.message}`);
+      // A YAML system is the root document plus every file it reaches with
+      // `rel: file`. Validate each one, all together, as upstream's CLI does
+      // with files given at once: refs resolve across them, and the root
+      // system's `metadata.sourceRoot` applies to every `sourceFiles` path.
+      const files = [system.filePath, ...new Set(system.entities.map((e) => e?.__filePath).filter((f) => f && f !== system.filePath))];
+      const docs = files.map((file) => {
+        try {
+          return { file, doc: loadFreshForValidation(file) };
+        } catch (err) {
+          problems.push(`${basename(file)}: unreadable — ${err.message}`);
+          return null;
+        }
+      }).filter(Boolean);
+      const siblings = docs.map((d) => d.doc);
+      const sourceRoot = docs.length ? sourceRootOf20(docs[0].doc, system.filePath) : null;
+      for (const { file, doc } of docs) {
+        filesChecked += 1;
+        const result = validateAny(doc, file, { siblings, sourceRoot });
+        if (!result.valid) {
+          const first = result.errors[0];
+          problems.push(`${basename(file)}: ${result.errors.length} schema error(s) — first: ${first.path}: ${first.message}`);
+        }
       }
       for (const refFile of collectRefFiles(system.document, system.filePath)) {
         filesChecked += 1;
@@ -281,6 +432,45 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
       problems.length ? 'fail' : 'pass',
       problems.length ? problems : ['every entryId#itemId ref on a section item resolves'],
     );
+  }
+
+  // ── Guideline level order (DSDS-19, corpus-wide) ───────────────────────────
+  // A pointer item takes the level of the shared rule it points to, which
+  // usually lives in another file. A single-document style check skips such
+  // pointers, so when a shared rule's level changed, every pointer to it
+  // could land out of order unnoticed. Advisory, like every style rule: a
+  // warning, never a failure.
+  if (allEntities.length > 0) {
+    const findings = checkLevelOrderAcross(allEntities);
+    add(
+      'guideline level order',
+      findings.length ? 'warn' : 'pass',
+      findings.length
+        ? [
+            `${findings.length} guidelines section(s) out of must, should, may, should-not, must-not order`,
+            ...findings.map((f) => `${f.file ? `${basename(f.file)} ` : ''}${f.entry}${f.pointer}: ${f.message}`),
+          ]
+        : ['every guidelines section runs must, should, may, should-not, must-not, pointers included'],
+    );
+  }
+
+  // ── Token references ───────────────────────────────────────────────────────
+  // `{space-3}` in prose is served as "`space-3` (12px)". A reference that
+  // resolves to nothing would be served raw, so it fails here instead.
+  if (allEntities.length > 0) {
+    const tokens = tokenMap(systems);
+    if (tokens.size === 0) {
+      add('token references', 'skip', ['no DTCG token files referenced by any entry'] );
+    } else {
+      const broken = checkTokenRefs(allEntities, tokens);
+      add('token references', broken.length ? 'fail' : 'pass', broken.length ? broken : [`every {token} reference resolves (${tokens.size} tokens)`]);
+      const { hits, count } = findHardcodedTokenValues(allEntities, tokens);
+      add(
+        'hardcoded token values',
+        count ? 'warn' : 'pass',
+        count ? [`${count} pixel value(s) in prose match a token — write the reference instead`, ...hits] : ['no pixel value in prose duplicates a token'],
+      );
+    }
   }
 
   // ── Example code props ─────────────────────────────────────────────────────
@@ -416,7 +606,7 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
       JSON.stringify({ ok: code === 0, exitCode: code, bundledSpecVersion: BUNDLED_VERSION, checks }, null, 2) + '\n'
     );
   } else {
-    const icon = { pass: '✓', fail: '✗', skip: '–' };
+    const icon = { pass: '✓', fail: '✗', skip: '–', warn: '!' };
     const lines = [`dsds doctor — bundled spec ${BUNDLED_VERSION}`, ''];
     for (const check of checks) {
       lines.push(`${icon[check.status]} ${check.name}`);
@@ -424,7 +614,9 @@ export async function runDoctor({ json = false, configPath = null } = {}) {
       for (const detail of check.details.slice(0, limit)) lines.push(`    ${detail}`);
       if (check.details.length > limit) lines.push(`    … ${check.details.length - limit} more`);
     }
-    lines.push('', failed.length > 0 ? `✗ ${failed.length} check(s) failed` : '✓ all checks passed');
+    const warned = checks.filter(c => c.status === 'warn').length;
+    const warnNote = warned ? ` (${warned} warning${warned === 1 ? '' : 's'})` : '';
+    lines.push('', failed.length > 0 ? `✗ ${failed.length} check(s) failed${warnNote}` : `✓ all checks passed${warnNote}`);
     process.stdout.write(lines.join('\n') + '\n');
   }
 

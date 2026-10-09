@@ -59,16 +59,29 @@ describe('validateDoc20', () => {
     expect(warnings.every((w) => w.startsWith('[DSDS-08]'))).toBe(true);
   });
 
-  it('accepts a component `specs` entry pointing at a machine-readable API contract via `rel: contract`', () => {
+  // 0.22.0: a pointer in a field named for one kind of pointer has no `rel`;
+  // `specs` means `contract`.
+  it('accepts a component `specs` entry pointing at a machine-readable API contract, with no `rel`', () => {
     const doc = {
       id: 'button',
       kind: 'component',
       name: 'Button',
       description: 'A clickable action trigger.',
-      specs: [{ href: './contracts/button.contract.json', rel: 'contract', role: 'DS Contracts' }],
+      specs: [{ href: './contracts/button.contract.json', role: 'DS Contracts' }],
     };
     const { errors } = validateDoc20(doc);
     expect(errors).toEqual([]);
+  });
+
+  it('rejects a `rel` inside `specs`, since the field already says what kind of pointer it holds', () => {
+    const doc = {
+      id: 'button',
+      kind: 'component',
+      name: 'Button',
+      description: 'A clickable action trigger.',
+      specs: [{ href: './contracts/button.contract.json', rel: 'contract' }],
+    };
+    expect(validateDoc20(doc).errors.length).toBeGreaterThan(0);
   });
 
   // 0.21.0 removed `setBy` from a trait — `traitType` answers the question
@@ -115,7 +128,7 @@ describe('validateDoc20', () => {
   });
 
   it('gives a standalone entry the same reference checking a base document gets — as a warning, not an error, since it can never prove it is self-contained', () => {
-    const doc = { id: 'badge', kind: 'component', name: 'Badge', description: 'A small status label.', related: [{ to: 'does-not-exist-anywhere', rel: 'alternative-to' }] };
+    const doc = { id: 'badge', kind: 'component', name: 'Badge', description: 'A small status label.', alternatives: [{ to: 'does-not-exist-anywhere' }] };
     const { errors, warnings } = validateDoc20(doc);
     expect(errors).toEqual([]);
     expect(warnings.some((w) => w.includes('does-not-exist-anywhere'))).toBe(true);
@@ -128,7 +141,7 @@ describe('validateDoc20', () => {
     const doc = {
       schemaVersion: '0.20.0', name: 'X',
       entries: [
-        { id: 'a', kind: 'entry', name: 'A', description: 'd', related: [{ to: 'b', rel: 'composes' }] },
+        { id: 'a', kind: 'entry', name: 'A', description: 'd', uses: [{ to: 'b' }] },
         { id: 'b', kind: 'entry', name: 'B', description: 'd' },
       ],
     };
@@ -164,13 +177,16 @@ describe('validateDoc20', () => {
   });
 });
 
-describe('validateDoc20 — DSDS-01..11 semantic rules (real fixtures)', () => {
-  const files = readdirSync(resolve(fixturesDir, 'invalid-0.20.0'));
+// The rule fixtures are the ones the conformance suite vendors from upstream's
+// examples/invalid/, one or more per semantic rule.
+describe('validateDoc20 — semantic rules (real fixtures)', () => {
+  const ruleFixtureDir = resolve(__dirname, '../fixtures/conformance-0.22.0');
+  const files = readdirSync(ruleFixtureDir).filter((f) => /^DSDS-\d+/.test(f));
 
   it.each(files)('flags exactly the rule the fixture %s is named for', (file) => {
     const ruleId = file.match(/^DSDS-(\d+)/)[0]; // e.g. "DSDS-04"
-    const filePath = resolve(fixturesDir, `invalid-0.20.0/${file}`);
-    const doc = loadFixture(`invalid-0.20.0/${file}`);
+    const filePath = resolve(ruleFixtureDir, file);
+    const doc = loadYaml20(readFileSync(filePath, 'utf-8'));
     // filePath is passed for every fixture, not just the DSDS-11 ones — it's
     // a no-op for DSDS-01..10 (they don't look at opts.filePath at all) and
     // DSDS-11 needs it (a warning, not an error — hence checking both below).
@@ -212,15 +228,31 @@ describe('validateDoc20 — DSDS-02 platform vocabulary against the per-platform
   });
 });
 
-describe('validateDoc20 — DSDS-12..15 advisory tier (never affects validity)', () => {
-  it('DSDS-12: flags a lowercase RFC keyword in a guideline statement', () => {
+describe('validateDoc20 — DSDS-13..16 advisory tier (never affects validity)', () => {
+  // DSDS-12 is retired in 0.22.0: `level` already says how strong a rule is.
+  it('DSDS-12 (retired): does not flag a lowercase RFC keyword in a guideline statement', () => {
     const doc = {
       id: 'button', kind: 'component', name: 'Button', description: 'd',
       sections: [{ kind: 'guidelines', for: 'all', items: [{ id: 'a', statement: 'You must set an aria-label.', level: 'must', checkedBy: 'manual' }] }],
     };
     const { errors, advisories } = validateDoc20(doc);
     expect(errors).toEqual([]);
-    expect(advisories.some(a => a.startsWith('[DSDS-12]'))).toBe(true);
+    expect(advisories.some(a => a.startsWith('[DSDS-12]'))).toBe(false);
+  });
+
+  it('DSDS-14: does not flag a must rule that reuses one declaring checkedBy', () => {
+    const doc = {
+      schemaVersion: '0.22.0', name: 'X',
+      entries: [
+        { id: 'rules', kind: 'entry', name: 'Rules', description: 'd',
+          sections: [{ kind: 'guidelines', for: 'all', items: [{ id: 'name-it', statement: 'Set an accessible name.', level: 'must', checkedBy: 'manual' }] }] },
+        { id: 'button', kind: 'entry', name: 'Button', description: 'd',
+          sections: [{ kind: 'guidelines', for: 'all', items: [{ refs: [{ to: 'rules#name-it', rel: 'same-as' }] }] }] },
+      ],
+    };
+    const { errors, advisories } = validateDoc20(doc);
+    expect(errors).toEqual([]);
+    expect(advisories.some(a => a.startsWith('[DSDS-14]'))).toBe(false);
   });
 
   it('DSDS-13: flags a token description that only restates its id', () => {
@@ -270,5 +302,31 @@ describe('validateDoc20 — DSDS-12..15 advisory tier (never affects validity)',
     const { errors, advisories } = validateDoc20(doc);
     expect(errors).toEqual([]);
     expect(advisories.length).toBeGreaterThan(0); // missing when-to-use, at minimum
+  });
+});
+
+describe('validateDoc20 — DSDS-11 with a token reference in the href', () => {
+  it('checks the file a `#token` source points into, not a file named with the fragment', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'dsds-11-'));
+    try {
+      writeFileSync(join(dir, 'space.tokens.json'), '{"space-1":{"$type":"dimension","$value":{"value":4,"unit":"px"}}}');
+      const doc = {
+        schemaVersion: '0.21.0',
+        name: 'X',
+        entries: [
+          { kind: 'token', id: 'space-1', name: 'space-1', description: 'Tight gaps.', source: { href: './space.tokens.json#space-1', rel: 'file' } },
+          { kind: 'token', id: 'space-2', name: 'space-2', description: 'Compact padding.', source: { href: './missing.tokens.json#space-2', rel: 'file' } },
+        ],
+      };
+      const { warnings } = validateDoc20(doc, { filePath: join(dir, 'tokens.dsds.yaml') });
+      const dsds11 = warnings.filter(w => w.startsWith('[DSDS-11]'));
+      expect(dsds11).toHaveLength(1);
+      expect(dsds11[0]).toContain('missing.tokens.json');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

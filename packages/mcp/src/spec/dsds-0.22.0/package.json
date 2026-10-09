@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "commonjs",
+  "description": "Vendored verbatim from somerandomdude/design-system-documentation-schema at 0.22.0: schema/ and the reference validator, resolver and formatter in scripts/. CommonJS, as upstream ships them. Do not edit; re-vendor with npm run update-schema."
+}

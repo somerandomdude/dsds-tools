@@ -20,8 +20,9 @@ export const searchEntitiesDef = {
       },
       status: {
         type: 'string',
-        enum: ['draft', 'experimental', 'stable', 'deprecated'],
-        description: 'Filter by lifecycle status.',
+        // No enum: the spec's status vocabulary is open, and a closed list
+        // rejected real values such as `beta` and `unavailable`.
+        description: 'Filter by lifecycle status, e.g. "stable", "beta", "deprecated". Any status word a document uses is accepted; dsds_list_entities shows the ones in use.',
       },
       tags: {
         type: 'array',

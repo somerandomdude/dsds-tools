@@ -78,8 +78,9 @@ function inferLanguage(filename) {
 export const lintDef = {
   name: 'dsds_lint',
   description:
-    'Lint code against the design system\'s own ESLint rules, auto-applying fixable violations ' +
-    'and returning the corrected code plus anything left. ' +
+    'Lint code against the design system\'s own ESLint rules. Returns findings only, never a rewritten file: ' +
+    'each finding that needs a change from you, and for fixable ones the exact lines to edit ' +
+    '(or, where the host applies fixes itself, a note to leave them alone). Re-emit only the files you change. ' +
     'Pass `path` (or `files: [{path}]`) for code already written to disk — preferred, since you never re-send contents. ' +
     'Pass `code` for a source string not yet on a disk. Nothing is ever written, created, or modified ' +
     '(the `apply` flag, for harness use, is the sole exception). ' +
@@ -121,11 +122,61 @@ export const lintDef = {
       },
       apply: {
         type: 'boolean',
-        description: 'Harness/automation only: write auto-fixed code back to disk (lint as a non-skippable gate). Agents copy the corrected code from the response instead.',
+        description: 'Harness/automation only: write auto-fixed code back to disk (lint as a non-skippable gate). Agents make the listed line edits instead.',
       },
     },
   },
 };
+
+// Last content linted per filename in this process, for "unchanged since
+// your last call". Keyed by the same hash as the result cache.
+const lastLinted = new Map();
+
+/**
+ * The line-level edits that turn `before` into `after`, as hunks of
+ * `{ line, removed, added }` numbered against `before`. A longest-common-
+ * subsequence diff: files here are hundreds of lines, so O(n·m) is fine.
+ */
+export function lineEdits(before, after) {
+  const a = before.split('\n');
+  const b = after.split('\n');
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const hunks = [];
+  let i = 0, j = 0, cur = null;
+  const flush = () => { if (cur) { hunks.push(cur); cur = null; } };
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) { flush(); i++; j++; continue; }
+    cur ??= { line: i + 1, removed: [], added: [] };
+    if (j < m && (i >= n || dp[i][j + 1] >= dp[i + 1][j])) { cur.added.push(b[j]); j++; }
+    else { cur.removed.push(a[i]); i++; }
+  }
+  flush();
+  return hunks;
+}
+
+const MAX_EDITS_SHOWN = 20;
+
+/** Hunks as a compact diff an agent can apply by hand. */
+function renderEdits(hunks, lang) {
+  const out = [];
+  for (const h of hunks.slice(0, MAX_EDITS_SHOWN)) {
+    out.push(`line ${h.line}:`, '```diff');
+    for (const l of h.removed) out.push(`- ${l}`);
+    for (const l of h.added) out.push(`+ ${l}`);
+    out.push('```');
+  }
+  if (hunks.length > MAX_EDITS_SHOWN) {
+    out.push(`…and ${hunks.length - MAX_EDITS_SHOWN} more edit${hunks.length - MAX_EDITS_SHOWN === 1 ? '' : 's'} of the same kinds.`);
+  }
+  void lang;
+  return out;
+}
 
 async function writeLintLog(logsDir, fileResults) {
   const relevant = fileResults.filter(f => f.messages?.length > 0 || f.fixed);
@@ -273,6 +324,12 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
         fix: true,
       })
     : null;
+  // A fix run reports only what is left, so the findings it fixed are
+  // invisible in its result. This second, no-fix pass names them, for the
+  // "fixable" part of the output.
+  const eslintReport = hasEslintRules
+    ? new ESLint({ overrideConfigFile: true, overrideConfig, cwd: lintDir, fix: false })
+    : null;
 
   // Warn the agent if it submitted stub files (no JSX → design-system rules won't fire)
   const stubFiles = detectStubFiles(filesToLint);
@@ -350,11 +407,24 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
         column: m.column,
         fix: !!m.fix,
       }));
+      let fixedMessages = [];
+      if (fixed && eslintReport) {
+        const before = (await eslintReport.lintText(originalCode, { filePath }))[0]?.messages ?? [];
+        const left = new Set(messages.map(m => `${m.ruleId}:${m.message}`));
+        fixedMessages = before
+          .filter(m => m.fix && !left.has(`${m.ruleId}:${m.message}`))
+          .map(m => ({ ruleId: m.ruleId, severity: m.severity, message: m.message, line: m.line, column: m.column }));
+      }
+      const edits = fixed ? lineEdits(originalCode, fixedCode) : [];
+      // Same file, same content as the last call in this process: say so
+      // rather than repeating the findings the agent already has.
+      const unchanged = lastLinted.get(filename) === cacheKey;
+      lastLinted.set(filename, cacheKey);
       const result = {
-        filename, messages, fixedCode, fixed, cacheKey,
+        filename, messages, fixedCode, fixed, cacheKey, fixedMessages, edits,
       };
       storeCacheEntry(cacheKey, result);
-      fileResults.push(result);
+      fileResults.push(unchanged ? { ...result, unchanged: true } : result);
     } catch (err) {
       fileResults.push({ filename, error: err.message, messages: [], fixedCode: null, fixed: false, cacheKey: null });
     }
@@ -363,114 +433,62 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
   // Write log entry (best-effort, non-blocking)
   if (logsDir) writeLintLog(logsDir, fileResults);
 
-  // Render output
+  // Render output.
+  //
+  // Findings only — never a whole corrected file. The old output returned the
+  // full fixed source and told the agent to "apply the corrected code", so
+  // every lint call was followed by the agent re-emitting every file it had
+  // linted. On 2026-09-22 that roughly doubled output tokens for Haiku and
+  // Sonnet alike, and led the agent tester to hide this tool from both.
+  //
+  // A fixable finding is shown as the lines that change, or — when the host
+  // applies ESLint's fixes itself (`lintAutofixByHost`) — as a note to leave
+  // it alone. Output grows with the number of findings, not with file size.
   const lines = [];
-  const isBatch = filesToLint.length > 1;
   const toolName = 'dsds_lint';
+  const { autofixByHost = false } = getLintConfig();
 
   const totalRemaining = fileResults.reduce((n, f) => n + (f.messages?.length ?? 0), 0);
-  const filesFixed = fileResults.filter(f => f.fixed).length;
+  const totalFixable = fileResults.reduce((n, f) => n + (f.fixedMessages?.length ?? 0), 0);
   const filesWithErrors = fileResults.filter(f => f.error).length;
-  const filesClean = fileResults.filter(f => !f.error && !f.fixed && f.messages?.length === 0).length;
-  const filesAutoFixedClean = fileResults.filter(f => f.fixed && f.messages?.length === 0).length;
-  const filesWithRemaining = fileResults.filter(f => f.messages?.length > 0).length;
+  const filesUnchanged = fileResults.filter(f => f.unchanged).length;
 
-  if (isBatch) {
-    const allClean = totalRemaining === 0 && !fileResults.some(f => f.error);
-    if (allClean && filesFixed === 0) {
-      lines.push(`All ${fileResults.length} files lint clean.`);
-    } else if (allClean && filesFixed > 0) {
-      lines.push(
-        `All ${fileResults.length} files lint clean after auto-fix. ` +
-        `Apply the corrected code for ${filesFixed} file${filesFixed === 1 ? '' : 's'} below.`,
-        '',
-      );
-    } else {
-      const parts = [];
-      if (filesFixed > 0) parts.push(`${filesFixed} auto-fixed`);
-      if (filesClean > 0) parts.push(`${filesClean} clean`);
-      if (filesWithRemaining > 0) parts.push(`${filesWithRemaining} with remaining violations`);
-      if (filesWithErrors > 0) parts.push(`${filesWithErrors} error`);
-      lines.push(
-        `## Lint results — ${fileResults.length} file${fileResults.length === 1 ? '' : 's'} (${parts.join(', ')}), ` +
-        `${totalRemaining} remaining violation${totalRemaining === 1 ? '' : 's'}`,
-        '',
-      );
+  const sevOf = (m) => (m.severity === 2 ? 'error' : 'warn');
+  const header = [];
+  header.push(`${fileResults.length} file${fileResults.length === 1 ? '' : 's'} linted`);
+  if (totalFixable) header.push(`${totalFixable} fixable automatically`);
+  header.push(`${totalRemaining} need${totalRemaining === 1 ? 's' : ''} a change from you`);
+  if (filesWithErrors) header.push(`${filesWithErrors} could not be linted`);
+  lines.push(`## Lint results — ${header.join(', ')}`, '');
+
+  for (const f of fileResults) {
+    if (f.error) {
+      lines.push(`### \`${f.filename}\` — could not lint`, '', f.error, '');
+      continue;
     }
-
-    for (const f of fileResults) {
-      if (f.error) {
-        lines.push(`### \`${f.filename}\` — ESLint error`, '', f.error, '');
-        continue;
-      }
-
-      const lang = inferLanguage(f.filename);
-
-
-      if (f.fixed && f.messages.length === 0) {
-        lines.push(`### \`${f.filename}\` — all violations auto-fixed`, '');
-        lines.push('**Corrected code:**', '');
-        lines.push('```' + lang, f.fixedCode, '```', '');
-        continue;
-      }
-
-      if (f.fixed && f.messages.length > 0) {
-        lines.push(`### \`${f.filename}\` — ${f.messages.length} remaining violation${f.messages.length === 1 ? '' : 's'} (auto-fixes applied)`, '');
-        lines.push('**Corrected code** (apply this, then address the remaining violations below):', '');
-        lines.push('```' + lang, f.fixedCode, '```', '');
-        lines.push('**Remaining violations:**', '');
-        for (const m of f.messages) {
-          const sev = m.severity === 2 ? 'error' : 'warn';
-          lines.push(`#### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-          lines.push(m.message, '');
-        }
-        continue;
-      }
-
-      if (f.messages.length === 0) {
-        lines.push(`### \`${f.filename}\` — clean`, '');
-        continue;
-      }
-
-      lines.push(`### \`${f.filename}\` — ${f.messages.length} violation${f.messages.length === 1 ? '' : 's'}`, '');
-      for (const m of f.messages) {
-        const sev = m.severity === 2 ? 'error' : 'warn';
-        lines.push(`#### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-        lines.push(m.message, '');
+    if (f.unchanged) {
+      lines.push(`### \`${f.filename}\` — unchanged since your last ${toolName} call`, '',
+        'The result you already have still stands. Lint it again only after you change it.', '');
+      continue;
+    }
+    const fixable = f.fixedMessages ?? [];
+    if (!fixable.length && !f.messages.length) {
+      lines.push(`### \`${f.filename}\` — clean`, '');
+      continue;
+    }
+    lines.push(`### \`${f.filename}\``, '');
+    for (const m of f.messages) {
+      lines.push(`- ${m.line ? `**line ${m.line}** ` : ''}\`${m.ruleId ?? 'eslint'}\` [${sevOf(m)}] — ${m.message}`);
+    }
+    if (fixable.length) {
+      if (autofixByHost) {
+        lines.push(`- ${fixable.length} more finding${fixable.length === 1 ? '' : 's'} (${[...new Set(fixable.map(m => m.ruleId))].map(r => `\`${r}\``).join(', ')}) will be fixed automatically after your turn. Do not change or re-emit the file for ${fixable.length === 1 ? 'it' : 'them'}.`);
+      } else {
+        lines.push('', `**Fixable — make these line edits** (${fixable.length} finding${fixable.length === 1 ? '' : 's'}: ${[...new Set(fixable.map(m => m.ruleId))].map(r => `\`${r}\``).join(', ')}):`, '');
+        lines.push(...renderEdits(f.edits ?? [], inferLanguage(f.filename)));
       }
     }
-  } else {
-    // Single-file output
-    const { filename, messages, fixedCode, fixed, error } = fileResults[0];
-    const lang = inferLanguage(filename);
-
-
-    if (error) {
-      lines.push(`ESLint error: ${error}`);
-    } else if (fixed && messages.length === 0) {
-      lines.push('All violations were auto-fixed.', '');
-      lines.push('**Corrected code:**', '');
-      lines.push('```' + lang, fixedCode, '```');
-    } else if (fixed && messages.length > 0) {
-      lines.push(`## Lint results — ${messages.length} remaining violation${messages.length === 1 ? '' : 's'} (auto-fixes applied)`, '');
-      lines.push('**Corrected code** (apply this, then address the remaining violations below):', '');
-      lines.push('```' + lang, fixedCode, '```', '');
-      lines.push('**Remaining violations:**', '');
-      for (const m of messages) {
-        const sev = m.severity === 2 ? 'error' : 'warn';
-        lines.push(`### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-        lines.push(m.message, '');
-      }
-    } else if (messages.length === 0) {
-      lines.push('No lint issues found.');
-    } else {
-      lines.push(`## Lint results — ${messages.length} violation${messages.length === 1 ? '' : 's'}`, '');
-      for (const m of messages) {
-        const sev = m.severity === 2 ? 'error' : 'warn';
-        lines.push(`### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-        lines.push(m.message, '');
-      }
-    }
+    lines.push('');
   }
 
   if (stubFiles.length > 0) {
@@ -491,12 +509,13 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
 
   // One-pass directive: when nothing is left to fix, tell the agent to stop here
   // rather than re-linting to "confirm" (which just re-sends the same code).
-  if (totalRemaining === 0 && filesWithErrors === 0) {
-    lines.push(
-      '',
-      `> ✓ One pass complete — apply the corrected code above and move on. Do NOT call ${toolName} again to confirm. ` +
-      'Lint again only if you change a file.',
-    );
+  if (filesWithErrors === 0) {
+    const next = totalRemaining > 0
+      ? 'Fix the findings above in the files named, and re-emit only those files.'
+      : autofixByHost || totalFixable === 0
+        ? 'Nothing needs a change from you.'
+        : 'Make the line edits above, and re-emit only the files they touch.';
+    lines.push('', `> ✓ One pass complete. ${next} Do NOT call ${toolName} again to confirm; lint again only if you change a file.`);
   }
 
   // Inline mode is read-only — make the no-persistence contract explicit so a
@@ -530,9 +549,11 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     // the text above; the harness reads this.
     structuredContent: {
       remaining: totalRemaining,
+      fixable: totalFixable,
       files: fileResults.map((f) => ({
         filename: f.filename,
         fixed: !!f.fixed,
+        fixedMessages: f.fixedMessages ?? [],
         messages: f.messages ?? [],
         error: f.error ?? null,
       })),

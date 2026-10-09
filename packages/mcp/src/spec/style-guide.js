@@ -1,32 +1,24 @@
-// The DSDS authoring style guide (STYLE_GUIDE.md, new in spec v0.20.1):
-// how to order things inside a document so every document reads the same way.
+// The DSDS authoring style guide (STYLE_GUIDE.md): the reading order of the
+// things in a document, so every document reads the same way.
 //
-// Seven warning-only rules, DSDS-17 through DSDS-23, all `enforcement: advisory`
-// in schema-0.21.0/conformance-rules.yaml. None of this changes whether a
-// document is *valid* — the schema accepts any order — so nothing here ever
-// produces an error, and `dsds_validate`'s verdict is unaffected.
+// Three warning-only rules, all `enforcement: advisory` in the vendored
+// conformance-rules.yaml: DSDS-18 (sections), DSDS-19 (guideline items) and
+// DSDS-21 (entries). None of this changes whether a document is *valid* — the
+// schema accepts any order — so nothing here ever produces an error.
 //
-// Ported from the upstream spec repo's scripts/validate/lint-docs.js at tag
-// v0.20.1. Every canonical order is read from the vendored schema files at
-// runtime (see schema-order.js) rather than transcribed, because the guide's
-// own first rule is that the schema *is* the field order.
+// Field order used to be four more rules here (DSDS-17, -20, -22, -23). 0.22.0
+// retired them: field order has one right answer, so upstream applies it with
+// `dsds-format` instead of reporting it. dsds_style_check runs the vendored
+// formatter for that (see tools/style-check.js).
+//
+// Ported from upstream's scripts/validate/lint-docs.js at 0.22.0. Every
+// canonical order is read from the vendored schema files at runtime (see
+// schema-order.js) rather than transcribed.
 import { join } from 'node:path';
 import { loadYamlFile20 } from './dsds-lib.js';
-import {
-  declaredEnum,
-  declaredProps,
-  entryFieldOrder,
-  enumRanker,
-  EXTENSIONS_KEY,
-  firstInversion,
-  SCHEMA_DIR,
-  SCHEMA_DIR_NAME,
-} from './schema-order.js';
+import { declaredEnum, enumRanker, firstInversion, SCHEMA_DIR, SCHEMA_DIR_NAME } from './schema-order.js';
 
 // ── Canonical orders, all schema-derived ────────────────────────────────────
-
-const SHARED_FIELD_ORDER = declaredProps('shared.schema.yaml');
-const DOCUMENT_FIELD_ORDER = declaredProps('base.schema.yaml');
 
 // `kind` is a oneOf (a known enum, or a namespaced custom string) — the enum
 // branch is the one that carries an order.
@@ -46,86 +38,21 @@ const framingRank = enumRanker('sections/guidelines.schema.yaml', FRAMING_AT);
 const LEVEL = declaredEnum('common/requirement-level.schema.yaml', (d) => d);
 const levelRank = enumRanker('common/requirement-level.schema.yaml', (d) => d);
 
-// §4's breadth scale has three tiers, not two: when-to-use, then how-to-use,
-// then "a section about one topic". The third isn't a framing value — it's a
-// section that declares `tags`.
-const TAG_TIER = FRAMING.values.length;
+// §4's breadth scale: `when-to-use`, then `how-to-use`, in the order the
+// schema lists `framing`. Until 0.22.0 a section declaring `tags` formed a
+// third, narrowest tier, so tagging a section to classify it could move it.
+// `tags` is classification only now.
+const breadthRank = (section) => framingRank(section.framing);
 
-/**
- * The topic a section declares, or null. The first tag is the scope, matching
- * `metadata.tags`' own first-tag-is-primary convention.
- *
- * 0.21.0 added `tags` to a section and pointed DSDS-18's third tier at it.
- * Before that the tier was inferred from the items — two or more, every one
- * tagged, with a tag common to all of them — which made a section's required
- * position depend on how many rules it happened to hold and on whether their
- * tags intersected. Adding a rule could move a section; a section with ten
- * tagged items could miss the tier because no single tag ran through all of
- * them. A declared field cannot do either.
- *
- * Item-level `tags` are untouched by this: they relate one rule across
- * categories, which is a different job from saying what a section covers.
- */
-function sectionScope(section) {
-  const tags = section?.tags;
-  return Array.isArray(tags) && tags.length && typeof tags[0] === 'string' ? tags[0] : null;
-}
+const describeBreadth = (section) => `a \`framing: ${section.framing || FRAMING.fallback}\` section`;
 
-// A tag-scoped section is the narrowest tier whatever its `framing`, so this
-// replaces the framing rank rather than composing with it.
-const breadthRank = (section) => (sectionScope(section) ? TAG_TIER : framingRank(section.framing));
-
-function describeBreadth(section) {
-  const tag = sectionScope(section);
-  return tag ? `a section tagged \`${tag}\`` : `a \`framing: ${section.framing || FRAMING.fallback}\` section`;
-}
-
-const describeTier = (tier) => (tier === TAG_TIER ? 'both tag-scoped' : `both ${FRAMING.values[tier]}`);
+const describeTier = (tier) => `both ${FRAMING.values[tier]}`;
 
 // A section that leaves `for` out is ranked as the schema's default, so it has
 // to be *named* as the default too — printing "for: undefined" would describe
 // the document rather than the problem.
 function describeAudience(section) {
   return section.for === undefined ? `${AUDIENCE.fallback} (defaulted)` : section.for;
-}
-
-/** A shape built from a shared file plus a specific one: shared, own, then `$extensions`. */
-function composedOrder(baseFile, memberFile) {
-  const base = declaredProps(baseFile);
-  const own = declaredProps(memberFile).filter((k) => !base.includes(k));
-  return [...base.filter((k) => k !== EXTENSIONS_KEY), ...own, EXTENSIONS_KEY];
-}
-
-function itemOrder(kind) {
-  const doc = loadYamlFile20(join(SCHEMA_DIR, 'sections', `${kind}.schema.yaml`));
-  const inline = (doc.allOf || []).find((m) => m.properties);
-  return Object.keys(inline.properties.items.items.properties);
-}
-
-const METADATA_ORDER = {
-  entry: composedOrder('metadata/metadata.schema.yaml', 'metadata/entry-metadata.schema.yaml'),
-  system: composedOrder('metadata/metadata.schema.yaml', 'metadata/system-metadata.schema.yaml'),
-};
-const ITEM_ORDER = {
-  guidelines: itemOrder('guidelines'),
-  definitions: itemOrder('definitions'),
-  steps: itemOrder('steps'),
-};
-const COMBO_ORDER = declaredProps('common/combo.schema.yaml');
-// ref.schema.yaml is a oneOf (a bare string, or the object form) — the object
-// form is the only branch with fields to order.
-const REF_ORDER = Object.keys(
-  loadYamlFile20(join(SCHEMA_DIR, 'common', 'ref.schema.yaml')).oneOf.find((m) => m.properties).properties,
-);
-
-// §4: a section leads with `kind`, `for`, then the one field its kind adds,
-// then the rest of the shared order. The only shape whose two lists interleave
-// rather than concatenate.
-const SECTION_KIND_FIELD = { guidelines: 'framing', steps: 'ordered' };
-const SECTION_TAIL = declaredProps('sections/section.schema.yaml').filter((k) => k !== 'kind' && k !== 'for');
-function sectionFieldOrder(kind) {
-  const own = SECTION_KIND_FIELD[kind];
-  return ['kind', 'for', ...(own ? [own] : []), ...SECTION_TAIL];
 }
 
 /** Every entity in a document, with a JSON pointer to it. */
@@ -144,22 +71,6 @@ function entitiesWithPointers(doc) {
 // entity; DOCUMENT_RULES run once per file against the raw parsed document.
 
 const ENTITY_RULES = {
-  // §2 — only the relative order of fields actually present is checked, so an
-  // entry that omits a field is never flagged for its absence.
-  'entry-field-order': (entry, emit) => {
-    const order = entry.kind === undefined ? SHARED_FIELD_ORDER : entryFieldOrder(entry.kind);
-    const actual = Object.keys(entry).filter((k) => order.includes(k));
-    const inversion = firstInversion(actual, (k) => order.indexOf(k));
-    if (inversion) {
-      const source =
-        entry.kind === undefined ? 'shared.schema.yaml' : `entries/entry.schema.yaml, then entries/${entry.kind}.schema.yaml`;
-      emit(
-        '',
-        `"${entry.id}" has \`${inversion[0]}\` before \`${inversion[1]}\` — STYLE_GUIDE.md §2 says match the spec's own declared order, which for a ${entry.kind || 'shared'} entry (${source}) is [${order.join(', ')}]. Actual order here: [${actual.join(', ')}].`,
-      );
-    }
-  },
-
   // §4 — same-kind sections stay contiguous and general-to-specific; among
   // guidelines sections breadth decides first, then audience within a tier.
   'section-order': (entry, emit) => {
@@ -180,7 +91,7 @@ const ENTITY_RULES = {
     if (breadthInversion) {
       emit(
         '/sections',
-        `"${entry.id}" has ${describeBreadth(breadthInversion[0])} before ${describeBreadth(breadthInversion[1])} — STYLE_GUIDE.md §4 orders guidelines sections ${FRAMING.values.join(', ')}, then tag-scoped sections.`,
+        `"${entry.id}" has ${describeBreadth(breadthInversion[0])} before ${describeBreadth(breadthInversion[1])} — STYLE_GUIDE.md §4 orders guidelines sections ${FRAMING.values.join(', ')}.`,
       );
       return; // fix breadth first — the audience sort only orders sections that TIE on breadth
     }
@@ -209,34 +120,100 @@ const ENTITY_RULES = {
   // §5 — must, should, may, should-not, must-not. Items sharing a level keep
   // their relative order; only a strict level-to-level inversion is flagged.
   //
-  // An item that borrows its rule via `refs` and declares no `level` of its
-  // own is skipped, not ranked. 0.21.1 made that shape the ordinary way to
-  // point at a shared rule, and the level it borrows lives in the `shared[]`
-  // pool — usually in a different file from the entry being checked, so a
-  // single-document check cannot know it. `enumRanker` would otherwise fall
-  // back to sorting an undeclared level LAST, which reports every pure
-  // pointer sitting above a `must` as an inversion: 25 spurious findings
-  // across this corpus, all on the form the release recommends.
+  // An item that borrows its rule via a `same-as` ref and declares no `level`
+  // of its own takes the level of the rule it points to. 0.21.1 made that
+  // shape the ordinary way to point at a shared rule, and the level it
+  // borrows lives in the `shared[]` pool — usually in a different file from
+  // the entry being checked. With `ctx.levels` (see guidelineLevelIndex) the
+  // pointer is ranked at the borrowed level. Without it, or when the target
+  // is not in the index, the pointer is skipped, not ranked: `enumRanker`
+  // would otherwise sort an undeclared level LAST and report every pointer
+  // above a `must` as an inversion.
   //
-  // Upstream's own scripts/validate/lint-docs.js still ranks `it.level`
-  // directly and has the same false positive at 0.21.1. Diverging knowingly:
-  // the rule's own description says items are ordered "by `level`", and an
-  // item whose level is declared elsewhere has one — it just isn't visible
-  // from here. Inventing a rank for it is worse than not checking it.
-  'guideline-item-level-order': (entry, emit) => {
+  // Skipping alone hid real breaks. When a shared rule's level changes, every
+  // pointer to it can land out of order with nothing to notice: 23 breaks in
+  // the Sanity UI corpus on 2026-09-29, most of them pointers. `dsds doctor`
+  // runs this rule corpus-wide with the index (checkLevelOrderAcross).
+  //
+  // Upstream's lint-docs.js does the same as of 0.22.0, within one document.
+  'guideline-item-level-order': (entry, emit, ctx = {}) => {
     (entry.sections || []).forEach((section, si) => {
       if (!section || section.kind !== 'guidelines' || !Array.isArray(section.items)) return;
-      const rankable = section.items.filter((it) => it && (it.level != null || !it.refs?.length));
-      const inversion = firstInversion(rankable, (it) => levelRank(it.level));
+      const rankable = section.items
+        .filter(Boolean)
+        .map((it) => ({ it, level: it.level ?? borrowedLevel(it, ctx.levels) }))
+        .filter(({ it, level }) => level != null || !it.refs?.length);
+      const inversion = firstInversion(rankable, ({ level }) => levelRank(level));
       if (inversion) {
         emit(
           `/sections/${si}/items`,
-          `"${entry.id}" has a level: ${inversion[0].level} item before a level: ${inversion[1].level} one — STYLE_GUIDE.md orders guideline items ${LEVEL.values.join(', ')}.`,
+          `"${entry.id}" has a ${describeItemLevel(inversion[0])} item before a ${describeItemLevel(inversion[1])} one — STYLE_GUIDE.md orders guideline items ${LEVEL.values.join(', ')}. A pointer sits with the level of the rule it points to.`,
         );
       }
     });
   },
 };
+
+/** The level a pointer item borrows through `same-as`, if the index knows it. */
+function borrowedLevel(item, levels) {
+  if (!levels || !Array.isArray(item.refs)) return undefined;
+  for (const ref of item.refs) {
+    if (ref?.rel === 'same-as' && typeof ref.to === 'string' && levels.has(ref.to)) return levels.get(ref.to);
+  }
+  return undefined;
+}
+
+function describeItemLevel({ it, level }) {
+  if (it.level != null) return `level: ${level}`;
+  const target = it.refs.find((r) => r?.rel === 'same-as' && typeof r.to === 'string')?.to;
+  return `pointer to ${target} (level: ${level})`;
+}
+
+/**
+ * Map every guideline item with an `id` and a `level` to that level, keyed
+ * `entryId#itemId` — the form a `same-as` ref uses.
+ *
+ * @param {Iterable<object>} entries - entries and `shared[]` entries
+ * @returns {Map<string, string>}
+ */
+export function guidelineLevelIndex(entries) {
+  const levels = new Map();
+  for (const entry of entries) {
+    if (!entry?.id) continue;
+    for (const section of entry.sections || []) {
+      if (section?.kind !== 'guidelines' || !Array.isArray(section.items)) continue;
+      for (const it of section.items) {
+        if (it?.id && it.level != null) levels.set(`${entry.id}#${it.id}`, it.level);
+      }
+    }
+  }
+  return levels;
+}
+
+/**
+ * DSDS-19 across a whole corpus, pointers included.
+ *
+ * @param {object[]} entities - loaded entities; each carries the resolvable
+ *   pool on `__sharedEntries` (shared[] plus every sibling entry).
+ * @returns {{entry: string, file: string|undefined, pointer: string, message: string}[]}
+ */
+export function checkLevelOrderAcross(entities) {
+  const pool = new Map();
+  for (const e of entities) {
+    for (const p of e?.__sharedEntries ?? []) if (p?.id && !pool.has(p.id)) pool.set(p.id, p);
+    if (e?.id && !pool.has(e.id)) pool.set(e.id, e);
+  }
+  const levels = guidelineLevelIndex(pool.values());
+  const findings = [];
+  for (const entry of pool.values()) {
+    ENTITY_RULES['guideline-item-level-order'](
+      entry,
+      (pointer, message) => findings.push({ entry: entry.id, file: entry.__filePath, pointer, message }),
+      { levels },
+    );
+  }
+  return findings;
+}
 
 const DOCUMENT_RULES = {
   // §1 — entries[] runs system, token, theme, component, entry, then any
@@ -254,111 +231,14 @@ const DOCUMENT_RULES = {
     }
   },
 
-  // §3/§4/§5/§6 — the field order of every shape nested inside an entry.
-  'nested-field-order': (doc, emit) => {
-    const check = (label, pointer, obj, order) => {
-      const present = Object.keys(obj).filter((k) => order.includes(k));
-      const inversion = firstInversion(present, (k) => order.indexOf(k));
-      if (inversion) {
-        emit(
-          pointer,
-          `${label} has \`${inversion[0]}\` before \`${inversion[1]}\` — its schema file declares [${order.filter((k) => present.includes(k)).join(', ')}].`,
-        );
-      }
-    };
-
-    // Refs turn up all over an entry (`refs`, `related`, `extends`, `evidence`,
-    // `checks`, `specs`, `source`, …), so they're found by shape rather than by
-    // field name. `$extensions` is skipped: it holds vendor data, and an object
-    // in there carrying `href` is not a ref.
-    const walkRefs = (node, pointer) => {
-      if (!node || typeof node !== 'object') return;
-      if (Array.isArray(node)) {
-        node.forEach((v, i) => walkRefs(v, `${pointer}/${i}`));
-        return;
-      }
-      if ('to' in node || 'href' in node) check('a ref', pointer, node, REF_ORDER);
-      for (const [key, value] of Object.entries(node)) {
-        if (key === EXTENSIONS_KEY) continue;
-        if (value && typeof value === 'object') walkRefs(value, `${pointer}/${key}`);
-      }
-    };
-
-    for (const [entity, at] of entitiesWithPointers(doc)) {
-      if (!entity || typeof entity !== 'object') continue;
-      if (entity.metadata && typeof entity.metadata === 'object') {
-        const order = entity.kind === 'system' ? METADATA_ORDER.system : METADATA_ORDER.entry;
-        check('a `metadata` block', `${at}/metadata`, entity.metadata, order);
-      }
-      (entity.combos || []).forEach((combo, ci) => {
-        if (combo && typeof combo === 'object') check('a `combo`', `${at}/combos/${ci}`, combo, COMBO_ORDER);
-      });
-      (entity.sections || []).forEach((section, si) => {
-        if (!section || typeof section !== 'object') return;
-        const sectionAt = `${at}/sections/${si}`;
-        check('a section', sectionAt, section, sectionFieldOrder(section.kind));
-        if (section.metadata && typeof section.metadata === 'object') {
-          check("a section's `metadata`", `${sectionAt}/metadata`, section.metadata, METADATA_ORDER.entry);
-        }
-        const order = ITEM_ORDER[section.kind];
-        if (!order) return;
-        (section.items || []).forEach((item, ii) => {
-          if (item && typeof item === 'object') check(`a ${section.kind} item`, `${sectionAt}/items/${ii}`, item, order);
-        });
-      });
-    }
-    walkRefs(doc, '');
-  },
-
-  // §6 — combos[] sorts by subject, then by level within one subject.
-  'combo-order': (doc, emit) => {
-    for (const [entity, at] of entitiesWithPointers(doc)) {
-      const combos = entity && entity.combos;
-      if (!Array.isArray(combos) || combos.length < 2) continue;
-      for (let i = 1; i < combos.length; i++) {
-        const prev = combos[i - 1];
-        const next = combos[i];
-        const bySubject = String(prev && prev.subject).localeCompare(String(next && next.subject));
-        if (bySubject > 0) {
-          emit(
-            `${at}/combos`,
-            `subject "${prev.subject}" comes before "${next.subject}" — STYLE_GUIDE.md §6 sorts \`combos[]\` by \`subject\`, so every rule about one trait or token sits together.`,
-          );
-          break;
-        }
-        if (bySubject === 0 && levelRank(prev.level) > levelRank(next.level)) {
-          emit(
-            `${at}/combos`,
-            `two combos share subject "${prev.subject}" but run level: ${prev.level} before level: ${next.level} — STYLE_GUIDE.md §6 orders them ${LEVEL.values.join(', ')} within one subject.`,
-          );
-          break;
-        }
-      }
-    }
-  },
-
-  // §1 — only applies to a base document (has schemaVersion); a standalone
-  // entry file has no document-level fields to order.
-  'document-field-order': (doc, emit) => {
-    if (typeof doc.schemaVersion === 'undefined') return;
-    const actual = Object.keys(doc).filter((k) => DOCUMENT_FIELD_ORDER.includes(k));
-    const inversion = firstInversion(actual, (k) => DOCUMENT_FIELD_ORDER.indexOf(k));
-    if (inversion) {
-      emit(
-        '',
-        `document has \`${inversion[0]}\` before \`${inversion[1]}\` — STYLE_GUIDE.md says match the spec's own declared order, which for a base document (base.schema.yaml) is [${DOCUMENT_FIELD_ORDER.join(', ')}]. Actual order here: [${actual.join(', ')}].`,
-      );
-    }
-  },
 };
 
 // ── Catalog binding ─────────────────────────────────────────────────────────
 
 /**
  * The style-guide rules from the vendored catalog, joined to their
- * implementations. `styleGuide: true` in conformance-rules.yaml is what marks
- * a rule as belonging to STYLE_GUIDE.md rather than the wider advisory tier;
- * we fall back to the known id range when the catalog predates that flag.
+ * implementations: the STYLE_GUIDE.md ids that are still `advisory`. A retired
+ * rule (`enforcement: none`) keeps its id in the catalog and drops out here.
  */
 const STYLE_RULE_IDS = new Set(['DSDS-17', 'DSDS-18', 'DSDS-19', 'DSDS-20', 'DSDS-21', 'DSDS-22', 'DSDS-23']);
 
@@ -368,7 +248,7 @@ let cachedRules = null;
 export function styleRules() {
   if (cachedRules) return cachedRules;
   const catalog = loadYamlFile20(join(SCHEMA_DIR, 'conformance-rules.yaml'));
-  const rules = (Array.isArray(catalog) ? catalog : []).filter((r) => STYLE_RULE_IDS.has(r.id));
+  const rules = (Array.isArray(catalog) ? catalog : []).filter((r) => STYLE_RULE_IDS.has(r.id) && r.enforcement === 'advisory');
 
   // Drift guard, in both directions. A catalog rule with no implementation
   // would silently check nothing; an implementation with no catalog entry
@@ -399,25 +279,31 @@ export function styleRules() {
 }
 
 /**
- * Run every style-guide rule (DSDS-17..23) over one parsed document.
+ * Run every style-guide rule (DSDS-18, -19, -21) over one parsed document.
  *
  * Findings are advisory by definition — they never make a document invalid.
  *
- * @param {object} doc - a parsed DSDS 0.20.x document (base or standalone entry)
+ * @param {object} doc - a parsed DSDS document (base or standalone entry)
+ * @param {{levels?: Map<string, string>}} [ctx] - `levels` from
+ *   guidelineLevelIndex, so DSDS-19 can rank pointers to rules in other files.
+ *   The document's own entries and `shared[]` are always indexed.
  * @returns {{id: string, name: string, pointer: string, message: string}[]}
  */
-export function checkStyle20(doc) {
+export function checkStyle20(doc, ctx = {}) {
   const findings = [];
   if (!doc || typeof doc !== 'object') return findings;
+
+  const own = guidelineLevelIndex(entitiesWithPointers(doc).map(([entity]) => entity));
+  const levels = new Map([...(ctx.levels ?? []), ...own]);
 
   for (const rule of styleRules()) {
     const emit = (pointer, message) => findings.push({ id: rule.id, name: rule.name, pointer, message });
     if (rule.scope === 'document') {
-      rule.check(doc, emit);
+      rule.check(doc, emit, { levels });
     } else {
       for (const [entity, at] of entitiesWithPointers(doc)) {
         if (!entity || typeof entity !== 'object') continue;
-        rule.check(entity, (pointer, message) => emit(`${at}${pointer}`, message));
+        rule.check(entity, (pointer, message) => emit(`${at}${pointer}`, message), { levels });
       }
     }
   }

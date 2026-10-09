@@ -120,6 +120,10 @@ If \`dsds_check_exports\` is available, make ONE call listing **every** componen
 name you intend to import, across all packages, before emitting any code. It is the
 cheapest check that catches the most common build-breakers.
 
+If \`dsds_find_icon\` is in your tool list, use it to choose icons: pass what each icon is
+for (\`purposes: ["resolve", "settings"]\`) and it returns the matching icons with their import
+paths. Choosing by purpose is faster than guessing names and checking them.
+
 - It catches hallucinated names before they become \`TS2305\`/\`TS2724\` — \`ThemeProvider\`,
   \`RootTheme\` or \`createTheme\` imported when the package exports none of them, or
   \`SettingsIcon\` instead of \`CogIcon\`.
@@ -142,7 +146,7 @@ Writing the code is not the end. Before you consider the work done, run an
 ordered, repeating check and fix what it finds — do not skip a stage and do not
 stop at the first green light:
 
-1. **Lint.** Call \`dsds_lint\` with every file you wrote (use the \`files\` array of \`{ path }\`). Apply the corrected code it returns, then resolve any remaining violations it reports. (If a file is not yet on disk, pass its source as \`code\` instead of \`path\` — either way nothing is saved; a clean result never means a file was written.) Lint is not optional or advisory — design-system rules only fire on real JSX, so lint your final component code, not a stub.
+1. **Lint.** If \`dsds_lint\` is in your tool list, call it once with every file you wrote (use the \`files\` array of \`{ path }\`). It returns findings, never a rewritten file: fix each finding that needs a change, make any line edits it lists, and re-emit only the files you changed. If it says a finding will be fixed automatically, leave it alone. (If a file is not yet on disk, pass its source as \`code\` instead of \`path\` — either way nothing is saved; a clean result never means a file was written.) Lint your final component code, not a stub — design-system rules only fire on real JSX. If \`dsds_lint\` is not in your tool list, skip this step: your host lints the files instead.
 2. **Build / render.** Make sure the app actually mounts and renders without console or runtime errors. A file that type-checks but throws on render has not passed. The moment a build or typecheck fails, call \`dsds_explain_error(error)\` with the raw error text before attempting a fix — it names the shape of the mistake so you fix the actual cause instead of re-guessing from raw compiler output.
 3. **Accessibility.** Resolve accessibility issues (labels, landmarks, alt text, ARIA, and color contrast) so the rendered UI is usable by assistive technology.
 
@@ -222,18 +226,27 @@ once, referenced everywhere else:
       rel: same-as
 \`\`\`
 
-An item that is nothing but a \`refs\` pointer needs no \`level\` or \`statement\`
-of its own — it *is* the shared rule, and tools render it inline. Use
-\`rel: refines\` instead when the local item narrows the shared one; then state
-your own \`level\` and \`statement\` and the pointer rides along as provenance.
+An item that is nothing but a \`same-as\` pointer needs no \`level\` or
+\`statement\` of its own — it *is* the shared rule, and tools render it inline.
+A \`for: agent\` rule that sharpens a human one states its own \`level\` and
+\`statement\` and points back with its \`refines\` field.
+
+Most kinds of pointer have a field of their own, and a pointer there has no
+\`rel\`: \`uses\` (what this is built from or needs), \`alternatives\`,
+\`extends\`, and on a guideline \`evidence\` and \`checks\`. A deprecated entry
+names its successor in \`metadata.status.replacedBy\`. \`refs\` holds the rest,
+each with a \`rel\`: \`same-as\`, \`file\` (another DSDS document only),
+\`source\` (code or a package), \`design\`, \`demo\`, \`relates-to\`.
 
 ---
 
 ### Step 5 — Validate as you go
 
 Call \`dsds_validate\` after each section, not at the end. Then
-\`dsds_style_check\` once it validates — that covers field and item ordering,
-which never affects validity but does affect whether the document reads well.
+\`dsds_style_check\` once it validates: it returns the document with its fields
+in the schema's order (the spec's own \`dsds-format\`), and flags sections,
+rules and entries out of reading order. Order never affects validity, but it
+does affect whether the document reads well.
 `.trim();
 
 

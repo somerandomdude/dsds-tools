@@ -78,3 +78,28 @@ describe('renderIntroEntity — DSDS 0.20 sections', () => {
     expect(index).toContain('getting-started');
   });
 });
+
+// Steps and file-backed examples reach the intro (2026-10-07). Setup is written
+// as steps, and a guide shows the real tsconfig by pointing at the file; before
+// this, the intro carried the rules about both and neither the steps nor the file.
+describe('renderIntroEntity — steps and file examples', () => {
+  it('renders steps in order, and inlines a file an example points at', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'intro-'));
+    writeFileSync(join(dir, 'tsconfig.json'), '{ "compilerOptions": { "jsx": "react-jsx" } }\n');
+    const out = renderIntroEntity({
+      name: 'Installation',
+      __filePath: join(dir, 'installation.dsds.yaml'),
+      sections: [
+        { kind: 'steps', ordered: true, title: 'Set up', items: [{ title: 'Install', description: 'npm i' }, { title: 'Entry file', description: "import './styles.css'" }] },
+        { kind: 'section', freeform: [{ title: 'Files', body: 'Start here.', examples: [{ ref: { href: './tsconfig.json', rel: 'source' } }, { ref: { href: './missing.json', rel: 'source' } }] }] },
+      ],
+    });
+    expect(out).toContain('### Set up');
+    expect(out.indexOf('**1. Install**')).toBeLessThan(out.indexOf('**2. Entry file**'));
+    expect(out).toContain('"jsx": "react-jsx"');
+    expect(out).toContain('*Example file not found: `./missing.json`*');
+  });
+});

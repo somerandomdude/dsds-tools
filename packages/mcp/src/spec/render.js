@@ -4,9 +4,14 @@
 // package) so the
 // four tools render the same fields the same way instead of drifting apart.
 import { readFileSync } from 'node:fs';
-import { dirname, extname, resolve as resolvePath } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, extname, join, resolve as resolvePath } from 'node:path';
 import { getApiForEntry } from './prop-extractor.js';
 import { renderTable } from '../render/table.js';
+import { VENDOR_DIR } from './schema-order.js';
+
+// Upstream's item-address model, from the vendored lib.js.
+const { itemAddresses, resolveAddress } = createRequire(import.meta.url)(join(VENDOR_DIR, 'scripts/lib.js'));
 
 const asText20 = (v) => (typeof v === 'string' ? v : (v?.value ?? ''));
 
@@ -23,8 +28,13 @@ const LANGUAGE_BY_EXT = { '.tsx': 'tsx', '.ts': 'ts', '.jsx': 'jsx', '.js': 'js'
  * inline example code — both name a sibling source file the same way.
  * Never throws: a moved/unreadable file degrades to null, not a crash.
  */
+// A local code file: `rel: source` since 0.22.0 (`rel: file` is for DSDS
+// documents only). `rel: file` is still read, for a document that predates it.
+const CODE_FILE_RELS = new Set(['source', 'file']);
+
 export function resolveFileRef20(entityFilePath, ref) {
-  if (!ref || ref.rel !== 'file' || typeof ref.href !== 'string' || !entityFilePath) return null;
+  if (!ref || !CODE_FILE_RELS.has(ref.rel) || typeof ref.href !== 'string' || !entityFilePath) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(ref.href)) return null; // a URL or package, not a local file
   try {
     const absPath = resolvePath(dirname(entityFilePath), ref.href);
     const code = readFileSync(absPath, 'utf-8');
@@ -53,12 +63,18 @@ export function resolveFileRef20(entityFilePath, ref) {
 // on a namespace at all, so another corpus may well use the flat form. Both
 // render, and an unrecognized sub-object still prints rather than vanishing —
 // the same rule as the namespace allowlist above.
-function renderSanityUiExtension(data, lines, { compact = false } = {}) {
+function renderSanityUiExtension(data, lines, { compact = false, forBuild = false, omitKeys = [], omittedNames = [] } = {}) {
   renderSanityUiFacts(data, lines);
   let omitted = 0;
 
   for (const [key, value] of Object.entries(data)) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    // Left out by the server's configuration (`agentContextOmit`).
+    if (omitKeys.includes(key)) {
+      omitted += 1;
+      omittedNames.push(`com.sanity.ui.${key}`);
+      continue;
+    }
 
     // The split that matters in compact mode is facts vs free text, not a
     // hardcoded key name. `implementationStatus` is nothing but facts —
@@ -80,9 +96,48 @@ function renderSanityUiExtension(data, lines, { compact = false } = {}) {
 
     lines.push('', `**${titleCase20(key)}**`, '');
     renderSanityUiFacts(value, lines);
-    for (const [, v] of prose) lines.push('', asText20(v));
+    for (const [k, v] of prose) {
+      if (forBuild && PORTING_ONLY_KEYS.has(k)) continue;
+      const text = forBuild ? dropPortingOnlySubsections(asText20(v)) : asText20(v);
+      if (text.trim()) lines.push('', text);
+    }
   }
   return omitted;
+}
+
+// `forBuild` keeps what an agent writing new code needs from a migration
+// guide and drops what only someone porting v3 code can use.
+//
+// Kept: the prop-mapping table and the breaking changes. They correct v3
+// habits from training data: `flex={1}` → `flexGrow={1}`, `wrap` →
+// `flexWrap`. Two runs failed to build when the whole guide was gated (see
+// get-agent-context.js), so the mapping must stay.
+//
+// Dropped: the codemod (a command to run over existing v3 files) and "Key
+// differences", which restates the table in prose. Each guide gave the same
+// renames three or four times over, and on 2026-10-07 agents asked for 30–35
+// components in one call and got ~320k characters back. Their feedback named
+// it: "repeated checklists and migration notes; the rules I needed were
+// buried". A verbose call still returns every word.
+const PORTING_ONLY_KEYS = new Set(['codemod']);
+const PORTING_ONLY_SUBSECTION = /^#{2,4}\s+(codemod|key differences)\b/i;
+
+/** Remove `### Codemod` / `### Key differences` subsections from a guide's markdown. */
+function dropPortingOnlySubsections(text) {
+  const out = [];
+  let skipLevel = 0;
+  let inFence = false;
+  for (const line of text.split('\n')) {
+    if (/^\s*```/.test(line)) inFence = !inFence;
+    const heading = !inFence && line.match(/^(#{1,6})\s/);
+    if (heading) {
+      const level = heading[1].length;
+      if (skipLevel && level <= skipLevel) skipLevel = 0;
+      if (!skipLevel && PORTING_ONLY_SUBSECTION.test(line)) skipLevel = level;
+    }
+    if (!skipLevel) out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 const SANITY_UI_FACTS = new Set(['implemented', 'availableIn', 'tracking', 'context']);
@@ -109,6 +164,17 @@ function renderFigmaExtension(data, lines) {
   if (data.context) lines.push(`- ${asText20(data.context)}`);
 }
 
+// An unknown namespace is tool configuration, not guidance: for an agent
+// building UI it is noise. On 2026-10-07 three `io.jev` blocks — the Jev
+// judge's own configuration, attached to guidelines it evaluates — came to
+// 72k of a 298k-character get_agent_context response. `forBuild` names the
+// namespace and its size instead, so the drop is never silent and the data is
+// one dsds_get_entity call away.
+function renderOmittedExtension(namespace, data, lines) {
+  const size = JSON.stringify(data)?.length ?? 0;
+  lines.push(`- *Tool data for \`${namespace}\` not shown (${size.toLocaleString('en-US')} characters of tool configuration); \`dsds_get_entity\` returns it.*`);
+}
+
 function renderGenericExtension(namespace, data, lines) {
   lines.push('<details>', `<summary>Tool data: ${namespace}</summary>`, '');
   lines.push('```json', JSON.stringify(data, null, 2), '```', '', '</details>');
@@ -119,9 +185,13 @@ function renderGenericExtension(namespace, data, lines) {
  * is a silent no-op; a populated unknown namespace is never dropped.
  *
  * `compact` drops free-text sub-objects (migration guides) while keeping every
- * fact. Returns how many were dropped, so the caller can say so.
+ * fact. Returns how many were dropped, so the caller can say so. `forBuild`
+ * keeps them but drops their porting-only parts — see PORTING_ONLY_KEYS.
+ * `omit` lists dotted paths to leave out entirely — a namespace (`io.jev`) or
+ * one block in it (`com.sanity.ui.migrationGuide`); the paths left out are
+ * pushed onto `omittedNames`.
  */
-export function renderExtensions20(extensions, lines, { heading = null, compact = false } = {}) {
+export function renderExtensions20(extensions, lines, { heading = null, compact = false, forBuild = false, omit = [], omittedNames = [] } = {}) {
   const namespaces = Object.keys(extensions ?? {});
   if (!namespaces.length) return 0;
   const start = lines.length;
@@ -129,8 +199,15 @@ export function renderExtensions20(extensions, lines, { heading = null, compact 
   let omitted = 0;
   for (const ns of namespaces) {
     const data = extensions[ns];
-    if (ns === 'com.sanity.ui') omitted += renderSanityUiExtension(data, lines, { compact });
+    if (omit.includes(ns)) {
+      omitted += 1;
+      omittedNames.push(ns);
+      continue;
+    }
+    const omitKeys = omit.filter((p) => p.startsWith(`${ns}.`)).map((p) => p.slice(ns.length + 1));
+    if (ns === 'com.sanity.ui') omitted += renderSanityUiExtension(data, lines, { compact, forBuild, omitKeys, omittedNames });
     else if (ns === 'com.figma') renderFigmaExtension(data, lines);
+    else if (forBuild) renderOmittedExtension(ns, data, lines);
     else renderGenericExtension(ns, data, lines);
   }
   // Compact mode can empty the block out entirely. Leaving a bare heading
@@ -157,7 +234,11 @@ function renderExample20(example, lines, filePath) {
   if (example.title) lines.push(`**${example.title}**`, '');
   if (example.description) lines.push(asText20(example.description), '');
   if (example.showcase) renderShowcase20(example.showcase, lines);
-  if (example.ref?.rel === 'file') {
+  // A local code file: `rel: source` since 0.22.0, `rel: file` before. A
+  // `source` that's a URL or a package falls through to the plain link below.
+  const isLocalFile = (example.ref?.rel === 'file' || example.ref?.rel === 'source') &&
+    typeof example.ref.href === 'string' && !/^[a-z][a-z0-9+.-]*:/i.test(example.ref.href);
+  if (isLocalFile) {
     const resolved = resolveFileRef20(filePath, example.ref);
     lines.push(
       resolved
@@ -207,22 +288,55 @@ function splitAnchor(to) {
   return { sharedId: to.slice(0, hashIdx), itemId: to.slice(hashIdx + 1) };
 }
 
-/** Look one item up in the resolvable pool (`shared[]` plus sibling entries). */
+/**
+ * Look one item up in the resolvable pool (`shared[]` plus sibling entries).
+ *
+ * Uses upstream's address model (processing model §2): an item is addressed
+ * by its `id`, or by the id derived from its text when it has none, so
+ * `button#keep-labels-short` finds an item whose statement is "Keep labels
+ * short." An address that names two things is ambiguous (an error in
+ * DSDS-05), and resolves to nothing here rather than to a guess.
+ */
 function lookupSharedItem(to, sharedEntries) {
   const anchor = splitAnchor(to);
   if (!anchor || !sharedEntries?.length) return null;
   const sharedEntry = sharedEntries.find((s) => s.id === anchor.sharedId);
   if (!sharedEntry) return null;
-  for (const section of sharedEntry.sections ?? []) {
-    const found = (section.items ?? []).find((i) => i.id === anchor.itemId);
-    if (found) return found;
-  }
-  return null;
+  const { candidate } = resolveAddress(itemAddresses(sharedEntry), anchor.itemId);
+  return candidate?.type === 'item' ? candidate.target : null;
 }
 
 function findSameAsTarget(item, sharedEntries) {
   const sameAs = (item.refs ?? []).find((r) => SAME_AS_RELS.has(r.rel) && typeof r.to === 'string');
   return sameAs ? lookupSharedItem(sameAs.to, sharedEntries) : null;
+}
+
+// ── Shared rules in a multi-component answer ───────────────────────────────
+//
+// A rule the docs declare once and point to (`same-as`) was written out in
+// full under every component pointing to it: the form-field rules under
+// Checkbox, Radio, Switch, Select and TextInput, the tone rules under Card,
+// Text and Badge. Agents named exactly those as the repetition (2026-10-08).
+// A multi-component answer now gives each such rule in full once, at the top,
+// and each component names it in a line: its own bold lead sentence, or its
+// first sentence, or its id. No summary is written by hand.
+
+/** The address of the shared rule a pure pointer stands for (`forms#border-contrast`), or null. */
+export function sharedRuleRef(item, sharedEntries) {
+  const { pure, target } = resolveSharedItem20(item, sharedEntries, ['statement']);
+  if (!pure || !target) return null;
+  return (item.refs ?? []).find((r) => SAME_AS_RELS.has(r.rel) && typeof r.to === 'string')?.to ?? null;
+}
+
+/** A rule named in one line: its bold lead ("**Error text, not error color alone.**"), else its first sentence, else its id. */
+export function ruleLead(statement, ref) {
+  const text = asText20(statement ?? '').trim();
+  const bold = text.match(/^\*\*(.+?)\*\*/);
+  if (bold) return bold[1].trim();
+  const sentence = text.match(/^.+?[.!?](?=\s|$)/s)?.[0] ?? text;
+  if (sentence && sentence.length <= 160) return sentence.replace(/\s+/g, ' ');
+  if (sentence) return `${sentence.slice(0, 140).replace(/\s+\S*$/, '')}…`;
+  return ref ?? '';
 }
 
 /**
@@ -240,9 +354,12 @@ function findSameAsTarget(item, sharedEntries) {
 export function resolveSharedItem20(item, sharedEntries, contentFields) {
   const hasOwnContent = contentFields.some((f) => item?.[f] != null);
   const target = findSameAsTarget(item, sharedEntries);
-  const pointers = (item?.refs ?? []).filter(
-    (r) => (SAME_AS_RELS.has(r.rel) || r.rel === 'refines') && typeof r.to === 'string' && splitAnchor(r.to),
-  );
+  // `refines` is a field of its own since 0.22.0, on the agent rule, with no
+  // `rel`; before, it was a `refs` entry with `rel: refines`. Both are read.
+  const pointers = [
+    ...(item?.refs ?? []).filter((r) => SAME_AS_RELS.has(r.rel) || r.rel === 'refines'),
+    ...(Array.isArray(item?.refines) ? item.refines.map((r) => ({ ...r, rel: 'refines' })) : []),
+  ].filter((r) => typeof r?.to === 'string' && splitAnchor(r.to));
   return { pure: !hasOwnContent && Boolean(item?.refs?.length), target, pointers };
 }
 
@@ -288,7 +405,11 @@ function pushSharedPointers(pointers, lines, sharedEntries, indent = '  ') {
 function unresolvedLabel(item) {
   const sameAs = (item.refs ?? []).find((r) => r.rel === 'same-as' && typeof r.to === 'string');
   if (sameAs) return `**Unresolved reference:** \`${sameAs.to}\` — this rule could not be found.`;
-  const pointer = (item.refs ?? []).find((r) => r.rel === 'external-link') ?? (item.refs ?? []).find((r) => r.to || r.href);
+  // A statement-less item with a `relates-to` href says "this rule is tracked
+  // over there" (0.22.0; `external-link` before).
+  const pointer =
+    (item.refs ?? []).find((r) => (r.rel === 'relates-to' || r.rel === 'external-link') && r.href) ??
+    (item.refs ?? []).find((r) => r.to || r.href);
   return pointer ? `see ${pointer.to ?? pointer.href}` : '(see refs)';
 }
 
@@ -313,7 +434,7 @@ function renderFreeform(freeform, lines, ctx = {}, depth = 3) {
       }
       lines.push('');
     }
-    renderExtensions20(item.$extensions, lines);
+    renderExtensions20(item.$extensions, lines, { forBuild: ctx.forBuild, omit: ctx.omit, omittedNames: ctx.omittedNames });
     // `items` nests sub-entries to any depth (same field name as a
     // section's top-level `items` — a different concept, not reused code).
     if (item.items?.length) renderFreeform(item.items, lines, ctx, depth + 1);
@@ -361,6 +482,14 @@ function isProseOnlyExample(example) {
 export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showChecklistExample = true, showCheckedBy = true, showAlternatives = true } = {}) {
   const { pure, target, pointers } = resolveSharedItem20(item, ctx.sharedEntries, ['statement']);
 
+  // A shared rule given in full at the top of this answer: name it in one line.
+  const sharedRef = ctx.sharedRules?.size ? sharedRuleRef(item, ctx.sharedEntries) : null;
+  if (sharedRef && ctx.sharedRules.has(sharedRef)) {
+    const lvl = item.level ?? target?.level;
+    lines.push(`- ${showLevel && lvl ? `**${lvl}** — ` : ''}${ruleLead(target.statement, sharedRef)} *(shared rule, see top)*`);
+    return;
+  }
+
   // A pure pointer renders as the item it points at. Everything the reader
   // needs — level, statement, checkedBy, alternatives, example — comes from
   // the target, because 0.21.1 stopped requiring the item to restate any of
@@ -396,7 +525,7 @@ export function renderGuidelineItem(item, lines, ctx, { showLevel = true, showCh
   const example = source.example ?? item.example;
   const skipExample = isProseOnlyExample(example) && !showChecklistExample;
   if (example && !skipExample) renderExample20(example, lines, ctx.filePath);
-  renderExtensions20(item.$extensions, lines);
+  renderExtensions20(item.$extensions, lines, { forBuild: ctx.forBuild, omit: ctx.omit, omittedNames: ctx.omittedNames });
 }
 
 function renderGuidelines(section, lines, ctx) {
@@ -406,7 +535,9 @@ function renderGuidelines(section, lines, ctx) {
   // for — a guidelines section could in principle carry both.
   if (section.framing) lines.push(`*Framing: ${section.framing}*`, '');
   if (section.context) lines.push(`*Context: ${section.context}*`, '');
-  for (const item of section.items ?? []) renderGuidelineItem(item, lines, ctx);
+  // "Checked by: manual" says how a reviewer verifies the rule. An agent
+  // writing the code has no use for it: 78 lines in one 2026-10-07 batch.
+  for (const item of section.items ?? []) renderGuidelineItem(item, lines, ctx, { showCheckedBy: !ctx.forBuild });
   lines.push('');
   renderFreeform(section.freeform, lines, ctx);
 }
@@ -477,12 +608,12 @@ function renderSection20(section, lines, depth = 2, ctx = {}) {
     case 'steps': renderSteps(section, lines, ctx); break;
     default: renderGenericSection(section, lines, ctx); break;
   }
-  renderExtensions20(section.$extensions, lines);
+  renderExtensions20(section.$extensions, lines, { forBuild: ctx.forBuild, omit: ctx.omit, omittedNames: ctx.omittedNames });
 }
 
 /** Renders every section in `sections`, optionally filtered by audience (`for`). */
-export function renderSections20(sections, lines, { audience = null, depth = 2, filePath = null, sharedEntries = [] } = {}) {
-  const ctx = { filePath, sharedEntries };
+export function renderSections20(sections, lines, { audience = null, depth = 2, filePath = null, sharedEntries = [], forBuild = false, omit = [], omittedNames = [], sharedRules = null } = {}) {
+  const ctx = { filePath, sharedEntries, forBuild, omit, omittedNames, sharedRules };
   for (const section of sections ?? []) {
     if (audience && section.for !== audience && section.for !== 'all') continue;
     renderSection20(section, lines, depth, ctx);
@@ -569,11 +700,49 @@ const API_COLUMNS = [
   { key: 'description', header: 'Description' },
 ];
 
+// The allowed values of a prop, written after its type name. v5 declares its
+// unions as `typeof POSITION[number]`, so the type column alone said
+// `Responsive<Position>` and nothing about which positions exist. Agents on
+// 2026-10-08 avoided `sticky`, which is valid, and wrote custom CSS instead.
+// The extractor already reads the real values; they just weren't shown.
+const MAX_LISTED_VALUES = 24;
+
+/** `0–9`, `"absolute" | "fixed"` — integer runs collapse to a range. */
+export function formatPropValues(values) {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const out = [];
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (Number.isInteger(v)) {
+      let j = i;
+      while (j + 1 < values.length && Number.isInteger(values[j + 1]) && values[j + 1] === values[j] + 1) j++;
+      out.push(j - i >= 2 ? `${v}–${values[j]}` : String(v));
+      if (j - i === 1) out.push(String(values[j]));
+      i = j;
+    } else {
+      out.push(typeof v === 'string' ? `"${v}"` : String(v));
+    }
+  }
+  const shown = out.length > MAX_LISTED_VALUES ? [...out.slice(0, MAX_LISTED_VALUES), '…'] : out;
+  return shown.join(' | ');
+}
+
+/** True when the type text already names every value, as in `'button' | 'a'`. */
+function typeSpellsValues(type, values) {
+  if (typeof type !== 'string') return false;
+  return values.every((v) => type.includes(typeof v === 'string' ? v : String(v)));
+}
+
 function propRow(prop) {
   const inherited = prop.inheritedFrom ? ` *(from \`${cell20(prop.inheritedFrom)}\`)*` : '';
+  const values = Array.isArray(prop.values) && prop.values.length && !typeSpellsValues(prop.type, prop.values)
+    ? formatPropValues(prop.values)
+    : null;
   return {
     prop: `\`${cell20(prop.name)}\``,
-    type: prop.type ? `\`${cell20(prop.type)}\`` : null,
+    type: prop.type
+      ? `\`${cell20(prop.type)}\`${values ? `: \`${cell20(values)}\`` : ''}`
+      : (values ? `\`${cell20(values)}\`` : null),
     required: prop.required ? 'yes' : null,
     description: `${cell20(asText20(prop.description ?? ''))}${inherited}`,
   };
@@ -712,8 +881,135 @@ export function renderEvents20(events, polymorphic = null) {
   return out;
 }
 
-/** Render the prop table for an entry, resolved through the extractor cache. */
-export function renderApi20(entity, lines, propsConfig) {
+// ── Shared prop groups ─────────────────────────────────────────────────────
+//
+// Box, Flex, Grid, Card and Text all take the same margin props, and Box,
+// Flex and Grid the same padding, position and border props. Listed under
+// every component, those rows were 18.9k of 30k prop-table characters in a
+// 26-component lookup, and it was the top complaint in that run.
+//
+// The first fix listed a group under the first component that had it, then
+// pointed back ("as listed under `box` above"). Agents did not follow those
+// pointers; one guessed Divider's props rather than look under Checkbox. So
+// a multi-component answer now lists each shared group ONCE, at the top, with
+// the components that take it. Each component lists only its own props and
+// names the groups it also takes. The reference always goes to one
+// predictable place and says what it includes.
+
+// A group this small is cheaper to repeat than to refer to.
+const MIN_SHARED_GROUP_ROWS = 3;
+
+const groupSignature = (name, rows) =>
+  `${name}:${JSON.stringify(rows.map((r) => [r.name, r.type, r.values, r.required, asText20(r.description ?? '')]))}`;
+
+function propGroups(props) {
+  const groups = new Map();
+  for (const p of props) if (p.inheritedFrom) (groups.get(p.inheritedFrom) ?? groups.set(p.inheritedFrom, []).get(p.inheritedFrom)).push(p);
+  return groups;
+}
+
+/** `MarginProps` → "Margin props", `FlexChildProps` → "Flex child props". */
+export function propGroupLabel(name) {
+  const words = String(name).replace(/Props$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)} props`;
+}
+
+/**
+ * The prop groups that two or more of `entities` take with identical rows,
+ * as Map<signature, { name, rows, owners }>. Groups under
+ * MIN_SHARED_GROUP_ROWS rows are left to each component's own table.
+ */
+export function findSharedPropGroups(entities, propsConfig) {
+  const found = new Map();
+  for (const entity of entities) {
+    const result = getApiForEntry(entity, propsConfig);
+    if (result.status !== 'fresh' && result.status !== 'unverified') continue;
+    for (const [name, rows] of propGroups(result.props?.props ?? [])) {
+      if (rows.length < MIN_SHARED_GROUP_ROWS) continue;
+      const sig = groupSignature(name, rows);
+      const entry = found.get(sig) ?? { name, rows, owners: [] };
+      entry.owners.push(entity.identifier);
+      found.set(sig, entry);
+    }
+  }
+  return new Map([...found].filter(([, g]) => g.owners.length >= 2));
+}
+
+/**
+ * The shared rules two or more of `entities` point to, as
+ * Map<ref, { item, owner, owners }>: `item` is a pointer to render in full,
+ * `owner` the entity whose file and pool resolve it. Only sections the answer
+ * serves count (`audience: 'agent'` serves `for: agent` and `for: all`).
+ */
+export function findSharedRules(entities, { audience = null } = {}) {
+  const found = new Map();
+  for (const entity of entities) {
+    const pool = entity.__sharedEntries ?? [];
+    const refs = new Set();
+    for (const section of entity.sections ?? []) {
+      if (section.kind !== 'guidelines') continue;
+      if (audience && section.for !== audience && section.for !== 'all') continue;
+      for (const item of section.items ?? []) {
+        const ref = sharedRuleRef(item, pool);
+        if (!ref || refs.has(ref)) continue;
+        refs.add(ref);
+        const entry = found.get(ref) ?? { item, owner: entity, owners: [] };
+        entry.owners.push(entity.identifier);
+        found.set(ref, entry);
+      }
+    }
+  }
+  // A one-line name only saves anything when the rule is much longer than the
+  // name. A one-sentence rule is cheaper to repeat than to refer to, and reads
+  // better in place, so only rules at least twice their short line move.
+  const worthIt = ([ref, r]) => {
+    const full = [];
+    renderGuidelineItem(r.item, full, { filePath: r.owner.__filePath, sharedEntries: r.owner.__sharedEntries ?? [] });
+    const target = resolveSharedItem20(r.item, r.owner.__sharedEntries ?? [], ['statement']).target;
+    const short = `${ruleLead(target?.statement, ref)} *(shared rule, see top)*`;
+    return full.join('\n').length >= 2 * short.length;
+  };
+  return new Map([...found].filter((e) => e[1].owners.length >= 2 && worthIt(e)));
+}
+
+/** The block at the top of a multi-component answer: each shared rule once, in full. */
+export function renderSharedRules(shared, lines, { forBuild = false } = {}) {
+  if (!shared?.size) return;
+  lines.push(
+    '## Shared rules',
+    '',
+    'Several of the components below follow these same rules. Each is given in full once here; a component names it in one line.',
+    '',
+  );
+  for (const [ref, r] of [...shared].sort((a, b) => b[1].owners.length - a[1].owners.length || a[0].localeCompare(b[0]))) {
+    renderGuidelineItem(r.item, lines, { filePath: r.owner.__filePath, sharedEntries: r.owner.__sharedEntries ?? [], forBuild }, { showCheckedBy: !forBuild });
+    lines.push(`  - Rule \`${ref}\`. Applies to: ${r.owners.map((o) => `\`${o}\``).join(', ')}.`);
+  }
+  lines.push('');
+}
+
+/** The block at the top of a multi-component answer: each shared group once. */
+export function renderSharedPropGroups(shared, lines) {
+  if (!shared?.size) return;
+  lines.push(
+    '## Shared prop groups',
+    '',
+    'Several of the components below take these same props. Each is listed once here; a component\'s own API names the groups it takes.',
+    '',
+  );
+  for (const g of [...shared.values()].sort((a, b) => b.owners.length - a.owners.length || a.name.localeCompare(b.name))) {
+    lines.push(`### ${propGroupLabel(g.name)}`, '', `Taken by: ${g.owners.map((o) => `\`${o}\``).join(', ')}.`, '');
+    lines.push(...renderTable(g.rows.map((r) => propRow({ ...r, inheritedFrom: null })), API_COLUMNS).split('\n'), '');
+  }
+}
+
+/**
+ * Render the prop table for an entry, resolved through the extractor cache.
+ * `sharedPropGroups` (from findSharedPropGroups) lists groups already given at
+ * the top of a multi-component answer: their rows are left out here and the
+ * groups are named instead.
+ */
+export function renderApi20(entity, lines, propsConfig, { sharedPropGroups = null } = {}) {
   const result = getApiForEntry(entity, propsConfig);
 
   switch (result.status) {
@@ -758,7 +1054,20 @@ export function renderApi20(entity, lines, propsConfig) {
         lines.push('> *Freshness not verified against source (`uiSourceRoot` not configured).*', '');
       }
       if (props.length) {
-        lines.push(...renderTable(props.map(propRow), API_COLUMNS).split('\n'), '');
+        let own = props;
+        const takes = [];
+        if (sharedPropGroups?.size) {
+          const skip = new Set();
+          for (const [name, rows] of propGroups(props)) {
+            if (!sharedPropGroups.has(groupSignature(name, rows))) continue;
+            takes.push(propGroupLabel(name).toLowerCase());
+            for (const r of rows) skip.add(r);
+          }
+          own = props.filter((p) => !skip.has(p));
+        }
+        if (own.length) lines.push(...renderTable(own.map(propRow), API_COLUMNS).split('\n'), '');
+        else if (takes.length) lines.push('No props of its own beyond the shared groups.', '');
+        if (takes.length) lines.push(`Also takes the shared ${takes.join(', ')} (listed under **Shared prop groups** at the top).`, '');
       } else {
         lines.push('This component has no props of its own.', '');
       }

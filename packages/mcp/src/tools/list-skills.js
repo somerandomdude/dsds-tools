@@ -1,6 +1,6 @@
-// Lists the real 0.20.0 authoring skills bundled with this server — see
+// Lists the real authoring skills bundled with this server — see
 // packages/mcp/skills/ (vendored verbatim from the design-system-
-// documentation-schema repo's own 0.20.0 branch, .agents/skills/). This is
+// documentation-schema repo's release tag matching BUNDLED_VERSION, .agents/skills/). This is
 // the progressive-disclosure entry point: name + description only, so an
 // agent can pick the right skill before spending context on the full
 // content (dsds_get_skill).
@@ -50,9 +50,9 @@ export function loadSkills() {
 export const listSkillsDef = {
   name: 'dsds_list_skills',
   description:
-    'List the real DSDS 0.20.0 authoring skills bundled with this server — name and description only. ' +
+    'List the DSDS authoring skills bundled with this server, for the bundled spec version — name and description only. ' +
     'Call dsds_get_skill with an id from this list to read the full skill. ' +
-    'These are the actual skills from the design-system-documentation-schema repo\'s own 0.20.0 branch, not generated from this server\'s own knowledge.',
+    'These are the actual skills from the design-system-documentation-schema repo, vendored at the same release as the schema, not generated from this server\'s own knowledge.',
   inputSchema: { type: 'object', properties: {} },
 };
 

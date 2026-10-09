@@ -23,12 +23,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // constant and vendoring the new schema-<version>/ directory is one change
 // instead of three that can disagree. A missing directory fails here, at
 // load, rather than as a confusing per-file miss later.
-export const SCHEMA_DIR_NAME = `schema-${BUNDLED_VERSION}`;
-export const SCHEMA_DIR = resolve(__dirname, `schema-${BUNDLED_VERSION}`);
+// The vendored release: upstream's schema/ and the scripts/ that read it,
+// laid out as upstream lays them out so its scripts find the schema unchanged.
+export const VENDOR_DIR = resolve(__dirname, `dsds-${BUNDLED_VERSION}`);
+export const SCHEMA_DIR_NAME = `dsds-${BUNDLED_VERSION}/schema`;
+export const SCHEMA_DIR = resolve(VENDOR_DIR, 'schema');
 if (!existsSync(SCHEMA_DIR)) {
   throw new Error(
-    `No vendored schema at src/spec/schema-${BUNDLED_VERSION}/. BUNDLED_VERSION in ` +
-    `src/spec/version.js was bumped without vendoring that release's schema directory.`,
+    `No vendored schema at src/spec/${SCHEMA_DIR_NAME}/. BUNDLED_VERSION in ` +
+    `src/spec/version.js was bumped without vendoring that release.`,
   );
 }
 

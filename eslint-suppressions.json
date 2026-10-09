@@ -1,0 +1,153 @@
+{
+  "packages/cli/src/cli.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/cli/src/doctor.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "packages/cli/src/porcelain.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/markdown-export/src/render.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/scripts/log-stats.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "packages/mcp/scripts/view-logs.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/src/config.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/src/graph.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/icon-suggest.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/integrity.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/intro.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/registry.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/src/spec/prop-extractor.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/spec/render.js": {
+    "complexity": {
+      "count": 5
+    }
+  },
+  "packages/mcp/src/spec/schema-describe.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tokens.js": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "packages/mcp/src/tools/build-component.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/src/tools/check-exports.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/src/tools/get-agent-context.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/mcp/src/tools/get-chunk.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/get-document-block.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/get-entity.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/get-tokens.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/lint-code.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/list-entities.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/search-entities.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/mcp/src/tools/style-check.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "scripts/evaluate-local-model-suite.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "scripts/local-model-evaluation-core.mjs": {
+    "complexity": {
+      "count": 3
+    }
+  }
+}

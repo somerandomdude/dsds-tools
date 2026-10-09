@@ -19,7 +19,6 @@ import { describe, expect, it } from 'vitest';
 import { hydrateSharedItem20, renderSections20, resolveSharedItem20 } from '../../src/spec/render.js';
 import { validateDoc20 } from '../../src/spec/validator.js';
 import { checkStyle20 } from '../../src/spec/style-guide.js';
-import { BUNDLED_VERSION } from '../../src/spec/version.js';
 
 const SHARED = [{
   id: 'shared-foundations',
@@ -200,12 +199,6 @@ describe('hydrateSharedItem20, for callers that serialise instead of render', ()
   it('is a no-op for an ordinary item', () => {
     const item = { level: 'must', statement: 'A real rule.' };
     expect(hydrateSharedItem20(item, SHARED)).toBe(item);
-  });
-});
-
-describe('the bundled version', () => {
-  it('is 0.21.1', () => {
-    expect(BUNDLED_VERSION).toBe('0.21.1');
   });
 });
 

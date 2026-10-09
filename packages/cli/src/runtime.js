@@ -49,9 +49,10 @@ export async function createRuntime({ quiet = false, configPath = null, outputFo
     getSummaries: () => state.summaries,
     getIntro: () => introEntities,
     getGraph: createGraphGetter(getSystems),
-    getLintConfig: () => ({ plugins: config.lintPlugins, resolveDir: config.lintResolveDir, sourceDir: config.lintSourceDir }),
+    getLintConfig: () => ({ plugins: config.lintPlugins, resolveDir: config.lintResolveDir, sourceDir: config.lintSourceDir, autofixByHost: config.lintAutofixByHost }),
     getExportPaths: () => config.packageExportPaths,
-    getPropsConfig: () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot }),
+    getPropsConfig: () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot, agentContextOmit: config.agentContextOmit ?? [] }),
+    getIconConfig: () => ({ iconPackage: config.iconPackage, guidelinesPath: config.iconGuidelinesPath }),
     feedbackDir: config.feedbackDir,
     // Handler-level telemetry (chunk fetches, lint passes) follows the same
     // rule cli.js applies to its own tool-call log: only when logging was

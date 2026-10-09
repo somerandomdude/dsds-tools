@@ -67,7 +67,16 @@ function buildSystemStatus(getSystems, getSummaries) {
   const summaries = getSummaries();
   const deprecated = summaries.filter(e => e.status === 'deprecated');
   const experimental = summaries.filter(e => e.status === 'experimental');
-  const draft = summaries.filter(e => e.status === 'draft');
+  // Every other status, grouped by its own word. The spec's status vocabulary
+  // is open ("Any term is allowed"), so a fixed `draft` bucket went empty the
+  // moment a corpus said `unavailable` instead, and those entries vanished
+  // from the brief with nothing to say so.
+  const otherStatuses = new Map();
+  for (const e of summaries) {
+    if (!e.status || ['stable', 'deprecated', 'experimental'].includes(e.status)) continue;
+    if (!otherStatuses.has(e.status)) otherStatuses.set(e.status, []);
+    otherStatuses.get(e.status).push(e);
+  }
 
   const byKind = {};
   for (const s of summaries) {
@@ -102,12 +111,12 @@ function buildSystemStatus(getSystems, getSummaries) {
     );
   }
 
-  if (draft.length > 0) {
+  for (const [status, entries] of otherStatuses) {
     lines.push(
       '',
-      `### Draft (${draft.length}) — not ready for production`,
+      `### Status: ${status} (${entries.length})`,
       '',
-      draft.map(e => `- \`${e.identifier}\``).join('\n'),
+      entries.map(e => `- \`${e.identifier}\``).join('\n'),
     );
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "dsds-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "MCP server for the Design System Documentation Spec (DSDS)",
   "type": "module",
   "bin": {
@@ -42,7 +42,8 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "yaml": "^2.9.1"
   },
   "peerDependencies": {
     "eslint": ">=9.0.0"

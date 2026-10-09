@@ -17,8 +17,10 @@ import { getDocumentBlockDef, getDocumentBlockHandler } from './tools/get-docume
 import { getAgentContextDef, getAgentContextHandler } from './tools/get-agent-context.js';
 import { lintDef, lintHandler } from './tools/lint-code.js';
 import { getChunkDef, getChunkHandler } from './tools/get-chunk.js';
+import { getTokensDef, getTokensHandler } from './tools/get-tokens.js';
 import { feedbackDef, feedbackHandler } from './tools/feedback.js';
 import { checkExportsDef, checkExportsHandler } from './tools/check-exports.js';
+import { findIconDef, findIconHandler } from './tools/find-icon.js';
 import { explainErrorDef, explainErrorHandler } from './tools/explain-error.js';
 import { listSkillsDef, listSkillsHandler } from './tools/list-skills.js';
 import { getSkillDef, getSkillHandler } from './tools/get-skill.js';
@@ -119,6 +121,7 @@ export function createToolRuntime({
   getLintConfig = null,
   getExportPaths = null,
   getPropsConfig = null,
+  getIconConfig = null,
   feedbackDir = null,
   logsDir = null,
   enableFeedback = true,
@@ -136,8 +139,10 @@ export function createToolRuntime({
     getDocumentBlockDef,
     getAgentContextDef,
     getChunkDef,
+    getTokensDef,
     lintDef,
     checkExportsDef,
+    findIconDef,
     explainErrorDef,
     listSkillsDef,
     getSkillDef,
@@ -180,15 +185,17 @@ export function createToolRuntime({
         case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args);
         case 'dsds_build_component':      return buildComponentHandler(args, getSystems, getSummaries);
         case 'dsds_validate':             return validateHandler(args);
-        case 'dsds_style_check':          return styleCheckHandler(args);
+        case 'dsds_style_check':          return styleCheckHandler(args, getSystems);
         case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
         case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig());
         case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries);
         case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
         case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
+        case 'dsds_get_tokens':           return getTokensHandler(args, getSystems);
         case 'dsds_lint':                 return lintHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
-        case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()));
+        case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()), getIconConfig ?? (() => ({})));
+        case 'dsds_find_icon':            return findIconHandler(args, getExportPaths ?? (() => new Map()), getIconConfig ?? (() => ({})));
         case 'dsds_explain_error':        return explainErrorHandler(args);
         case 'dsds_list_skills':          return listSkillsHandler(args);
         case 'dsds_get_skill':            return getSkillHandler(args);

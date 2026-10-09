@@ -1,16 +1,15 @@
-schemaVersion: "0.21.1"
+schemaVersion: "0.22.0"
 
 name: Pizza Party Tokens
 
 entries:
-  - id: color-text-primary
-    kind: token
+  - kind: token
+    id: color-text-primary
     name: Color Text Primary
     description: Primary text color. Use for body copy and headings.
-    tokenType: color
     metadata:
-      status: {status: stable}
       tags: [color, text]
+      status: {status: stable}
     sections:
       - kind: guidelines
         for: all
@@ -18,15 +17,15 @@ entries:
         items:
           - level: must
             statement: Use `color-text-primary` for body copy and headings.
+    tokenType: color
 
-  - id: color-text-secondary
-    kind: token
+  - kind: token
+    id: color-text-secondary
     name: Color Text Secondary
     description: Secondary text color. Use for supporting copy and captions.
-    tokenType: color
     metadata:
-      status: {status: stable}
       tags: [color, text]
+      status: {status: stable}
     sections:
       - kind: guidelines
         for: all
@@ -34,15 +33,15 @@ entries:
         items:
           - level: should
             statement: Use `color-text-secondary` for supporting copy, never for body text.
+    tokenType: color
 
-  - id: color-grey-100
-    kind: token
+  - kind: token
+    id: color-grey-100
     name: Color Grey 100
     description: Legacy grey value. Replaced by semantic tokens.
-    tokenType: color
     metadata:
-      status: {status: deprecated}
       tags: [color, legacy]
+      status: {status: deprecated}
     sections:
       - kind: guidelines
         for: all
@@ -50,3 +49,4 @@ entries:
         items:
           - level: must-not
             statement: Do not use `color-grey-100`. Use a semantic color token instead.
+    tokenType: color

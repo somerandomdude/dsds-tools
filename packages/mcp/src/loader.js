@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
-import { entriesIn20, isBaseDoc20, loadYaml20, resolveStatusDisplay20 } from './spec/dsds-lib.js';
+import { entriesIn20, isBaseDoc20, loadYaml20, resolveStatusDisplay20, statusEntriesOf20 } from './spec/dsds-lib.js';
 
 // Loading normalises every entry so the rest of the server sees one shape:
 //   - `identifier` aliases `id`, so lookups by identifier work everywhere.
@@ -11,22 +11,44 @@ import { entriesIn20, isBaseDoc20, loadYaml20, resolveStatusDisplay20 } from './
 //     resolve a ref against the base document's shared pool.
 const YAML_EXTENSIONS = new Set(['.yaml', '.yml']);
 
-// `related` is the entry's primary typed-relationship list; `refs` is the
-// catch-all for everything else "not covered by related or extends" (per
-// common/ref.schema.yaml) but in practice also carries internal `to`
-// pointers (e.g. `rel: composes`) alongside file/external ones. Both use
-// the same {to, rel, role, required} shape, so both feed the graph.
+// 0.22.0 gives most kinds of pointer a field of their own, and a pointer in
+// one has no `rel`: the field says it. These are the entry-level ones, with
+// the `rel` each implies (upstream's lib.js FIELD_RELS). A deprecated entry
+// names its successor in `replacedBy`, inside `metadata.status`.
+const ENTRY_POINTER_FIELDS = { uses: 'uses', extends: 'extends', alternatives: 'alternative-to', specs: 'contract' };
+
+// A pointer inside a section item belongs to that item, not to its entry
+// (processing model §5), so only entry-level pointers feed the graph. A
+// target written as `entryId#address` is an edge to that entry; the full
+// address is kept on the edge.
+function edge(ref, relation) {
+  const hash = ref.to.indexOf('#');
+  return {
+    relation,
+    target: hash === -1 ? ref.to : ref.to.slice(0, hash),
+    ...(hash === -1 ? {} : { address: ref.to }),
+    role: ref.role,
+    required: false,
+  };
+}
+
 function relationshipsFromRefs(entity) {
-  const edges = [...(entity.related ?? []), ...(entity.refs ?? [])];
-  return edges
-    .filter(r => r && typeof r.to === 'string' && r.rel !== 'file')
-    .map(r => ({
-      relation: r.rel,
-      target: r.to,
-      role: r.role,
-      required: !!r.required,
-      versionConstraint: r.versionConstraint,
-    }));
+  const edges = [];
+  const add = (ref, relation) => {
+    if (ref && typeof ref === 'object' && typeof ref.to === 'string' && ref.to) edges.push(edge(ref, relation));
+  };
+  for (const [field, relation] of Object.entries(ENTRY_POINTER_FIELDS)) {
+    for (const ref of Array.isArray(entity[field]) ? entity[field] : []) add(ref, relation);
+  }
+  for (const status of statusEntriesOf20(entity.metadata?.status)) {
+    for (const ref of Array.isArray(status?.replacedBy) ? status.replacedBy : []) add(ref, 'replaced-by');
+  }
+  // `refs` keeps the six kinds with no field. `rel: file` names a document,
+  // not a relationship between entries.
+  for (const ref of Array.isArray(entity.refs) ? entity.refs : []) {
+    if (ref?.rel && ref.rel !== 'file') add(ref, ref.rel);
+  }
+  return edges;
 }
 
 function normalizeEntity20(entity, filePath, sharedEntries) {
@@ -233,7 +255,6 @@ export function entitySummary(entity, { maxLength = 160 } = {}) {
     resolveMetaSummary(entity.metadata) ??
     resolveMetaDescription(entity.metadata) ??
     (typeof entity.description === 'string' ? entity.description : undefined) ??
-    (typeof entity.purpose === 'string' ? entity.purpose : undefined) ??
     entity.agents?.intent;
 
   if (typeof candidate !== 'string') return undefined;

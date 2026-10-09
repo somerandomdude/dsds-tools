@@ -10,6 +10,7 @@
 // the MCP transport.
 
 import { entitySummary } from './loader.js';
+import { resolveFileRef20 } from './spec/render.js';
 
 /**
  * Render a DSDS entity to a markdown string suitable for agent instructions.
@@ -57,7 +58,19 @@ export function renderIntroEntity(entity) {
       for (const entry of (section.freeform ?? [])) {
         if (entry.title) lines.push(`### ${entry.title}`, '');
         if (entry.body) lines.push(entry.body, '');
+        pushExamples(entry.examples, entity.__filePath, lines);
       }
+    } else if (section.kind === 'steps') {
+      // Setup is written as steps (install, then the entry file). Skipping them
+      // left the intro with the rules about the entry file but not the file.
+      if (section.title) lines.push(`### ${section.title}`, '');
+      (section.items ?? []).forEach((item, i) => {
+        const title = item.title ? `**${section.ordered ? `${i + 1}. ` : ''}${item.title}**` : null;
+        if (title) lines.push(title, '');
+        const text = item.description ?? item.body;
+        if (text) lines.push(typeof text === 'string' ? text : (text?.value ?? ''), '');
+        pushExamples(item.examples, entity.__filePath, lines);
+      });
     } else if (section.kind === 'definitions') {
       if (section.title) lines.push(`### ${section.title}`, '');
       for (const item of (section.items ?? [])) {
@@ -69,6 +82,25 @@ export function renderIntroEntity(entity) {
   return lines.join('\n');
 }
 
+
+/**
+ * Code examples that point at a file (`ref: { href, rel: source | file }`),
+ * resolved relative to the entity's own file and inlined as a code block. A
+ * guide that shows a real config file this way keeps one copy of it, and the
+ * intro still carries its contents. An unresolvable file is named, not dropped.
+ */
+function pushExamples(examples, filePath, lines) {
+  for (const example of examples ?? []) {
+    if (!example?.ref || !['source', 'file'].includes(example.ref.rel)) continue;
+    const resolved = resolveFileRef20(filePath, { ...example.ref, rel: 'file' });
+    lines.push(
+      resolved
+        ? `\`\`\`${resolved.language || example.ref.href.split('.').pop()}\n${resolved.code.trimEnd()}\n\`\`\``
+        : `*Example file not found: \`${example.ref.href}\`*`,
+      '',
+    );
+  }
+}
 
 /**
  * Compact alternative to inlining the full intro entities: a one-line index.

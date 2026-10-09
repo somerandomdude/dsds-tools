@@ -33,7 +33,7 @@ describe('validateHandler — auto-detects legacy JSON vs real 0.20.0 YAML', () 
   });
 
   it('reports a real 0.20.0 semantic-rule violation with its [DSDS-XX] id', async () => {
-    const document = readFileSync(resolve(fixturesDir, 'invalid-0.20.0/DSDS-04-unique-entry-id.yaml'), 'utf-8');
+    const document = readFileSync(resolve(__dirname, '../fixtures/conformance-0.22.0/DSDS-04-unique-entry-id.yaml'), 'utf-8');
     const result = await validateHandler({ document });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('[DSDS-04]');

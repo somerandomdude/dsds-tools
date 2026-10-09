@@ -6,7 +6,155 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-09
+
+Supports DSDS 0.22.0, and only 0.22.x: a 0.21 document fails validation until it's
+migrated with the spec's `scripts/tools/migrate-to-0.22.js`. Use dsds-mcp 0.4.0 for
+DSDS 0.20.x and 0.21.x.
+
+0.4.0 (published 2026-09-02) shipped without a section of its own, so its changes
+are listed here too, under Changed, Added, Fixed and Removed below the 0.22.0 items.
+
+### Breaking
+- **Bundled DSDS 0.22.0.** A breaking spec release, so a 0.21 document now
+  fails `dsds_validate` until it is migrated. The validate tool says so, and
+  points at the spec's `scripts/tools/migrate-to-0.22.js`, when a document
+  still uses `purpose`, `related`, `metadata.context` or a retired `rel`.
+- **Validation runs the spec's own validator.** `src/spec/dsds-0.22.0/` holds
+  the release's `schema/` and its reference validator, resolver and
+  formatter, verbatim; `src/spec/validator.js` wraps the validator instead of
+  porting it. The port had drifted: it was missing `DSDS-24`, `DSDS-25`, the
+  wider `DSDS-06`, `sourceRoot`, and item addresses derived from an item's
+  text. Findings now match `npx dsds-validate` string for string, and
+  `validateDoc20` also returns upstream's structured `findings`. The advisory
+  checks (`DSDS-13`–`DSDS-16`) are still a port, since upstream's
+  `lint-docs.js` exports nothing yet.
+- **`dsds_style_check` returns the document in field order.** 0.22.0 retired
+  the four field-order rules (`DSDS-17`, `-20`, `-22`, `-23`) in favour of
+  `dsds-format`, so the tool runs the vendored formatter and returns the
+  reordered text, comments kept, plus `DSDS-18`, `-19` and `-21`. A section's
+  `tags` no longer change where `DSDS-18` expects it. Adds `yaml` as a
+  dependency, which the formatter needs.
+
+### Changed
+- **The relationship graph reads 0.22.0's pointer fields:** `uses`,
+  `alternatives`, `extends`, `specs`, and a deprecated status's `replacedBy`,
+  with `refs` for the rest. Reverse names follow the spec: `used-by`,
+  `extended-by`, `replaces`. A pointer inside a section item belongs to that
+  item, so it no longer counts as an edge from its whole entry.
+- **A code file is `rel: source`.** `dsds_get_chunk` and example rendering find
+  a chunk's or example's code through `rel: source`, and still read the old
+  `rel: file`. Token files are found through a token's or theme's `source`
+  field, so `dsds doctor`'s token checks see them again.
+- **Reused items resolve by the spec's address model.** `same-as` targets and
+  `dsds doctor`'s item-reference check find an item by its `id` or by the id
+  its text derives, and a `refines` field is shown like a `rel: refines` ref.
+- **`dsds doctor` validates every file of a system together**, as the spec's
+  CLI does with files given at once: refs resolve across them, and the
+  system's `metadata.sourceRoot` applies to every `sourceFiles` path. It used
+  to validate only the root document of a YAML system.
+- **DSDS-12 is gone.** The spec retired it: a guideline's `level` already
+  says how strong it is.
+- **Bundled skills are the 0.22.0 ones**, and `dsds_get_skill`'s note maps
+  their `dsds-validate`, `dsds-lint` and `dsds-format` commands to this
+  server's tools.
+- **`npm run update-schema -- <spec-checkout>`** vendors a release from a
+  local checkout: schema, scripts, skills and conformance fixtures. It used to
+  download one bundled file and stop, since a split schema can't be rebuilt
+  from it.
+- **Tests move to 0.22.0.** The conformance suite runs the 0.22.0 fixtures;
+  the 0.20.1 and 0.21.0 suites, which asserted retired rules, are removed.
+  The fixtures in `fixtures/` were migrated with the spec's own migration
+  script and formatter.
+- **`dsds_get_agent_context` serves a build view by default.** The compact
+  (default) view keeps each migration guide's prop table and breaking changes
+  but drops its codemod and the "Key differences" prose that restates the
+  table. It also drops "Checked by" lines and shows unknown extension
+  namespaces (such as `io.jev`) as one line naming them, not as raw JSON.
+  `verbose: true` still returns everything. A real 33-component batch
+  went from 323k to 296k characters.
+- **No more "pointed at by" lists.** `dsds_get_agent_context` and
+  `dsds_get_entity` show only what an entry points at, not every entry that
+  points at it. For core components that list ran to ~20 lines, and in a
+  10-iteration run no agent found anything through it.
+- **API tables show each prop's values.** A type name like
+  `Responsive<Position>` is followed by its values (`"absolute" | … | "sticky"`),
+  with integer scales shortened to ranges (`0–9`). The extractor already read
+  them; agents saw only the type name and avoided valid values like `sticky`.
+- **Shared prop groups are listed once, at the top.** A multi-component
+  `dsds_get_agent_context` answer opens with every prop group (three or more
+  props) that two or more of its components share — margin, padding,
+  position — listed once with the components that take it. Each component
+  lists only its own props and names the groups it also takes. Repeated rows
+  were 18.9k of 30k prop-table characters in a real 26-component lookup. An
+  earlier version pointed back to the first component with the group ("as
+  listed under `box` above"); agents did not follow those pointers.
+- **Shared rules are given once, at the top.** In a multi-component
+  `dsds_get_agent_context` answer, a rule the docs declare once and point to
+  (`same-as`) — the form-field and tone rules — is given in full once under
+  **Shared rules**, with the components it applies to. Each component names it
+  in one line: its bold lead sentence, else its first sentence, else its id.
+  Only rules at least twice as long as that line move; a one-sentence rule
+  stays in place.
+- **No more "Same as under X above" notes.** Paragraph matching across a
+  batch replaced whole sections with a pointer to an unrelated component
+  (Divider's API pointed at Checkbox), and agents guessed rather than follow.
+- **`agentContextOmit` config.** A list of extension paths to leave out of
+  `dsds_get_agent_context`'s default view: a namespace (`io.jev`) or one block
+  in it (`com.sanity.ui.migrationGuide`). The view names what it left out, and
+  `verbose: true` returns everything. Env: `DSDS_AGENT_CONTEXT_OMIT`.
+- **Status words are open, as the spec says.** `dsds_context_brief` lists every
+  status other than stable, deprecated and experimental under its own word,
+  instead of a fixed `draft` bucket that silently emptied when a corpus used
+  another word. `dsds_search_entities` no longer limits `status` to four
+  values, so `beta` and `unavailable` can be searched.
+- **`dsds_check_exports` checks subpath specifiers.** `@sanity/icons/Cog` is
+  confirmed against the package's `exports` map, with suggestions when it is
+  missing. A root-listed icon whose subpath the package does not ship is now
+  flagged instead of reported as importable.
+- **Bundled DSDS 0.21.2** (`src/spec/schema-0.21.2/`, vendored verbatim from
+  the v0.21.2 tag; `schema-0.21.1/` removed). Upstream calls it documentation
+  only: every 0.21.1 document is a valid 0.21.2 document. Its one
+  clarification — a `same-as` may point at an item in any entry, not only in
+  `base.shared` — needed no code change: DSDS-05 and the renderer's same-as
+  pool already covered every entry. `tests/spec/release-0.21.2.test.js` pins
+  that down.
+- **Bundled skills refreshed to 0.21.2.** They had stayed at 0.21.0 through
+  the 0.21.1 bump. They now match upstream `.agents/skills/` at v0.21.2.
+
 ### Added
+- **`dsds_find_icon`.** Finds icons by purpose (`purposes: ["resolve",
+  "settings"]`) from the icon guidelines' alternative names, purpose and usage
+  notes, limited to icons the package ships. Returns each match's import path,
+  what it is for, and when not to use it. Needs `ICON_PACKAGE` and
+  `ICON_GUIDELINES_PATH`.
+- **Token references in documentation text.** Write `{space-3}` — the DSDS
+  token reference, a token entry's `id` in braces (`tokenRef`, DSDS-09; prose
+  use per the dsds-update skill) — and every documentation tool, prompt,
+  resource and the agent instructions serve it as "`space-3` (12px)". It
+  resolves against documented `kind: token` entries, by id, and reads the
+  value through the entry's `source` (`#key` or JSON Pointer `#/key`) on each
+  request (`src/token-refs.js`, applied in `createSurface`). Only a
+  name that is a token is replaced; code spans, fenced blocks and a brace
+  after `=` or `$` are never touched, so quoted JSX such as `weight={bold}`
+  survives. Spec, lint, validation and skill tools pass through unchanged.
+- **`dsds doctor`: `token references`** fails on a token-shaped reference
+  (`{space-33}`) that names no token, with a did-you-mean.
+  **`hardcoded token values`** warns on each pixel value in prose that equals
+  a token's value and suggests the reference, using nearby words ("padding",
+  "radius") to pick the scale. Thresholds (viewport, reflow, touch target)
+  and values inside code are skipped. Doctor gains a `warn` status that does
+  not fail the run.
+- **`dsds_get_tokens`** (CLI: `dsds tokens`) — token names and values. A
+  token entry never stores its value; its `source` points at a DTCG file.
+  `src/tokens.js` follows those pointers, flattens each file (nested groups,
+  inherited `$type`, `{alias}` values), and joins every token to the entry
+  that documents it. CSS custom property names are read from the `css/`
+  directory beside the JSON, not derived, so a renamed property
+  (`--shadow0` → `--shadow-0`) cannot be reported wrongly. Files are cached
+  by mtime. Lookup by `names` (CSS `--` and `var()` forms accepted), `group`
+  (file, entry group or name prefix) or `query` (word-start match); partial
+  misses return what was found plus did-you-mean suggestions.
 - **`src/vocabulary.js`** — `toCliVocabulary(text)` renders the core's
   canonical prose for a shell: tool names become the equivalent `dsds`
   commands, call expressions become runnable invocations, and phrases that

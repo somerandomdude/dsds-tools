@@ -1,20 +1,18 @@
-id: example-chunk
 kind: sanity.chunk
+id: example-chunk
 name: Example Chunk
 description: A representative sanity.chunk fixture for conformance testing.
 metadata:
   status: {status: stable}
-related:
-  - to: example-pattern
-    rel: relates-to
-refs:
-  - href: ./code/example-chunk.tsx
-    rel: file
-    role: source
 sections:
   - kind: guidelines
     for: all
     framing: when-to-use
     items:
-      - statement: Use this chunk when testing conformance.
-        level: should
+      - level: should
+        statement: Use this chunk when testing conformance.
+refs:
+  - href: ./code/example-chunk.tsx
+    rel: source
+  - to: example-pattern
+    rel: relates-to

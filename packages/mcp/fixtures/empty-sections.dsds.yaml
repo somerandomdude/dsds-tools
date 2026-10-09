@@ -1,4 +1,4 @@
-id: example-empty
 kind: sanity.chunk
+id: example-empty
 name: Example Empty
 description: An entry with no sections at all — an edge case tools must not crash on.

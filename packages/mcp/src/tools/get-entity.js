@@ -87,14 +87,15 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   if (found.tokenType) lines.push(`**Token type:** ${found.tokenType}\n`);
   if (found.source) lines.push(`**Source:** \`${typeof found.source === 'string' ? found.source : found.source.href}\`\n`);
 
-  // Relationships: authored outgoing edges (resolved to name/kind) + derived
-  // incoming edges (who points at this entity). Falls back to the raw authored
-  // edges when the graph isn't available.
+  // Relationships: authored outgoing edges, resolved to name/kind. Falls back
+  // to the raw authored edges when the graph isn't available. The derived
+  // incoming list (every entity that points here) was dropped on 2026-10-08,
+  // here and in dsds_get_agent_context: ~20 lines for each core component,
+  // and no agent in that day's run found anything through it.
   const graph = getGraph ? getGraph() : null;
   if (graph) {
     const out = graph.out.get(found.identifier) ?? [];
-    const incoming = graph.in.get(found.identifier) ?? [];
-    if (out.length || incoming.length) {
+    if (out.length) {
       lines.push('## Relationships', '');
       if (out.length) {
         lines.push('**Outgoing** (this entity → others):', '');
@@ -104,16 +105,6 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
           const role = r.role ? ` — ${r.role}` : '';
           const req = r.required ? ' *(required)*' : '';
           lines.push(`- **${r.relation}** \`${r.target}\`${meta}${role}${req}`);
-        }
-        lines.push('');
-      }
-      if (incoming.length) {
-        lines.push('**Incoming** (others → this entity, derived):', '');
-        for (const r of incoming) {
-          const t = graph.nodes.get(r.target);
-          const meta = t ? ` (${t.kind})` : '';
-          const req = r.required ? ' *(required)*' : '';
-          lines.push(`- **${r.relation}** \`${r.target}\`${meta}${req}`);
         }
         lines.push('');
       }

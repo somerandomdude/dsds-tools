@@ -9,7 +9,9 @@ Three use cases:
 
 The DSDS spec is bundled at the version listed below. The server checks for updates on startup and surfaces a notice in tool responses when a newer version is available.
 
-**Bundled spec version:** 0.21.1
+**Bundled spec version:** 0.22.0
+
+Validation runs the spec's own reference validator, vendored with its schema in `src/spec/dsds-<version>/`, so `dsds_validate` reports exactly what `npx dsds-validate` would. Re-vendor a release with `npm run update-schema -- <path-to-spec-checkout>`.
 
 ---
 
@@ -190,7 +192,7 @@ Configuration is done via environment variables passed through your MCP client c
 | `PACKAGE_EXPORT_PATHS` | No | Comma-separated `packageName=path` pairs pointing to each package root. Used by `dsds_check_exports` to verify components exist before importing. See below. |
 | `DSDS_INTRO_PATHS` | No | Comma-separated paths to DSDS files loaded as design system introductions. Content from each entity is prepended to the server instructions and exposed via the `dsds-intro` prompt. `DSDS_INTRO_PATH` (singular) still works as a single-path alias. |
 | `RESEARCH_MODE` | No | `thorough` (default) or `frugal`. How hard the server pushes an agent to economise on lookups when an intro is inlined. See [Research mode](#research-mode--thorough-or-frugal). |
-| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to the bundled version, `0.20.1`. |
+| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to the bundled version. |
 | `DSDS_FEEDBACK_DIR` | No | Directory where session feedback from `dsds_feedback` is written. Defaults to `feedback/` inside the dsds-mcp directory. |
 | `DSDS_LOGS_DIR` | No | Directory where the lint tools write per-session lint logs. Defaults to `logs/` inside the dsds-mcp directory. |
 | `LINT_PLUGINS` | No | Comma-separated ESLint plugin package names to use with the lint tools. Each name must be resolvable from `LINT_RESOLVE_DIR`. |
@@ -320,6 +322,10 @@ catalog, adding an explicit exemption from the lookup rule — left lookups
 unchanged at ~13. Only the budget in `frugal` moved them, and it moved the
 error count with them. Knowledge tells an agent what is true; a budget tells it
 when to stop asking.
+
+### Referencing tokens in documentation text
+
+Reference a token the way DSDS does: its token entry's `id` in braces — `{space-3}`, `{color.action.primary}` — anywhere in a statement, description or freeform body. A reference names a documented `kind: token` entry, not a raw DTCG key, so a DTCG token no entry documents can't be referenced. The server serves it as "`space-3` (12px)", reading the value through the entry's `source`, so the value is never copied into the docs. Code spans, fenced blocks, and braces after `=` or `$` are left alone. `dsds doctor` fails on a reference that names no token and warns on pixel values in prose that duplicate one.
 
 ### Linting code with ESLint plugins
 
@@ -481,8 +487,8 @@ These help a team author DSDS-compliant documentation.
 | `dsds_spec_entity_schema` | Full field definitions for a given entity kind (`component`, `token`, `theme`, etc.) |
 | `dsds_spec_document_blocks` | Document block types valid for an entity kind, with descriptions |
 | `dsds_spec_scaffold` | Minimal valid DSDS JSON template for an entity kind. Use `kind="system"` for a multi-entity document |
-| `dsds_validate` | Validate a DSDS JSON string against the bundled schema |
-| `dsds_style_check` | Check a 0.20.x document against the authoring style guide (`DSDS-17`–`DSDS-23`): field, section, item and combo ORDER. Advisory only — never changes what `dsds_validate` says |
+| `dsds_validate` | Validate a DSDS document with the spec's reference validator. Returns errors, warnings and documentation suggestions, each with its rule id |
+| `dsds_style_check` | Check a document against the authoring style guide. Returns it in field order, from the spec's `dsds-format` (comments kept), and flags sections, guideline items and entries out of reading order (`DSDS-18`, `DSDS-19`, `DSDS-21`). Advisory only — never changes what `dsds_validate` says |
 
 **Authoring workflow:**
 ```
@@ -501,6 +507,7 @@ These let agents query an existing DSDS document.
 | `dsds_get_entity` | Full documentation for an entity by identifier or name. Returns all `documentBlocks` and `agentDocumentBlocks`. |
 | `dsds_get_document_block` | One specific block (e.g. `api`, `accessibility`) from an entity — faster than fetching the full entity |
 | `dsds_get_agent_context` | Agent-optimized view of an entity. Leads with an **Allowed prop values** block — every closed value set (tones, numeric scales, booleans) as hard constraints, resolved from `schema.enum` → `values` → the `type` string. Then renders content from both `agentDocumentBlocks` and `documentBlocks` (guidelines, use cases, props, sections — minus verbose accessibility and import blocks). The primary tool for understanding how to use a component. |
+| `dsds_get_tokens` | Token names and values, read from the DTCG `.tokens.json` files the corpus references through each token entry's `source`. Look up by `names` (`space-3`, `--radius-2`), `group` (`space`, `typography`, `heading`, `blue`) or `query`. Each row gives the CSS custom property the package's CSS declares, the value, and the entry's description. No configuration: a file the docs stop referencing stops being served. CLI: `dsds tokens`. |
 
 | `dsds_build_component` | Interactive wizard for implementing a documented component: `step:"start"` lists every prop with its allowed values; `step:"finalize"` with an `answers` map returns type-valid JSX (numeric values braced, strings quoted, enum values validated). Value sets resolve `schema.enum` → `values` → `type` string, so systems documented either way get full options. Returns reference JSX only — it does not write files. |
 | `dsds_author_component_doc` | Guided wizard that authors a DSDS component-documentation JSON entity from scratch — no schema knowledge needed. |

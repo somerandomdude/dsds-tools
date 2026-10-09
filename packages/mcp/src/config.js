@@ -36,15 +36,30 @@ const SETTINGS = [
   { key: 'introPaths',        env: 'DSDS_INTRO_PATHS',           kind: 'pathList', altEnv: 'DSDS_INTRO_PATH' },
   { key: 'lintPaths',         env: 'LINT_PATHS',                 kind: 'pathList' },
   { key: 'lintPlugins',       env: 'LINT_PLUGINS',               kind: 'list' },
+  // Extension content left out of dsds_get_agent_context's default view, as
+  // dotted paths: a namespace (`io.jev`) or one block inside it
+  // (`com.sanity.ui.migrationGuide`). The view says what it left out, and
+  // `verbose: true` still returns everything. For content that is right for
+  // some readers and noise for this server's: v3-to-v5 migration guides for an
+  // agent building on v5 alone, for example.
+  { key: 'agentContextOmit',  env: 'DSDS_AGENT_CONTEXT_OMIT',    kind: 'list' },
   { key: 'lintResolveDir',    env: 'LINT_RESOLVE_DIR',           kind: 'path',   default: () => process.cwd() },
   // The root of the project being linted, where the agent's files live. When
   // set, a by-path lint resolves against it and ESLint runs with it as cwd,
   // so files written there count as inside the base path. Plugins still
   // resolve from lintResolveDir.
   { key: 'lintSourceDir',     env: 'LINT_SOURCE_DIR',            kind: 'path',   default: () => null },
+  // The host applies ESLint's auto-fixes itself (the agent-tester lint gate
+  // does). When on, dsds_lint tells the agent to leave fixable findings alone
+  // instead of showing the edit for each.
+  { key: 'lintAutofixByHost', env: 'LINT_AUTOFIX_BY_HOST',       kind: 'bool',   default: () => false },
   { key: 'packageExportPaths', env: 'PACKAGE_EXPORT_PATHS',      kind: 'map' },
   // The package whose exports count as the icon set. Unset means no icon check.
   { key: 'iconPackage',       env: 'ICON_PACKAGE',               kind: 'string' },
+  // A TSV of icon guidelines (Icon name, Alternative names, Purpose, …). When
+  // set, dsds_check_exports suggests real icons for a name that doesn't exist,
+  // by what the agent meant: `SettingsIcon` → `CogIcon` ("settings" alias).
+  { key: 'iconGuidelinesPath', env: 'ICON_GUIDELINES_PATH',      kind: 'path' },
   // A checkout of the design system's source. Only used to tell whether a
   // cached prop table has gone stale — unset disables that check, not prop
   // serving itself (see spec/prop-extractor.js).

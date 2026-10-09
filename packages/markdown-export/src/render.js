@@ -12,7 +12,7 @@
 // sits on the page differs.
 
 import { getApiForEntry } from 'dsds-mcp/src/spec/prop-extractor.js';
-import { renderCombos20, renderEvents20, renderExtensions20, renderGuidelineItem, renderSections20 } from 'dsds-mcp/src/spec/render.js';
+import { renderCombos20, renderEvents20, renderExtensions20, renderGuidelineItem, renderSections20, resolveSharedItem20 } from 'dsds-mcp/src/spec/render.js';
 import { resolveStatusDisplay20 } from 'dsds-mcp/src/spec/dsds-lib.js';
 
 const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
@@ -403,7 +403,19 @@ function hasTag(item, tag) {
   return (item.tags ?? []).includes(tag);
 }
 
-const isRecommended = (item) => item.level === 'should' || item.level === 'must';
+// A pure `same-as` pointer carries no level of its own since spec 0.21.1 —
+// it takes the level of the rule it points at, the same way
+// renderGuidelineItem resolves it. Reading only `item.level` put every
+// pointer in the negative bucket ("When not to use" / "Don't").
+const effectiveLevel = (item, ctx) => {
+  if (item.level) return item.level;
+  const { pure, target } = resolveSharedItem20(item, ctx.sharedEntries, ['statement']);
+  return pure ? target?.level : undefined;
+};
+const isRecommended = (item, ctx) => {
+  const level = effectiveLevel(item, ctx);
+  return level === 'should' || level === 'must';
+};
 
 /**
  * Splits items into two headed buckets by level, rendering each via renderGuidelineItem
@@ -414,8 +426,8 @@ const isRecommended = (item) => item.level === 'should' || item.level === 'must'
  * `alternative-to` identifier repeats it with no added information.
  */
 function renderSplitGuidelines20(items, lines, ctx, { yesHeading, noHeading, showChecklistExample = true }) {
-  const yes = items.filter(isRecommended);
-  const no = items.filter((i) => !isRecommended(i));
+  const yes = items.filter((i) => isRecommended(i, ctx));
+  const no = items.filter((i) => !isRecommended(i, ctx));
   if (yes.length) {
     lines.push(yesHeading, '');
     for (const item of yes) renderGuidelineItem(item, lines, ctx, { showLevel: false, showChecklistExample, showCheckedBy: false, showAlternatives: false });
@@ -499,6 +511,8 @@ function entityToMarkdown20(entity, lines, propsConfig, { includeAgentContent = 
   const booleanTraits = (entity.traits ?? []).filter((t) => t.kind !== 'enum');
   if (booleanTraits.length) {
     renderStates({
+      // 0.22.0 folded a trait's `purpose` into its `description`; `purpose`
+      // is still read, for a document that predates it.
       items: booleanTraits.map(t => ({ identifier: t.id, description: t.description, rationale: t.purpose })),
     }, lines);
   }

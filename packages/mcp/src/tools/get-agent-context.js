@@ -2,7 +2,7 @@ import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { notFoundMessage, entityIdentifiers } from '../suggest.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
-import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render.js';
+import { findSharedPropGroups, findSharedRules, renderApi20, renderSharedPropGroups, renderSharedRules, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render.js';
 import { notFoundError } from '../errors.js';
 import { renderTable } from '../render/table.js';
 import { accessRecord } from '../logger.js';
@@ -50,7 +50,7 @@ const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
 // Compact (default) renders `for: agent`/`for: all` sections only — a
 // `for: human` section is prose for people, not something an agent needs
 // to spend context on before writing code. Verbose renders everything.
-function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = true } = {}) {
+function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = true, sharedPropGroups = null, sharedRules = null } = {}) {
   const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
   if (found.description) lines.push(asText(found.description), '');
 
@@ -66,29 +66,31 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
   at = lines.length;
   renderSourceAndImports20(found, lines); mark('imports', at);
   at = lines.length;
-  renderApi20(found, lines, propsConfig); mark('api', at);
+  renderApi20(found, lines, propsConfig, { sharedPropGroups }); mark('api', at);
 
+  // Only what this entry points at. The reverse list — every entry that points
+  // here — was dropped on 2026-10-08: for core components it ran to ~20 lines
+  // (Box, Flex, Text are used by most chunks), about 10k characters per
+  // 26-component lookup, and in that day's run no agent found a chunk through
+  // it. Dropped from dsds_get_entity too.
   const graph = getGraph ? getGraph() : null;
   if (graph) {
     const deps = graph.out.get(found.identifier) ?? [];
-    const dependents = graph.in.get(found.identifier) ?? [];
-    if (deps.length || dependents.length) {
+    if (deps.length) {
       lines.push('## Relationships', '');
-      if (deps.length) {
-        lines.push('**This depends on / composes:**');
-        for (const r of deps) lines.push(`- ${r.relation} → \`${r.target}\`${r.required ? ' (required)' : ''}`);
-      }
-      if (dependents.length) {
-        lines.push(`**Used by ${dependents.length} entit${dependents.length === 1 ? 'y' : 'ies'}:**`);
-        for (const r of dependents) lines.push(`- ${r.via} ← \`${r.target}\`${r.required ? ' **(breaking)**' : ''}`);
-      }
+      lines.push('**This points at:**');
+      for (const r of deps) lines.push(`- ${r.relation} → \`${r.target}\`${r.required ? ' (required)' : ''}`);
       lines.push('');
       parts.push('relationships');
     }
   }
 
   const sections = found.sections ?? [];
-  const sectionCtx = { filePath: found.__filePath, sharedEntries: found.__sharedEntries };
+  // Extension content the server is configured to leave out of this view
+  // (`agentContextOmit`). Verbose returns everything.
+  const omit = verbose ? [] : (propsConfig?.agentContextOmit ?? []);
+  const omittedNames = [];
+  const sectionCtx = { filePath: found.__filePath, sharedEntries: found.__sharedEntries, omit, omittedNames, sharedRules };
   // Mirrors renderSections20's own audience filter — the served set, not the
   // declared set, is what the access log records.
   const served = verbose ? sections : sections.filter((s) => s.for === 'agent' || s.for === 'all');
@@ -98,7 +100,7 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
   } else if (verbose) {
     renderSections20(sections, lines, sectionCtx);
   } else {
-    renderSections20(sections, lines, { ...sectionCtx, audience: 'agent' });
+    renderSections20(sections, lines, { ...sectionCtx, audience: 'agent', forBuild: true });
     omitted = sections.filter((s) => s.for === 'human').length;
     if (omitted > 0) {
       lines.push(`> ${omitted} human-only section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you need them.`, '');
@@ -115,7 +117,15 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
   //
   // `renderExtensions20` still takes `compact`; flip this to `!verbose` to
   // restore the gate if a measurement says the saving was fine after all.
-  renderExtensions20(found.$extensions, lines, { heading: '## Tool data', compact: false });
+  //
+  // `forBuild` is the narrower cut made instead (2026-10-07): it keeps the
+  // prop mapping and breaking changes and drops the codemod and the prose
+  // that restates the mapping. See PORTING_ONLY_KEYS in spec/render.js.
+  renderExtensions20(found.$extensions, lines, { heading: '## Tool data', compact: false, forBuild: !verbose, omit, omittedNames });
+  if (omittedNames.length > 0) {
+    const kinds = [...new Set(omittedNames)].map((n) => `\`${n}\``).join(', ');
+    lines.push(`> Left out by this server's configuration: ${kinds}. Call dsds_get_agent_context with verbose:true if you need it.`, '');
+  }
 
   const update = notice ? getUpdateNotice() : null;
   if (update) lines.push(update);
@@ -189,12 +199,22 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   const rendered = [];
   const missing = [];
   const seen = new Set();
+  const entities = [];
   for (const id of requested) {
     const found = findEntity(systems, id);
     if (!found) { missing.push(id); continue; }
     if (seen.has(found.identifier)) continue;
     seen.add(found.identifier);
-    rendered.push({ id, ...renderAgentContext20(found, verbose, getGraph, propsConfig, { notice: false }) });
+    entities.push({ id, found });
+  }
+  // Prop groups several of these components share, listed once at the top
+  // (see findSharedPropGroups in spec/render.js).
+  const sharedPropGroups = propsConfig ? findSharedPropGroups(entities.map((e) => e.found), propsConfig) : new Map();
+  // Shared rules several of them point to, given in full once at the top
+  // (see findSharedRules in spec/render.js).
+  const sharedRules = findSharedRules(entities.map((e) => e.found), { audience: verbose ? null : 'agent' });
+  for (const { id, found } of entities) {
+    rendered.push({ id, ...renderAgentContext20(found, verbose, getGraph, propsConfig, { notice: false, sharedPropGroups, sharedRules }) });
   }
 
   const out = [];
@@ -207,6 +227,16 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
     out.push('');
   }
   out.push(`Agent context for ${rendered.length} entit${rendered.length === 1 ? 'y' : 'ies'}: ${rendered.map((r) => `\`${r.access.identifier}\``).join(', ')}.`, '');
+  if (sharedRules.size) {
+    const block = [];
+    renderSharedRules(sharedRules, block, { forBuild: !verbose });
+    out.push(...block);
+  }
+  if (sharedPropGroups.size) {
+    const block = [];
+    renderSharedPropGroups(sharedPropGroups, block);
+    out.push(...block);
+  }
   for (const r of rendered) out.push('---', '', r.content[0].text, '');
   const update = getUpdateNotice();
   if (update) out.push(update);

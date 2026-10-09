@@ -2,7 +2,7 @@
 name: dsds-specs
 description: Everything about Design System Doc Spec (DSDS) — entry kinds, sections, schema structure, and how it fits into the ecosystem. Use when authoring, reviewing, or reasoning about DSDS specs and `*.dsds.yaml` files.
 metadata:
-  version: 0.21.0
+  version: 0.22.0
 ---
 
 # Design System Doc Spec (DSDS)
@@ -15,14 +15,15 @@ DSDS documents a graph of **entries** (a system, a component, a token, a theme, 
 
 When you need precise field-level details beyond this skill, consult these in order:
 
-1. **Bundled schema**: `https://designsystemdocspec.org/v0.21.0/dsds.bundled.schema.json` (or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if installed as a dependency)
+1. **Bundled schema**: `https://designsystemdocspec.org/v0.22.0/dsds.bundled.schema.json` (or `node_modules/design-system-documentation-schema/schema/dsds.bundled.schema.json` if installed as a dependency)
 2. **Schema architecture reference**: https://designsystemdocspec.org/schema#how-the-schema-is-organized (and [Conformance](https://designsystemdocspec.org/conformance) for conformance classes and the full rule catalog)
 3. **Quick start with examples**: https://designsystemdocspec.org/quickstart
-   — and [STYLE_GUIDE.md](https://github.com/somerandomdude/design-system-documentation-schema/blob/main/STYLE_GUIDE.md)
+   — and the [style guide](https://designsystemdocspec.org/style-guide)
    for the field order every example follows. The schema permits any order;
-   the style guide picks one. It is a convention, not a constraint — the
-   `DSDS-17`–`DSDS-23` rules that report deviations run only in the spec
-   repo itself.
+   the style guide picks one. It is a convention, not a constraint.
+   `npx dsds-format` applies the field order for you; the orders that are a
+   reading choice (sections, guideline items) are advisory warnings from
+   `npx dsds-lint`, never a validation failure.
 4. **GitHub source** (split schema + examples): https://github.com/somerandomdude/design-system-documentation-schema/tree/main/schema
 
 Key pages for field-level detail:
@@ -67,7 +68,7 @@ description: A styled checkbox input for boolean or indeterminate selection.
 A **base document** (the root `index.dsds.yaml`, or any file meant to hold more than one entry) requires `schemaVersion`, `name`, and a non-empty `entries` array. System-wide facts live on that list's own `kind: system` entry:
 
 ```yaml
-schemaVersion: "0.21.0"
+schemaVersion: "0.22.0"
 name: Acme Design System
 
 entries:
@@ -98,14 +99,22 @@ Every entry's structured docs live in one `sections` array. Each section has a `
 
 Every section kind can also carry `freeform`: headed, nestable prose alongside its own structured `items`.
 
+Two optional fields on any section kind make it findable without matching on a human-written `title`:
+
+- **`context`** — the job the section is doing: `anatomy`, `terms`, `keyboard`, `events`, or a namespaced custom value. Set it whenever the section has one of those jobs, so a tool can find "the anatomy table" by field rather than by heading text.
+- **`tags`** — what the whole section is about (`[accessibility]`). The first tag is the primary one. Tags only classify a section; they don't change where it sits.
+
+A `guidelines` item that claims `checkedBy: automated` must list in `checks` what actually runs the check, as an `href` with `role` saying which kind: `test` (the design system's own code), `lint-rule` (static analysis), or `agent-test` (a fixture that runs an AI agent against the guideline and grades what it generates). A pointer in `checks` has no `rel`: the field says it. An agent eval usually reports a pass rate or a judged rubric rather than a strict pass/fail, so pair it with `checkedBy: assisted` unless its assertion really is deterministic.
+
 ## A Component's Own Fields
 
 Not sections — facts about the component as a build artifact:
 
-- **`sourceFiles`** — one entry per platform, pointing a tool at the real file to extract the API from. Prefer this over hand-typing props in a `definitions` section.
+- **`sourceFiles`** — one entry per platform, pointing a tool at the real file to extract the API from (`Button.tsx`). Prefer this over hand-typing props in a `definitions` section.
+- **`specs`** — the already-generated contract document, one step later in the same pipeline (a Custom Elements Manifest, a DS Contracts document, your own format), with `rel: contract`. DSDS points at it and never parses it, so any standard format works.
 - **`imports`** — one entry per platform: install package + import statement.
-- **`traits`** — every variant and state the component has. Each one declares `traitType: variant` (a dimension the caller configures, like `size`) or `traitType: state` (a condition the component can be in, like `hover`). Separately, `kind` says whether its value is a `boolean` toggle or an `enum` with named `values` — either `traitType` can be either `kind`.
-- **`combos`** — pairing rules between traits, tokens, or entries (e.g. "loading and disabled must not both be set").
+- **`traits`** — every variant and state the component has. Each one declares `traitType: variant` (a dimension the caller configures, like `size`) or `traitType: state` (a condition the component can be in, like `hover`). Separately, `kind` says whether its value is a `boolean` toggle or an `enum` with named `values` — either `traitType` can be either `kind`. A trait's `id` mirrors the real prop or attribute name, so `isDisabled` stays as written.
+- **`combos`** — pairing rules between traits, tokens, or entries (e.g. "loading and disabled must not both be set"). A combo addresses an enum value as `traitId.valueId`, which is why a dot is the one character a trait `id` can't contain.
 
 ## Agent-Only Sections
 
@@ -113,13 +122,14 @@ Mark a section `for: agent` for firm, ready-to-act notes a person wouldn't need 
 
 ## Schema Validation
 
-The bundled schema is published at `https://designsystemdocspec.org/v0.21.0/dsds.bundled.schema.json`, using JSON Schema draft 2020-12. Validate with:
+The bundled schema is published at `https://designsystemdocspec.org/v0.22.0/dsds.bundled.schema.json`, using JSON Schema draft 2020-12. Validate with:
 
 ```bash
-npx dsds-validate <files-or-globs>
+npx dsds-validate <files-or-globs>   # is this document allowed?
+npx dsds-lint <files-or-globs>       # is this documentation good? (advisory)
 ```
 
-See the `dsds-validate` skill for the full rule catalog (`DSDS-01`–`DSDS-23`) and how to interpret failures.
+See the `dsds-validate` skill for the full rule catalog (`DSDS-01`–`DSDS-25`) and how to interpret failures.
 
 ## Deep-Dive References
 
@@ -141,6 +151,7 @@ Fetch these pages when authoring specific pieces:
 
 - A standalone entry file has no `entity`/`entityGroups` wrapper — `id`/`kind`/`name`/`description` sit at the top level directly. A base document requires `schemaVersion`, `name`, and a non-empty `entries` array.
 - `id` must match the filename without `.dsds.yaml` (e.g. `checkbox` → `checkbox.dsds.yaml`).
+- Three id shapes, and they are not interchangeable: an **entry id** is lowercase dash-separated segments, optionally dot-chained (`color.action.primary`); a **trait id or enum value** copies a real API name in whatever case that API uses, no dots (`isDisabled`); a **token id** is the same but may also chain with a dot or a slash, so a Figma variable named `Color/Action/Primary` validates as written.
 - Requirement levels: `must`, `should`, `should-not`, `must-not`, `may` (lowercase, hyphenated — RFC 2119).
 - `metadata.status` is always an object: `{status: "stable"}`, optionally scoped with `platform`, `since`, `deprecationNotice`, `note`. There's no bare-string shorthand.
 - All pointers — dependencies, composition, citations, external links — use one type: `common/ref` (`to` for this document's own graph, `href` for outside it, plus a `rel`). There's no separate "relationship" or "link" type.

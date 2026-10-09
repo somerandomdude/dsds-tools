@@ -9,6 +9,22 @@ import { createToolRuntime } from './registry.js';
 import { createPromptRuntime } from './prompts.js';
 import { listResources, readResource } from './resources.js';
 import { buildInstructions } from './instructions.js';
+import { resolveTokenRefs, resolveTokenRefsDeep, tokenMap } from './token-refs.js';
+
+// Tools whose output is documentation text. Their `{token}` references are
+// resolved to "`token` (value)" on the way out. Spec, lint, validation and
+// skill tools are not: they echo the caller's input or the spec's own text,
+// where a brace means what it says.
+const RESOLVING_TOOLS = new Set([
+  'dsds_context_brief',
+  'dsds_list_entities',
+  'dsds_search_entities',
+  'dsds_get_entity',
+  'dsds_get_document_block',
+  'dsds_get_agent_context',
+  'dsds_get_chunk',
+  'dsds_build_component',
+]);
 
 /**
  * Build the full transport-agnostic surface.
@@ -43,6 +59,7 @@ export function createSurface({
   getLintConfig = null,
   getExportPaths = null,
   getPropsConfig = null,
+  getIconConfig = null,
   feedbackDir = null,
   logsDir = null,
   enableFeedback = true,
@@ -57,6 +74,7 @@ export function createSurface({
     getLintConfig,
     getExportPaths,
     getPropsConfig,
+    getIconConfig,
     feedbackDir,
     logsDir,
     enableFeedback,
@@ -64,14 +82,27 @@ export function createSurface({
 
   const { listPrompts, getPrompt } = createPromptRuntime({ getIntro });
 
+  // Built per call: token files are cached by mtime in tokens.js, so an
+  // edited value shows up on the next request without a restart.
+  const tokens = () => tokenMap(getSystems() ?? []);
+
   return {
     toolDefs,
-    dispatch,
+    dispatch: async (name, args) => {
+      const result = await dispatch(name, args);
+      return RESOLVING_TOOLS.has(name) ? resolveTokenRefsDeep(result, tokens()) : result;
+    },
     listPrompts,
-    getPrompt,
+    getPrompt: (name, args) => resolveTokenRefsDeep(getPrompt(name, args), tokens()),
     listResources: () => listResources(getSummaries),
-    readResource: uri => readResource(uri, getSystems),
+    readResource: uri => {
+      const res = readResource(uri, getSystems);
+      return res ? resolveTokenRefsDeep(res, tokens()) : res;
+    },
     getInstructions: () =>
-      buildInstructions({ introEntities: getIntro(), enableFeedback, introInline, researchMode }),
+      resolveTokenRefs(
+        buildInstructions({ introEntities: getIntro(), enableFeedback, introInline, researchMode }),
+        tokens()
+      ),
   };
 }

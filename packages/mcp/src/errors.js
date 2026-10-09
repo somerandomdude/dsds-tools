@@ -28,6 +28,8 @@ export const ERROR_CODES = {
   UNKNOWN_FILTER: 'ERR_UNKNOWN_FILTER',
   /** A block type this entity does not carry. */
   UNKNOWN_BLOCK: 'ERR_UNKNOWN_BLOCK',
+  /** A token name, group or query that matches no token. */
+  UNKNOWN_TOKEN: 'ERR_UNKNOWN_TOKEN',
   /** Arguments were missing or the wrong shape. */
   INVALID_ARGUMENT: 'ERR_INVALID_ARGUMENT',
 };

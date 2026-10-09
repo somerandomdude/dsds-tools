@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { getApiForEntry, fingerprintFor } from '../../src/spec/prop-extractor.js';
-import { renderApi20 } from '../../src/spec/render.js';
+import { findSharedPropGroups, formatPropValues, renderApi20, renderSharedPropGroups } from '../../src/spec/render.js';
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
@@ -181,4 +181,76 @@ describe('fingerprintFor', () => {
     writeFileSync(join(extractorDir, 'src', 'extract.mjs'), '// v2');
     expect(fingerprintFor(boxEntity, { uiSourceRoot, propsExtractorDir: extractorDir })).not.toBe(before);
   });
+});
+
+// Prop values in the type column, and shared prop groups listed once per
+// multi-entity response (2026-10-08).
+describe('renderApi20 — values and shared groups', () => {
+  const margin = (owner) => [
+    { name: 'margin', kind: 'union', type: 'Responsive<SpaceAutoNegative>', description: 'CSS margin', inheritedFrom: 'MarginProps', values: [-1, 0, 1, 2, 'auto'] },
+    { name: 'marginX', kind: 'union', type: 'Responsive<SpaceAutoNegative>', description: 'CSS margin-x', inheritedFrom: 'MarginProps', values: [-1, 0, 1, 2, 'auto'] },
+  ];
+  const position = { name: 'position', kind: 'union', type: 'Responsive<Position>', description: 'CSS position', inheritedFrom: 'PositionProps', values: ['absolute', 'fixed', 'sticky'] };
+  const as = { name: 'as', kind: 'string', type: "'button' | 'a'", description: 'Element', values: ['button', 'a'] };
+  const writeTwo = () => writeFileSync(
+    join(extractorDir, 'out', 'props-0.20.0.cache.json'),
+    JSON.stringify({
+      box: { fingerprint: 'x', props: { props: [...margin(), position, as] } },
+      flex: { fingerprint: 'x', props: { props: [...margin(), { name: 'gap', type: 'Responsive<Space>', values: [0, 1, 2, 3], description: 'CSS gap' }] } },
+    })
+  );
+  const flexEntity = { identifier: 'flex', sourceFiles: [{ platform: 'react', file: 'packages/ui/src/components/flex/flex.props.ts' }] };
+  const render = (entity, opts) => { const lines = []; renderApi20(entity, lines, { propsExtractorDir: extractorDir }, opts); return lines.join('\n'); };
+
+  it('formats values, collapsing integer runs', () => {
+    expect(formatPropValues([-1, 0, 1, 2, 3, 'auto'])).toBe('-1–3 | "auto"');
+    expect(formatPropValues([0, 1])).toBe('0 | 1');
+    expect(formatPropValues(['absolute', 'sticky'])).toBe('"absolute" | "sticky"');
+  });
+
+  it('shows the values a type name hides, and not ones the type already spells out', () => {
+    writeTwo();
+    const out = render(boxEntity);
+    expect(out).toContain('`Responsive<Position>`: `"absolute" \\| "fixed" \\| "sticky"`');
+    expect(out).not.toMatch(/'button' \\\| 'a'`: /);
+  });
+
+  it('finds groups two or more components share, with who takes them', () => {
+    writeTwo();
+    const shared = findSharedPropGroups([boxEntity, flexEntity], { propsExtractorDir: extractorDir });
+    // MarginProps is shared but has only two rows, under the threshold of three.
+    expect(shared.size).toBe(0);
+  });
+
+  it('lists a shared group once at the top and names it under each component', () => {
+    const rows = ['margin', 'marginX', 'marginY'].map((name) => ({ name, type: 'Responsive<Space>', values: [0, 1, 2], description: name, inheritedFrom: 'MarginProps' }));
+    writeFileSync(
+      join(extractorDir, 'out', 'props-0.20.0.cache.json'),
+      JSON.stringify({
+        box: { fingerprint: 'x', props: { props: [...rows, position] } },
+        flex: { fingerprint: 'x', props: { props: [...rows] } },
+      })
+    );
+    const cfg = { propsExtractorDir: extractorDir };
+    const shared = findSharedPropGroups([boxEntity, flexEntity], cfg);
+    expect([...shared.values()].map((g) => [g.name, g.owners])).toEqual([['MarginProps', ['box', 'flex']]]);
+
+    const top = [];
+    renderSharedPropGroups(shared, top);
+    expect(top.join('\n')).toContain('### Margin props');
+    expect(top.join('\n')).toContain('Taken by: `box`, `flex`.');
+    expect(top.join('\n')).toContain('| `marginY` |');
+
+    const box = render(boxEntity, { sharedPropGroups: shared });
+    expect(box).not.toContain('| `marginY` |');
+    expect(box).toContain('| `position` |'); // its own props stay
+    expect(box).toContain('Also takes the shared margin props (listed under **Shared prop groups** at the top).');
+    expect(render(flexEntity, { sharedPropGroups: shared })).toContain('No props of its own beyond the shared groups.');
+  });
+
+  it('keeps every row without shared groups (single lookups, get_entity)', () => {
+    writeTwo();
+    expect(render(flexEntity)).toContain('| `marginX` |');
+  });
+
 });

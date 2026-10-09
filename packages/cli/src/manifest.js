@@ -95,8 +95,8 @@ export function buildManifest(surface, pkg, { compact = false } = {}) {
       precedence: 'environment variables > config file > defaults',
       relativePaths: 'resolve against the config file directory',
       keys: [
-        'paths', 'introPaths', 'lintPlugins', 'lintResolveDir', 'lintSourceDir',
-        'packageExportPaths', 'iconPackage', 'feedbackDir', 'logsDir',
+        'paths', 'introPaths', 'lintPlugins', 'lintResolveDir', 'lintSourceDir', 'lintAutofixByHost',
+        'packageExportPaths', 'iconPackage', 'iconGuidelinesPath', 'feedbackDir', 'logsDir',
         'enableFeedback', 'introInline', 'schemaVersion',
       ],
     },

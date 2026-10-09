@@ -96,3 +96,21 @@ describe('contextBriefHandler', () => {
     });
   });
 });
+
+// The spec's status vocabulary is open. A fixed `draft` bucket went empty when
+// a corpus said `unavailable`, and those entries left the brief silently.
+describe('contextBriefHandler — status groups', () => {
+  it('lists every non-stable status under its own word', async () => {
+    const summaries = [
+      { identifier: 'tabs', kind: 'component', status: 'unavailable' },
+      { identifier: 'toast', kind: 'component', status: 'unavailable' },
+      { identifier: 'select', kind: 'component', status: 'beta' },
+      { identifier: 'box', kind: 'component', status: 'stable' },
+    ];
+    const text = (await contextBriefHandler({ useCase: 'build' }, () => [{ entities: [] }], () => summaries)).content[0].text;
+    expect(text).toContain('### Status: unavailable (2)');
+    expect(text).toMatch(/- `tabs`\n- `toast`/);
+    expect(text).toContain('### Status: beta (1)');
+    expect(text).not.toContain('### Status: stable');
+  });
+});

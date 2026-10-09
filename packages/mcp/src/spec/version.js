@@ -1,9 +1,24 @@
-// schema-0.21.1/ is vendored verbatim from the 0.21.1 release of
-// somerandomdude/design-system-documentation-schema. Exactly one version is
-// vendored at a time; schema-order.js derives its path from the constant
-// below and throws at load if the directory is missing.
+// dsds-0.22.0/ is vendored verbatim from the 0.22.0 release of
+// somerandomdude/design-system-documentation-schema: its schema/ directory,
+// and the reference validator and resolver from its scripts/. Exactly one
+// version is vendored at a time; schema-order.js derives its path from the
+// constant below and throws at load if the directory is missing.
 //
-// What 0.21.x asks of a consumer, and where this server answers it:
+// What 0.22.0 asks of a consumer, and where this server answers it:
+//
+//   0.22.0  a breaking release. Validation runs upstream's own validator
+//           (validator.js wraps it), so every schema and semantic rule is
+//           upstream's, not a port. Pointers moved into named fields with
+//           no `rel` (`uses`, `extends`, `alternatives`, `evidence`,
+//           `checks`, `refines`, `replacedBy`, `specs`, a token's
+//           `source`), and `rel` dropped from 20 values to 14: loader.js
+//           and graph.js read the relationship graph from those fields.
+//           `purpose` and `metadata.context` folded into `description`.
+//           `rel: file` is only for DSDS documents; a code file is
+//           `rel: source` (get-chunk.js). DSDS-07, -12, -17, -20, -22 and
+//           -23 are retired; field order is `dsds-format`'s job now.
+//
+// Earlier:
 //
 //   0.21.0  every component trait requires `traitType` (`variant` or
 //           `state`), and a section may carry `tags` — DSDS-18 reads the
@@ -14,8 +29,14 @@
 //           `title` are no longer guaranteed present. Resolving the
 //           `same-as` target is the consumer's job; resolveSharedItem20 in
 //           render.js is where this server does it.
+//   0.21.2  documentation only — no schema shape or validation change. A
+//           `same-as` may point at an item in any entry, not only in
+//           `base.shared`. Nothing to change here: DSDS-05 already resolved
+//           `entryId#itemId` against every local entry, and the loader's
+//           same-as pool (loader.js) already holds every entry loaded
+//           alongside `shared[]`. The bundled skills move to 0.21.2 with it.
 //
-export const BUNDLED_VERSION = '0.21.1';
+export const BUNDLED_VERSION = '0.22.0';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

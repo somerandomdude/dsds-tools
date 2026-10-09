@@ -6,20 +6,22 @@
 // without an authoring burden. The graph is transient — rebuilt on load,
 // never persisted. See proposals/relationship-graph-mcp.md.
 
-// The server owns this fixed inverse map; it is never authored.
+// The server owns this fixed inverse map; it is never authored. These are
+// the "read from the target" names in the processing model's §5 table.
 const INVERSE = {
-  'composes': 'composed-by',
-  'depends-on': 'dependency-of',
-  'part-of': 'contains',
-  'replaces': 'replaced-by',
+  'uses': 'used-by',
   'extends': 'extended-by',
+  'replaced-by': 'replaces',
+  'same-as': 'reused-by',
+  'contract': 'contract-of',
   'alternative-to': 'alternative-to', // symmetric
+  'relates-to': 'relates-to', // symmetric
 };
 
-// Relations whose authored graph is expected to be acyclic — cycles here are defects.
-const ACYCLIC_RELATIONS = new Set(['composes', 'depends-on']);
+// Chains upstream's DSDS-06 rejects a loop in (between entries).
+const ACYCLIC_RELATIONS = new Set(['uses', 'extends', 'replaced-by']);
 
-/** The reverse name of a relation (`composes` -> `composed-by`). */
+/** The reverse name of a relation (`uses` -> `used-by`). */
 export function inverseOf(relation) {
   return INVERSE[relation] ?? `inverse-of:${relation}`;
 }
@@ -57,7 +59,7 @@ export function buildGraph(entities) {
         target: edge.target,
         role: edge.role,
         required: !!edge.required,
-        versionConstraint: edge.versionConstraint,
+        ...(edge.address ? { address: edge.address } : {}),
         resolved: targetResolved,
       });
       if (!targetResolved) unresolved.push({ source: src, relation: edge.relation, target: edge.target });
@@ -168,16 +170,20 @@ function traverse(graph, id, edgeMap, relation, transitive, relationKeyFn) {
   return results;
 }
 
-/** Alternatives and replacements: alternative-to (symmetric), replaces, replaced-by. */
+/**
+ * Alternatives and replacements: alternative-to (symmetric), and replaced-by,
+ * which the deprecated entry writes in its `status.replacedBy`. Read from the
+ * successor, that edge says it replaces the deprecated one.
+ */
 export function alternatives(graph, id) {
   const result = { alternatives: [], replaces: [], replacedBy: [] };
   for (const e of graph.out.get(id) ?? []) {
     if (e.relation === 'alternative-to') result.alternatives.push({ ...label(graph, e.target), role: e.role });
-    else if (e.relation === 'replaces') result.replaces.push({ ...label(graph, e.target), role: e.role });
+    else if (e.relation === 'replaced-by') result.replacedBy.push({ ...label(graph, e.target), role: e.role, ...(e.address ? { address: e.address } : {}) });
   }
   for (const e of graph.in.get(id) ?? []) {
     if (e.via === 'alternative-to') result.alternatives.push({ ...label(graph, e.target), role: e.role });
-    else if (e.via === 'replaces') result.replacedBy.push({ ...label(graph, e.target), role: e.role });
+    else if (e.via === 'replaced-by') result.replaces.push({ ...label(graph, e.target), role: e.role });
   }
   // de-dupe alternatives by identifier (symmetric edges can appear from both sides)
   const seen = new Set();

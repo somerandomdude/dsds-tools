@@ -53,9 +53,11 @@ async function main() {
     plugins: config.lintPlugins,
     resolveDir: config.lintResolveDir,
     sourceDir: config.lintSourceDir,
+    autofixByHost: config.lintAutofixByHost,
   });
   const getExportPaths = () => config.packageExportPaths;
-  const getPropsConfig = () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot });
+  const getIconConfig = () => ({ iconPackage: config.iconPackage, guidelinesPath: config.iconGuidelinesPath });
+  const getPropsConfig = () => ({ propsExtractorDir: config.propsExtractorDir, uiSourceRoot: config.uiSourceRoot, agentContextOmit: config.agentContextOmit ?? [] });
 
   if (config.packageExportPaths.size > 0) {
     process.stderr.write(`[dsds-mcp] Export paths: ${[...config.packageExportPaths.keys()].join(', ')}\n`);
@@ -77,6 +79,7 @@ async function main() {
     config.introInline,
     getPropsConfig,
     config.researchMode,
+    getIconConfig,
   );
 
   startWatching(config.paths, state);

@@ -12,7 +12,10 @@
     "evaluate:local:suite": "node scripts/evaluate-local-model-suite.mjs",
     "test": "npm run test:evaluation && npm test --workspaces",
     "test:evaluation": "node --test scripts/local-model-evaluation-core.test.mjs",
-    "check:integrity": "npm run check:integrity --workspace dsds-mcp"
+    "check:integrity": "npm run check:integrity --workspace dsds-mcp",
+    "lint:complexity": "eslint .",
+    "lint:complexity:baseline": "eslint . --suppress-all",
+    "lint:complexity:prune": "eslint . --prune-suppressions"
   },
   "license": "Apache-2.0",
   "author": "PJ Onori",
@@ -22,5 +25,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "eslint": "^10.12.0"
   }
 }

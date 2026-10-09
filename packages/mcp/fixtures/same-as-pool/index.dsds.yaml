@@ -1,7 +1,7 @@
 # Fixture: a `same-as` into an ordinary sibling entry, not just `shared[]`.
 # `consumer` borrows one rule from shared[], one from the `pool-pattern`
 # sibling entry, and points at one item that does not exist.
-schemaVersion: 0.21.1
+schemaVersion: "0.22.0"
 name: Same-as pool fixture
 entries:
   - kind: system

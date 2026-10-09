@@ -30,7 +30,7 @@ describe('dsds_spec_entity_schema — namespaced 0.20.0 kinds', () => {
     const dispatch = buildDispatch();
     const result = await dispatch('dsds_spec_entity_schema', { kind: 'sanity.chunk' });
     expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain('real 0.20.0');
+    expect(result.content[0].text).toContain('Entity Schema (DSDS ');
   });
 
   it('still rejects a kind that is neither well-known nor validly namespaced', async () => {

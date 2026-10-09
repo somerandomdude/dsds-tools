@@ -8,7 +8,7 @@
 // field table with a gloss on every entry.
 //
 // The meanings were in the repository the whole time: 150 of the 173
-// properties declared across schema-0.21.0/ carry a `description`, and
+// properties declared across schema-<BUNDLED_VERSION>/ carry a `description`, and
 // schema-order.js already parses those exact files for field order and throws
 // the text away. This reads it instead.
 //
@@ -121,7 +121,7 @@ function typeOf(schema) {
   }
   // A `$ref`-only property has no `type` of its own; every ref in this schema
   // set points at an object. Reporting nothing left a dash in the table for
-  // `metadata`, `extends`, `related` and `refs` — four of the fields most
+  // `metadata`, `uses`, `extends` and `refs` — four of the fields most
   // worth knowing the shape of.
   if (typeof schema.$ref === 'string') return 'object';
   if (Array.isArray(schema.oneOf ?? schema.anyOf)) {

@@ -1,5 +1,5 @@
-id: example-pattern
 kind: sanity.pattern
+id: example-pattern
 name: Example Pattern
 description: A representative sanity.pattern fixture for conformance testing.
 sections:
@@ -7,8 +7,8 @@ sections:
     for: all
     framing: when-to-use
     items:
-      - statement: Use this pattern when testing conformance.
-        level: should
+      - level: should
+        statement: Use this pattern when testing conformance.
   - kind: section
     for: agent
     freeform:

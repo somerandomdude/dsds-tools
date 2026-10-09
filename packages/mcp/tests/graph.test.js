@@ -1,23 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import { buildGraph, inverseOf, dependents, dependencies, alternatives, impact } from '../src/graph.js';
 
+// 0.22.0 relations: `uses` covers what composes/depends-on said, and a
+// deprecated entry names its successor with `replaced-by` (in its status).
 const entities = [
   { identifier: 'button', kind: 'component', relationships: [
-    { relation: 'composes', target: 'box', required: true },
+    { relation: 'uses', target: 'box', required: true },
     { relation: 'alternative-to', target: 'link' },
-    { relation: 'depends-on', target: 'color-text', required: true },
+    { relation: 'uses', target: 'color-text', required: true },
   ] },
   { identifier: 'box', kind: 'component', relationships: [
-    { relation: 'depends-on', target: 'color-text' },
+    { relation: 'uses', target: 'color-text' },
   ] },
-  { identifier: 'link', kind: 'component', relationships: [
-    { relation: 'replaces', target: 'old-link' },
+  { identifier: 'link', kind: 'component' },
+  { identifier: 'old-link', kind: 'component', relationships: [
+    { relation: 'replaced-by', target: 'link' },
   ] },
-  { identifier: 'old-link', kind: 'component' },
-  { identifier: 'color-text', kind: 'token-group' },
+  { identifier: 'color-text', kind: 'token' },
   { identifier: 'card', kind: 'component', relationships: [
-    { relation: 'composes', target: 'box', required: true },
-    { relation: 'composes', target: 'ghost' }, // unresolved target
+    { relation: 'uses', target: 'box', required: true },
+    { relation: 'uses', target: 'ghost' }, // unresolved target
   ] },
 ];
 
@@ -25,22 +27,22 @@ describe('relationship graph', () => {
   const g = buildGraph(entities);
 
   it('derives the fixed inverse relations', () => {
-    expect(inverseOf('composes')).toBe('composed-by');
-    expect(inverseOf('depends-on')).toBe('dependency-of');
+    expect(inverseOf('uses')).toBe('used-by');
+    expect(inverseOf('replaced-by')).toBe('replaces');
     expect(inverseOf('alternative-to')).toBe('alternative-to');
     expect(inverseOf('acme.themes')).toBe('inverse-of:acme.themes');
   });
 
   it('builds incoming (inverse) edges so reverse queries work', () => {
     const boxDependents = dependents(g, 'box').map(d => d.identifier).sort();
-    expect(boxDependents).toEqual(['button', 'card']); // both compose box
+    expect(boxDependents).toEqual(['button', 'card']); // both use box
     expect(dependents(g, 'color-text').map(d => d.identifier).sort()).toEqual(['box', 'button']);
   });
 
   it('filters dependents by authored relation', () => {
-    const composedByBox = dependents(g, 'box', { relation: 'composes' });
-    expect(composedByBox.every(d => d.via === 'composes')).toBe(true);
-    expect(composedByBox).toHaveLength(2);
+    const usersOfBox = dependents(g, 'box', { relation: 'uses' });
+    expect(usersOfBox.every(d => d.via === 'uses')).toBe(true);
+    expect(usersOfBox).toHaveLength(2);
   });
 
   it('returns outgoing dependencies and resolves their kind', () => {
@@ -50,7 +52,7 @@ describe('relationship graph', () => {
   });
 
   it('walks transitively with a cycle guard', () => {
-    // button -composes-> box -depends-on-> color-text
+    // button -uses-> box -uses-> color-text
     const t = dependencies(g, 'button', { transitive: true }).map(d => d.identifier).sort();
     expect(t).toContain('color-text');
   });
@@ -72,10 +74,10 @@ describe('relationship graph', () => {
     expect(g.cycles).toEqual([]);
   });
 
-  it('detects cycles over composes/depends-on', () => {
+  it('detects cycles over uses', () => {
     const cyc = buildGraph([
-      { identifier: 'a', relationships: [{ relation: 'composes', target: 'b' }] },
-      { identifier: 'b', relationships: [{ relation: 'composes', target: 'a' }] },
+      { identifier: 'a', relationships: [{ relation: 'uses', target: 'b' }] },
+      { identifier: 'b', relationships: [{ relation: 'uses', target: 'a' }] },
     ]);
     expect(cyc.cycles.length).toBeGreaterThan(0);
   });

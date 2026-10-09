@@ -1,10 +1,10 @@
-schemaVersion: "0.21.1"
+schemaVersion: "0.22.0"
 
 name: Test Manifest System
 
 entries:
-  - id: test-manifest-system
-    kind: system
+  - kind: system
+    id: test-manifest-system
     name: Test Manifest System
     description: Composes the button and token fixtures for loader tests.
 

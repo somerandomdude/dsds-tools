@@ -36,7 +36,7 @@ export const PORCELAIN = {
     usage: 'dsds list [--kind <kind>] [--status <status>] [--limit <n>] [--no-summaries] [--next]',
     options: {
       kind: { type: 'string', description: 'Filter by entity kind (component, chunk, pattern, token-group, …)' },
-      status: { type: 'string', description: 'Filter by status (draft, experimental, stable, deprecated)' },
+      status: { type: 'string', description: 'Filter by status, e.g. stable, beta, deprecated (any status word a document uses)' },
       limit: { type: 'string', description: 'Show at most this many entities per kind' },
       'no-summaries': { type: 'boolean', description: 'Bare identifier index, without the one-line summary each entity carries by default' },
       next: { type: 'boolean', description: 'Append the follow-up command for each result (off by default)' },
@@ -119,6 +119,21 @@ export const PORCELAIN = {
     schemaKeys: ['identifier'],
     positionals: { min: 1, max: 1, label: '<identifier>' },
     build: ([identifier]) => ({ tool: 'dsds_get_chunk', args: { identifier } }),
+  },
+
+  tokens: {
+    summary: 'Design token names and values, from the DTCG files the docs reference',
+    usage: 'dsds tokens [<name…>] [--group <group>] [--query <text>]',
+    options: {
+      group: { type: 'string', description: 'A token file or name prefix: space, radius, typography, heading, blue' },
+      query: { type: 'string', description: 'Text matched against token names and descriptions' },
+    },
+    variadicKey: 'names',
+    positionals: { min: 0, max: Infinity, label: '[<name…>]' },
+    build: (names, values) => ({
+      tool: 'dsds_get_tokens',
+      args: { ...(names.length ? { names } : {}), ...pick(values, 'group', 'query') },
+    }),
   },
 
 

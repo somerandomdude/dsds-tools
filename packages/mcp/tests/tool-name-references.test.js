@@ -26,12 +26,14 @@ import { buildComponentDef } from '../src/tools/build-component.js';
 import { checkExportsDef } from '../src/tools/check-exports.js';
 import { contextBriefDef } from '../src/tools/context-brief.js';
 import { explainErrorDef } from '../src/tools/explain-error.js';
+import { findIconDef } from '../src/tools/find-icon.js';
 import { feedbackDef } from '../src/tools/feedback.js';
 import { getAgentContextDef } from '../src/tools/get-agent-context.js';
 import { getChunkDef } from '../src/tools/get-chunk.js';
 import { getDocumentBlockDef } from '../src/tools/get-document-block.js';
 import { getEntityDef } from '../src/tools/get-entity.js';
 import { getSkillDef } from '../src/tools/get-skill.js';
+import { getTokensDef } from '../src/tools/get-tokens.js';
 import { lintDef } from '../src/tools/lint-code.js';
 import { listEntitiesDef } from '../src/tools/list-entities.js';
 import { listSkillsDef } from '../src/tools/list-skills.js';
@@ -42,8 +44,8 @@ import { validateDef } from '../src/tools/validate.js';
 
 const REGISTERED = new Set(
   [
-    buildComponentDef, checkExportsDef, contextBriefDef, explainErrorDef, feedbackDef,
-    getAgentContextDef, getChunkDef, getDocumentBlockDef, getEntityDef, getSkillDef,
+    buildComponentDef, checkExportsDef, contextBriefDef, explainErrorDef, feedbackDef, findIconDef,
+    getAgentContextDef, getChunkDef, getDocumentBlockDef, getEntityDef, getSkillDef, getTokensDef,
     lintDef, listEntitiesDef, listSkillsDef, searchEntitiesDef, specEntitySchemaDef,
     styleCheckDef, validateDef,
   ].map((d) => d.name),

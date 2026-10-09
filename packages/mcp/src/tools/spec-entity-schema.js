@@ -1,27 +1,25 @@
 import { ENTITY_DESCRIPTIONS_0_20_0, ENTITY_KINDS_0_20_0 } from '../spec/knowledge.js';
 import { isValidKind20 } from '../spec/dsds-lib.js';
-import { getUpdateNotice } from '../spec/version.js';
+import { BUNDLED_VERSION, getUpdateNotice } from '../spec/version.js';
 import { describeEntryFields, describeSectionKinds } from '../spec/schema-describe.js';
 import { renderTable } from '../render/table.js';
 
-// 0.20.0, 0.20.1 and 0.21.0 are one document model: 0.20.1 changed field
-// ORDER and added advisory rules, and 0.21.0 added `traitType` to a trait and
-// `tags` to a section. An author writes the same shape either way, so all
-// three route here and the described field tables come from the vendored
-// schema, which is pinned to the bundled release.
+// The described field tables come from the vendored schema, which is pinned
+// to the bundled release, so they describe exactly the version this server
+// validates against.
 
 export const specEntitySchemaDef = {
   name: 'dsds_spec_entity_schema',
   description:
     'Get the full field definitions for a DSDS entity kind. Use this before authoring or scaffolding to understand what fields are available. ' +
-    'For a real 0.20.0 document (.dsds.yaml), pass spec:"0.20.0" — prefer dsds_get_skill({id:"dsds-specs"}) for the fuller picture, this tool only covers one kind at a time. ' +
-    'A namespaced custom kind (e.g. "sanity.guide") is valid with spec:"0.20.0" — it falls back to the generic entry shape.',
+    'Covers the bundled spec version, one kind at a time; dsds_get_skill({id:"dsds-specs"}) has the fuller picture. ' +
+    'A namespaced custom kind (e.g. "sanity.guide") falls back to the generic entry shape.',
   inputSchema: {
     type: 'object',
     properties: {
       kind: {
         type: 'string',
-        description: 'The entity kind to describe. For 0.20.0, either a well-known kind (component, token, theme, system, entry) or a namespaced custom kind (e.g. "sanity.guide").',
+        description: 'The entity kind to describe: a well-known kind (component, token, theme, system, entry) or a namespaced custom kind (e.g. "sanity.guide").',
       },
     },
     required: ['kind'],
@@ -71,12 +69,12 @@ function render20(kind) {
       isError: true,
       content: [{
         type: 'text',
-        text: `Unknown 0.20.0 entity kind "${kind}". Valid kinds: ${ENTITY_KINDS_0_20_0.join(', ')}, or a namespaced custom kind (e.g. "sanity.guide" — dotted, lowercase-dash segments).`,
+        text: `Unknown entity kind "${kind}". Valid kinds: ${ENTITY_KINDS_0_20_0.join(', ')}, or a namespaced custom kind (e.g. "sanity.guide" — dotted, lowercase-dash segments).`,
       }],
     };
   }
   const lines = [
-    `# Entity Schema (real 0.20.0): \`${kind}\``,
+    `# Entity Schema (DSDS ${BUNDLED_VERSION}): \`${kind}\``,
     '',
   ];
   if (isNamespacedCustomKind) {

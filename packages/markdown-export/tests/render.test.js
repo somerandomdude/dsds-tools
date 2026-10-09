@@ -153,3 +153,53 @@ describe('entityToMarkdown — sections bucketed by tag', () => {
     expect(text.match(/Only once\./g)).toHaveLength(1);
   });
 });
+
+// ── Pure same-as pointers take the level of the rule they point at ─────────
+//
+// Since spec 0.21.1 a pointer item carries no `level`; it borrows the target's.
+// The Do/Don't and When to use/When not to use splits read `item.level` only,
+// so every pointer — including `must` and `should` rules — landed in the
+// negative bucket. The split now resolves the pointer the way
+// renderGuidelineItem already did for its text.
+describe('entityToMarkdown — same-as pointers keep their level', () => {
+  const shared = [{
+    id: 'forms',
+    sections: [{ kind: 'guidelines', items: [
+      { id: 'label-it', level: 'must', statement: 'Pair every control with a label.' },
+      { id: 'stack-it', level: 'should', statement: 'Stack form fields vertically.' },
+      { id: 'no-placeholder-label', level: 'must-not', statement: 'Do not use a placeholder as the label.' },
+      { id: 'pick-by-count', level: 'should', statement: 'Pick the control by option count.' },
+    ] }],
+  }];
+  const pointer = (id) => ({ refs: [{ to: `forms#${id}`, rel: 'same-as' }] });
+  const renderWith = (sections) => entityToMarkdown(
+    { kind: 'component', id: 'field', name: 'Field', description: 'A field.', sections,
+      identifier: 'field', __dsds20: true, __sharedEntries: shared },
+    {},
+  );
+  const between = (text, start, end) => text.slice(text.indexOf(start), end ? text.indexOf(end) : undefined);
+
+  it('puts must and should pointers under Do, and must-not pointers under Don\'t', () => {
+    const text = renderWith([{ kind: 'guidelines', for: 'all', framing: 'how-to-use', items: [
+      pointer('label-it'), pointer('stack-it'), pointer('no-placeholder-label'),
+      { level: 'must-not', statement: 'Do not stack more than two in a row.' },
+    ] }]);
+    const dos = between(text, '### Do', "### Don't");
+    const donts = between(text, "### Don't");
+    expect(dos).toContain('Pair every control with a label.');
+    expect(dos).toContain('Stack form fields vertically.');
+    expect(donts).toContain('Do not use a placeholder as the label.');
+    expect(donts).not.toContain('Stack form fields vertically.');
+    expect(donts).not.toContain('Pair every control with a label.');
+  });
+
+  it('puts a should pointer under When to use, not When not to use', () => {
+    const text = renderWith([{ kind: 'guidelines', for: 'all', framing: 'when-to-use', items: [
+      { level: 'should', statement: 'For short text.' },
+      pointer('pick-by-count'),
+      { level: 'should-not', statement: 'For long text.' },
+    ] }]);
+    expect(between(text, '### When to use', '### When not to use')).toContain('Pick the control by option count.');
+    expect(between(text, '### When not to use')).not.toContain('Pick the control by option count.');
+  });
+});

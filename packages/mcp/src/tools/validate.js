@@ -5,7 +5,7 @@ import { BUNDLED_VERSION, getUpdateNotice } from '../spec/version.js';
 export const validateDef = {
   name: 'dsds_validate',
   description:
-    'Validate a DSDS document against the bundled schema. Accepts real 0.20.0 YAML — auto-detected from the content (JSON parses as JSON; a real 0.20.0 document parses as YAML and has entries/id+kind shaped like the real 0.20.0 model). Returns a list of validation errors, or confirms the document is valid. Use this at any point while authoring.',
+    "Validate a DSDS document with the spec's own reference validator, bundled with its schema. Accepts YAML or JSON: a base document (`schemaVersion` and `entries`) or a standalone entry (`id` and `kind`). Returns errors, warnings and documentation suggestions, each tagged with its rule id, or confirms the document is valid. Use this at any point while authoring.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -16,7 +16,7 @@ export const validateDef = {
       filePath: {
         type: 'string',
         description:
-          'Optional: the absolute path this document was read from. Only needed to also check DSDS-11 (that a relative sourceFiles/source/rel:file href actually exists on disk, resolved relative to this path) — omit it for a document you are drafting inline with no real file yet.',
+          "Optional: the absolute path this document was read from. Turns on DSDS-11 (relative `sourceFiles`, `source`, `rel: file` and `rel: source` paths exist on disk) and lets refs resolve across the files it links with `rel: file`. Omit it for a document you are drafting inline with no real file yet.",
       },
     },
     required: ['document'],
@@ -24,46 +24,54 @@ export const validateDef = {
 };
 
 
-/**
- * The one error every 0.20.x corpus hits on the way to 0.21.0.
- *
- * `traitType` became required on every component trait, so a document that
- * was valid yesterday now fails once per trait. The schema error names the
- * missing property correctly but says nothing about which of the two values
- * to write, and an author reading "must have required property" has no way to
- * know a mechanical migration exists. Both facts belong next to the error.
- *
- * Nothing else in the release needs this: `tags` on a section is optional, so
- * no existing document fails for it.
- */
-function migrationHint(errors) {
-  const missing = errors.filter((e) => /required property 'traitType'/.test(String(e))).length;
-  if (!missing) return [];
+// Fields and `rel` values 0.22.0 removed. A document written for 0.21 fails
+// on them, and the error alone doesn't say a script exists that fixes them.
+const REMOVED_IN_0_22 = new Set(['purpose', 'related', 'context']);
+const RETIRED_RELS_0_22 = new Set([
+  'composes', 'depends-on', 'part-of', 'implements', 'replaces', 'test', 'lint-rule', 'agent-test',
+  'external-link', 'storybook', 'package', 'see-also', 'pairs-with', 'excludes',
+]);
+
+/** True when a document uses something 0.22.0 removed. */
+function usesRemoved022(value) {
+  if (Array.isArray(value)) return value.some(usesRemoved022);
+  if (!value || typeof value !== 'object') return false;
+  if (typeof value.rel === 'string' && RETIRED_RELS_0_22.has(value.rel)) return true;
+  for (const [key, v] of Object.entries(value)) {
+    if (key === '$extensions') continue;
+    if (REMOVED_IN_0_22.has(key) && (key !== 'context' || typeof v === 'string')) return true;
+    if (usesRemoved022(v)) return true;
+  }
+  return false;
+}
+
+function migrationHint(doc, errors, warnings) {
+  if (!errors.length && !warnings.some((w) => w.startsWith('[DSDS-24]'))) return [];
+  if (!usesRemoved022(doc)) return [];
   return [
     '',
     `### Migrating to ${BUNDLED_VERSION}`,
     '',
-    `\`traitType\` is required on every component trait as of 0.21.0 — ${missing} trait${missing !== 1 ? 's' : ''} here ${missing !== 1 ? 'are' : 'is'} missing it.`,
-    'Use `variant` for a dimension the caller configures (`size`, `tone`), and `state` for a condition the component can be in (`hover`, `loading`, `disabled`).',
-    'A `state` is not always something the component sets on its own — `disabled` and `loading` are states the caller turns on.',
-    'The spec repo ships `scripts/tools/migrate-to-0.21.js`, which adds the field in place and prints every trait whose value it had to guess.',
+    'This document uses fields or `rel` values that 0.22.0 removed: `purpose` and `metadata.context` folded into `description`, `related` became `alternatives` (or `refines` on an agent rule), and pointers moved into fields named for their kind (`uses`, `extends`, `evidence`, `checks`, `replacedBy`).',
+    'The spec repo ships `scripts/tools/migrate-to-0.22.js`, which makes these changes in place, keeps comments, and reports anything it can\'t decide. Pass every file of a project in one run.',
   ];
 }
 
 function render20(doc, filePath) {
   const { errors, warnings, advisories } = validateDoc20(doc, { filePath });
+  const hint = migrationHint(doc, errors, warnings);
   const lines = [];
   if (errors.length === 0) {
     lines.push(`## Valid DSDS ${BUNDLED_VERSION} Document`, '', 'The document passes schema and semantic validation.');
   } else {
     lines.push(`## Validation Failed — ${errors.length} error${errors.length !== 1 ? 's' : ''}`, '', ...errors.map(e => `- ${e}`));
-    lines.push(...migrationHint(errors));
   }
   if (warnings.length) {
     lines.push('', `### ${warnings.length} warning${warnings.length !== 1 ? 's' : ''}`, '', ...warnings.map(w => `- ${w}`));
   }
+  lines.push(...hint);
   if (advisories.length) {
-    // Editorial/documentation-quality findings (DSDS-12+) — never affect
+    // Editorial/documentation-quality findings (DSDS-13+) — never affect
     // validity or isError, unlike errors/warnings above.
     lines.push('', `### ${advisories.length} documentation suggestion${advisories.length !== 1 ? 's' : ''}`, '', ...advisories.map(a => `- ${a}`));
   }

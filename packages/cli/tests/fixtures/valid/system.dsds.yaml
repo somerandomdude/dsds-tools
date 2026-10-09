@@ -1,19 +1,15 @@
-schemaVersion: "0.21.1"
+schemaVersion: "0.22.0"
 
 name: Test System
 
 entries:
-  - id: test-button
-    kind: component
+  - kind: component
+    id: test-button
     name: Test Button
     description: A schema-valid component for dsds-cli tests.
     metadata:
       tags: [action]
       status: {status: stable}
-    imports:
-      - platform: react
-        code: import { TestButton } from '@test/ui'
-        package: "@test/ui"
     sections:
       - kind: guidelines
         for: all
@@ -27,10 +23,14 @@ entries:
         items:
           - level: must
             statement: Give every Test Button an accessible name.
+    imports:
+      - platform: react
+        code: import { TestButton } from '@test/ui'
+        package: "@test/ui"
     traits:
-      - id: tone
+      - traitType: variant
         kind: enum
-        traitType: variant
+        id: tone
         description: The Test Button's semantic tone.
         values:
           - id: default
@@ -38,17 +38,13 @@ entries:
           - id: critical
             description: Red. Destructive actions.
 
-  - id: test-card
-    kind: component
+  - kind: component
+    id: test-card
     name: Test Card
     description: A schema-valid surface for dsds-cli tests.
     metadata:
       tags: [layout]
       status: {status: stable}
-    refs:
-      - to: test-button
-        rel: composes
-        role: Its action affordance
     sections:
       - kind: guidelines
         for: all
@@ -56,9 +52,12 @@ entries:
         items:
           - level: should
             statement: Keep a Test Card's content to one subject.
+    uses:
+      - to: test-button
+        role: Its action affordance
 
-  - id: test-chunk
-    kind: sanity.chunk
+  - kind: sanity.chunk
+    id: test-chunk
     name: Test Chunk
     description: A schema-valid chunk for dsds-cli tests.
     metadata:
@@ -72,11 +71,10 @@ entries:
             statement: Use only in dsds-cli tests.
     refs:
       - href: ./test-chunk.tsx
-        rel: file
-        role: source
+        rel: source
 
-  - id: test-pattern
-    kind: sanity.pattern
+  - kind: sanity.pattern
+    id: test-pattern
     name: Test Pattern
     description: A pattern used by the test suite.
     metadata:
@@ -89,11 +87,10 @@ entries:
           - level: should
             statement: Compose a Test Pattern from Test Button and Test Card.
 
-  - id: test-tokens
-    kind: token
+  - kind: token
+    id: test-tokens
     name: Test Tokens
     description: A test dimension scale.
-    tokenType: dimension
     metadata:
       status: {status: stable}
     sections:
@@ -103,3 +100,4 @@ entries:
         items:
           - level: must
             statement: Use the scale rather than raw pixel values.
+    tokenType: dimension
