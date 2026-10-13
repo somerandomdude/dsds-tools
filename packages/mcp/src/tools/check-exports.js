@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadIconGuidelines, suggestIcons } from '../icon-suggest.js';
+import { suggestIcons } from '../icon-suggest.js';
+import { resolveIconGuidance } from '../icon-catalog.js';
 
 export const checkExportsDef = {
   name: 'dsds_check_exports',
@@ -25,7 +26,11 @@ export const checkExportsDef = {
 export function checkExportsHandler({ components }, getExportPaths, getIconConfig = () => ({})) {
   // An agent sometimes sends the same name twice; answer it once.
   components = [...new Set(components)];
-  const { iconPackage = null, guidelinesPath = null } = getIconConfig() ?? {};
+  // Icon guidance comes from the docs' icon asset entry when one is loaded,
+  // else from the TSV; resolved lazily, only if an icon needs suggestions.
+  const iconConfig = getIconConfig() ?? {};
+  const iconPackage = iconConfig.iconPackage ?? null;
+  const loadGuidance = () => resolveIconGuidance(iconConfig).guidelines;
   const packagePaths = getExportPaths();
 
   if (packagePaths.size === 0) {
@@ -98,7 +103,7 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
       } else if (known.has(`./${rest}`)) {
         lines.push(`✓ **${name}** — subpath exists${isIconPkg ? `; it exports \`${rest}Icon\`` : ''}`);
       } else if (isIconPkg && allIcons.length) {
-        iconGuidelines ??= loadIconGuidelines(guidelinesPath);
+        iconGuidelines ??= loadGuidance();
         const suggestions = suggestIcons(`${rest}Icon`, allIcons, iconGuidelines);
         const hint = suggestions.length
           ? ` Did you mean ${suggestions.map((s) => `\`${iconSubpath(s.name)}\``).join('; ')}?`
@@ -148,7 +153,7 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
         lines.push(`⚠ **${name}** — present in \`${pkgName}\`'s types but deprecated to \`never\`; importing it will not compile. ${note}`);
       }
     } else if (allIcons.length && /Icon$/.test(name)) {
-      iconGuidelines ??= loadIconGuidelines(guidelinesPath);
+      iconGuidelines ??= loadGuidance();
       const suggestions = suggestIcons(name, allIcons, iconGuidelines);
       const hint = suggestions.length
         ? ` Did you mean ${suggestions

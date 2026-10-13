@@ -124,6 +124,10 @@ If \`dsds_find_icon\` is in your tool list, use it to choose icons: pass what ea
 for (\`purposes: ["resolve", "settings"]\`) and it returns the matching icons with their import
 paths. Choosing by purpose is faster than guessing names and checking them.
 
+If the design system documents its icon set as an asset entry (a \`dsds.asset\`, listed with
+the other entries), \`dsds_get_agent_context\` on it gives every icon's name, import path and
+purpose in one call.
+
 - It catches hallucinated names before they become \`TS2305\`/\`TS2724\` — \`ThemeProvider\`,
   \`RootTheme\` or \`createTheme\` imported when the package exports none of them, or
   \`SettingsIcon\` instead of \`CogIcon\`.

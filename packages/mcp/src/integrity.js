@@ -84,7 +84,9 @@ export function checkIconImports(chunks, iconExports, iconPackage) {
  */
 export function checkKindReferences(text, kindsWithEntities) {
   const errors = [];
-  const re = /kind\s*[=:]\s*['"`]?([a-z][a-z-]*)['"`]?/gi;
+  // Namespaced kinds (`sanity.chunk`, `dsds.asset`) include dots; stopping at
+  // the first dot checked `sanity`, which no entity has.
+  const re = /kind\s*[=:]\s*['"`]?([a-z][a-z-]*(?:\.[a-z][a-z-]*)*)['"`]?/gi;
   const seen = new Set();
   let m;
   while ((m = re.exec(text ?? '')) !== null) {

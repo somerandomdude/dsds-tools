@@ -40,6 +40,8 @@ are listed here too, under Changed, Added, Fixed and Removed below the 0.22.0 it
   dependency, which the formatter needs.
 
 ### Changed
+- **`dsds doctor`'s brief-kind check reads namespaced kinds.** It stopped at
+  the first dot, so `kind: sanity.chunk` was checked as `sanity`.
 - **The relationship graph reads 0.22.0's pointer fields:** `uses`,
   `alternatives`, `extends`, `specs`, and a deprecated status's `replacedBy`,
   with `refs` for the rest. Reverse names follow the spec: `used-by`,
@@ -126,6 +128,13 @@ are listed here too, under Changed, Added, Fixed and Removed below the 0.22.0 it
   the 0.21.1 bump. They now match upstream `.agents/skills/` at v0.21.2.
 
 ### Added
+- **Icon asset entries.** A `dsds.asset` entry with `assetType: icon` (DSDS
+  0.22.0's incubating kind) is now the source for `dsds_find_icon` and
+  `dsds_check_exports`' icon suggestions; the `ICON_GUIDELINES_PATH` TSV is the
+  fallback when none is loaded. `dsds_get_agent_context` renders an asset's
+  members one line each — name, purpose, other names — with the icon import
+  rule stated once, and lists placeholder-only members by name instead of
+  showing their `<!-- TODO -->` comments. The build briefing points to it.
 - **`dsds_find_icon`.** Finds icons by purpose (`purposes: ["resolve",
   "settings"]`) from the icon guidelines' alternative names, purpose and usage
   notes, limited to icons the package ships. Returns each match's import path,

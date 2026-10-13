@@ -1,4 +1,5 @@
-import { findIconsByPurpose, loadIconGuidelines } from '../icon-suggest.js';
+import { findIconsByPurpose } from '../icon-suggest.js';
+import { resolveIconGuidance } from '../icon-catalog.js';
 import { readSubpathExports } from './check-exports.js';
 
 export const findIconDef = {
@@ -6,7 +7,7 @@ export const findIconDef = {
   description:
     'Find the icon for a purpose — "resolve", "reply", "settings", "show more" — from the design system\'s icon guidelines. ' +
     'Returns the best matches for each purpose with the subpath to import from, what each icon is for, and when not to use it. ' +
-    'Use it before guessing an icon name. Read-only. Requires ICON_PACKAGE and ICON_GUIDELINES_PATH to be configured.',
+    'Use it before guessing an icon name. Read-only. Reads the docs\' icon asset entry (`kind: dsds.asset`, `assetType: icon`) when one is loaded, else an icon guidelines TSV (ICON_GUIDELINES_PATH).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -23,12 +24,11 @@ export const findIconDef = {
 /** Icons for each purpose, limited to the icons the package really ships. */
 export function findIconHandler({ purposes }, getExportPaths, getIconConfig = () => ({})) {
   const list = [...new Set((Array.isArray(purposes) ? purposes : [purposes]).filter((p) => typeof p === 'string' && p.trim()).map((p) => p.trim()))];
-  const { iconPackage = null, guidelinesPath = null } = getIconConfig() ?? {};
-  const guidelines = loadIconGuidelines(guidelinesPath);
+  const { guidelines, iconPackage } = resolveIconGuidance(getIconConfig() ?? {});
   if (!iconPackage || guidelines.size === 0) {
     return {
       isError: true,
-      content: [{ type: 'text', text: 'No icon guidelines configured. Set ICON_PACKAGE and ICON_GUIDELINES_PATH (an icon guidelines TSV with "Icon name", "Alternative names" and "Purpose" columns).' }],
+      content: [{ type: 'text', text: 'No icon guidance found. Document the icon set as a `dsds.asset` entry with `assetType: icon`, or set ICON_PACKAGE and ICON_GUIDELINES_PATH (an icon guidelines TSV with "Icon name", "Alternative names" and "Purpose" columns).' }],
     };
   }
   if (list.length === 0) {

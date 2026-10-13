@@ -160,3 +160,12 @@ describe('integration: check-integrity script', () => {
     execFileSync('node', ['scripts/check-integrity.js'], { cwd: ROOT, stdio: 'pipe' }); // throws on exit 1
   });
 });
+
+// Namespaced kinds include a dot (2026-10-13): the pattern stopped at it and
+// checked `sanity` for a brief that named `sanity.chunk`.
+describe('checkKindReferences — namespaced kinds', () => {
+  it('reads the whole namespaced kind', () => {
+    expect(checkKindReferences('call it with kind: sanity.chunk', new Set(['sanity.chunk']))).toEqual([]);
+    expect(checkKindReferences('call it with kind=dsds.asset', new Set(['component']))[0]).toContain('"kind=dsds.asset"');
+  });
+});

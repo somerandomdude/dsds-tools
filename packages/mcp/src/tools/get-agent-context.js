@@ -6,6 +6,7 @@ import { findSharedPropGroups, findSharedRules, renderApi20, renderSharedPropGro
 import { notFoundError } from '../errors.js';
 import { renderTable } from '../render/table.js';
 import { accessRecord } from '../logger.js';
+import { renderAssetMembers } from '../icon-catalog.js';
 
 /** Entry kind for telemetry — 0.20+ entries carry `kind`, older ones do not. */
 const entityKindOf = e => e.kind ?? e.entityKind ?? undefined;
@@ -85,7 +86,14 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
     }
   }
 
-  const sections = found.sections ?? [];
+  let sections = found.sections ?? [];
+  // An asset entry (an icon set, a logo set) lists its members in its first
+  // definitions section. Render them compactly; the rest renders as usual.
+  if (found.kind === 'dsds.asset') {
+    renderAssetMembers(found, lines, { verbose });
+    const members = sections.find((s) => s.kind === 'definitions');
+    sections = sections.filter((s) => s !== members);
+  }
   // Extension content the server is configured to leave out of this view
   // (`agentContextOmit`). Verbose returns everything.
   const omit = verbose ? [] : (propsConfig?.agentContextOmit ?? []);
@@ -96,7 +104,7 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
   const served = verbose ? sections : sections.filter((s) => s.for === 'agent' || s.for === 'all');
   let omitted = 0;
   if (sections.length === 0) {
-    lines.push('*No sections defined for this entry.*');
+    if (found.kind !== 'dsds.asset') lines.push('*No sections defined for this entry.*');
   } else if (verbose) {
     renderSections20(sections, lines, sectionCtx);
   } else {

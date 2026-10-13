@@ -151,6 +151,10 @@ export function createToolRuntime({
 
   const toolMap = new Map(toolDefs.map(t => [t.name, t]));
 
+  // Icon config plus the loaded docs, so the icon tools can read an icon asset
+  // entry (`kind: dsds.asset`) instead of a separate TSV. See icon-catalog.js.
+  const iconConfig = () => ({ ...((getIconConfig ?? (() => ({})))() ?? {}), systems: getSystems() });
+
   // Resolve and run a tool call, returning its result (never throws).
   async function dispatch(name, args = {}) {
     const result = await run(name, args);
@@ -194,8 +198,8 @@ export function createToolRuntime({
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
         case 'dsds_get_tokens':           return getTokensHandler(args, getSystems);
         case 'dsds_lint':                 return lintHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
-        case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()), getIconConfig ?? (() => ({})));
-        case 'dsds_find_icon':            return findIconHandler(args, getExportPaths ?? (() => new Map()), getIconConfig ?? (() => ({})));
+        case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()), iconConfig);
+        case 'dsds_find_icon':            return findIconHandler(args, getExportPaths ?? (() => new Map()), iconConfig);
         case 'dsds_explain_error':        return explainErrorHandler(args);
         case 'dsds_list_skills':          return listSkillsHandler(args);
         case 'dsds_get_skill':            return getSkillHandler(args);
