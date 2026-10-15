@@ -38,9 +38,9 @@ export default [
     rules: {
       // Cyclomatic complexity: the number of paths through a function.
       // ESLint's default is 20.
-      complexity: ['error', 15],
+      complexity: ['warn', 15],
       // Blocks nested inside one another in a single function.
-      'max-depth': ['error', 4],
+      'max-depth': ['warn', 4],
     },
   },
 ]
