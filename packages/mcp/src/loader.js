@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
+import { formatInlineLinks, setLinkTargets } from './inline-links.js';
 import { entriesIn20, isBaseDoc20, loadYaml20, resolveStatusDisplay20, statusEntriesOf20 } from './spec/dsds-lib.js';
 
 // Loading normalises every entry so the rest of the server sees one shape:
@@ -221,6 +222,9 @@ export async function loadSystems(paths) {
 
 /** One summary row per entity: identifier, name, kind, status, summary, tags. */
 export function summarizeEntities(systems) {
+  // Startup and every reload pass the whole set of systems here, so this is
+  // where the autolink names are indexed (inline-links.js).
+  setLinkTargets(systems);
   return systems.flatMap(system =>
     system.entities.map(entity => ({
       identifier: entity.identifier,
@@ -259,7 +263,7 @@ export function entitySummary(entity, { maxLength = 160 } = {}) {
 
   if (typeof candidate !== 'string') return undefined;
 
-  const firstLine = candidate.split('\n')[0].trim();
+  const firstLine = formatInlineLinks(candidate, { oneLine: true }).split('\n')[0].trim();
   if (!firstLine) return undefined;
   return firstLine.length > maxLength ? `${firstLine.slice(0, maxLength - 1)}…` : firstLine;
 }

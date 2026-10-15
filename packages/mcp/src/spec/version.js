@@ -1,10 +1,20 @@
-// dsds-0.22.0/ is vendored verbatim from the 0.22.0 release of
+// dsds-0.23.0/ is vendored verbatim from the 0.23.0 release of
 // somerandomdude/design-system-documentation-schema: its schema/ directory,
 // and the reference validator and resolver from its scripts/. Exactly one
 // version is vendored at a time; schema-order.js derives its path from the
 // constant below and throws at load if the directory is missing.
 //
-// What 0.22.0 asks of a consumer, and where this server answers it:
+// What 0.23.0 asks of a consumer, and where this server answers it:
+//
+//   0.23.0  additive. A Markdown prose field can mention something in the
+//           project with a `dsds:` link. The vendored validator checks the
+//           target (DSDS-05, DSDS-08) with an optional CommonMark parser;
+//           inline-links.js rewrites each link for an agent as its text plus
+//           the target, and every tool's prose goes through it. A link is
+//           never a relationship, so the graph ignores it. Every entry's
+//           `description` is Markdown now.
+//
+// Earlier:
 //
 //   0.22.0  a breaking release. Validation runs upstream's own validator
 //           (validator.js wraps it), so every schema and semantic rule is
@@ -17,8 +27,6 @@
 //           `rel: file` is only for DSDS documents; a code file is
 //           `rel: source` (get-chunk.js). DSDS-07, -12, -17, -20, -22 and
 //           -23 are retired; field order is `dsds-format`'s job now.
-//
-// Earlier:
 //
 //   0.21.0  every component trait requires `traitType` (`variant` or
 //           `state`), and a section may carry `tags` — DSDS-18 reads the
@@ -36,7 +44,7 @@
 //           same-as pool (loader.js) already holds every entry loaded
 //           alongside `shared[]`. The bundled skills move to 0.21.2 with it.
 //
-export const BUNDLED_VERSION = '0.22.0';
+export const BUNDLED_VERSION = '0.23.0';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

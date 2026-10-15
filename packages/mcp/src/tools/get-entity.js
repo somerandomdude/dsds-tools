@@ -1,3 +1,4 @@
+import { formatInlineLinks } from '../inline-links.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { notFoundMessage } from '../suggest.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
@@ -161,7 +162,7 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
 
 function resolveText(value) {
   if (!value) return '';
-  return typeof value === 'string' ? value : (value.value ?? '');
+  return formatInlineLinks(typeof value === 'string' ? value : (value.value ?? ''));
 }
 
 function resolveStatus(status) {

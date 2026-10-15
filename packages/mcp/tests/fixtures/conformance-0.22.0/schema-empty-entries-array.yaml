@@ -1,5 +1,0 @@
-# rejectedBy: schema
-# errorAt: /entries
-schemaVersion: "0.22.0"
-name: Empty Entries
-entries: []

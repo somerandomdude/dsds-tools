@@ -10,6 +10,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadSystems } from 'dsds-mcp/src/loader.js';
+import { setLinkTargets } from 'dsds-mcp/src/inline-links.js';
 import { resolveConfig } from 'dsds-mcp/src/config.js';
 import { resolveTokenRefs, tokenMap } from 'dsds-mcp/src/token-refs.js';
 import { entityToMarkdown as renderEntity } from './render.js';
@@ -52,6 +53,8 @@ if (paths.length === 0) {
 }
 
 const { systems, errors } = await loadSystems(paths);
+// Index every entry so an autolink (`<dsds:button>`) shows its name.
+setLinkTargets(systems);
 for (const e of errors) process.stderr.write(`dsds-markdown: failed to load ${e.path}: ${e.error}\n`);
 
 const entities = systems.flatMap(s => s.entities).filter(e => e.identifier);

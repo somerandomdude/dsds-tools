@@ -6,6 +6,43 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - Unreleased
+
+Supports DSDS 0.23.0, an additive release: every document that validated under
+0.22.0 still does.
+
+### Added
+- **Inline links in prose.** DSDS 0.23.0 lets a Markdown field mention
+  something in the project with a `dsds:` link: `<dsds:button>`, or
+  `[focus visible](dsds:shared-a11y#focus-visible)`.
+  - `dsds_validate` checks each target with `DSDS-08` and `DSDS-05`, as the
+    vendored validator does, and a finding for one carries the link's
+    `offset` in the field.
+  - Every tool that returns prose rewrites a link for the agent as its text
+    plus the target in backticks, ``Focus visible (`shared-a11y#focus-visible`)``,
+    so the agent can pass the target straight to `dsds_get_entity`. An
+    autolink shows the target's name, as the processing model (§2.4) says.
+  - A one-line summary (`dsds_list_entities`, search) shows only the link text.
+  - An inline link is never added to the relationship graph: it's a mention,
+    not a `uses`.
+  - `dsds-markdown` rewrites links the same way, so no `dsds:` URL reaches a
+    Markdown renderer as an href.
+- **`mdast-util-from-markdown` as an optional dependency.** It's how the
+  vendored validator and the rewriting find links. npm installs it by
+  default. Without it, or on a Node older than 20.19, prose is passed through
+  unchanged and `dsds_validate` warns that inline links weren't checked.
+
+### Changed
+- **The build brief's chunk and wizard steps are conditional.** They say "if
+  `dsds_get_chunk` / `dsds_build_component` is in your tool list", like the
+  lint step, so a host that hides those tools isn't told to call them.
+- **Bundled DSDS 0.23.0.** `src/spec/dsds-0.23.0/` replaces `dsds-0.22.0/`,
+  and the conformance suite moves to 0.23.0 (39 fixtures, 4 of them for
+  inline links). The bundled skills are the 0.23.0 ones.
+- Every entry's `description` is Markdown in 0.23.0, like the other prose
+  fields. Nothing changes for a document; a description with `*`, `_` or `<`
+  in it may read differently once rendered.
+
 ## [0.5.1] - 2026-10-09
 
 Same content as 0.5.0. npm took several minutes to make 0.5.0 available, and it looked

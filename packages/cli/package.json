@@ -30,7 +30,7 @@
     "directory": "packages/cli"
   },
   "dependencies": {
-    "dsds-mcp": "^0.5.0"
+    "dsds-mcp": "^0.6.0"
   },
   "devDependencies": {
     "vitest": "^2.0.0"

@@ -21,8 +21,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 describe('the bundled version', () => {
-  it('is 0.22.0', () => {
-    expect(BUNDLED_VERSION).toBe('0.22.0');
+  // 0.23.0 is additive, so everything here still holds; release-0.23.0.test.js
+  // checks the exact bundled version.
+  it('is 0.22.0 or a later 0.2x release', () => {
+    expect(BUNDLED_VERSION).toMatch(/^0\.2[2-9]\./);
   });
 
   it('has the retired rules marked retired, and the new ones present', () => {

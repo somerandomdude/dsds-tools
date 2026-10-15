@@ -1,3 +1,4 @@
+import { formatInlineLinks } from '../inline-links.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
@@ -344,7 +345,7 @@ function buildOverview(entity, questionCount) {
 }
 
 function resolveText(value) {
-  return typeof value === 'string' ? value : (value?.value ?? '');
+  return formatInlineLinks(typeof value === 'string' ? value : (value?.value ?? ''));
 }
 
 function handleAnswer({ data, answer }, getSystems) {

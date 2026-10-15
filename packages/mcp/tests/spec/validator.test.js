@@ -180,7 +180,7 @@ describe('validateDoc20', () => {
 // The rule fixtures are the ones the conformance suite vendors from upstream's
 // examples/invalid/, one or more per semantic rule.
 describe('validateDoc20 — semantic rules (real fixtures)', () => {
-  const ruleFixtureDir = resolve(__dirname, '../fixtures/conformance-0.22.0');
+  const ruleFixtureDir = resolve(__dirname, '../fixtures/conformance-0.23.0');
   const files = readdirSync(ruleFixtureDir).filter((f) => /^DSDS-\d+/.test(f));
 
   it.each(files)('flags exactly the rule the fixture %s is named for', (file) => {

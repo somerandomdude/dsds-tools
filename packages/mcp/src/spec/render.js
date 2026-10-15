@@ -3,6 +3,7 @@
 // get-agent-context.js and get-document-block.js (and the markdown-export
 // package) so the
 // four tools render the same fields the same way instead of drifting apart.
+import { formatInlineLinks } from '../inline-links.js';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, extname, join, resolve as resolvePath } from 'node:path';
@@ -13,7 +14,8 @@ import { VENDOR_DIR } from './schema-order.js';
 // Upstream's item-address model, from the vendored lib.js.
 const { itemAddresses, resolveAddress } = createRequire(import.meta.url)(join(VENDOR_DIR, 'scripts/lib.js'));
 
-const asText20 = (v) => (typeof v === 'string' ? v : (v?.value ?? ''));
+// Prose, with any `dsds:` inline link rewritten for an agent (inline-links.js).
+const asText20 = (v) => formatInlineLinks(typeof v === 'string' ? v : (v?.value ?? ''));
 
 // GFM treats an unescaped `|` as a column separator even inside inline code,
 // so a union type like `A | B` would break the table — escape it, and

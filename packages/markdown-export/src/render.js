@@ -14,8 +14,11 @@
 import { getApiForEntry } from 'dsds-mcp/src/spec/prop-extractor.js';
 import { renderCombos20, renderEvents20, renderExtensions20, renderGuidelineItem, renderSections20, resolveSharedItem20 } from 'dsds-mcp/src/spec/render.js';
 import { resolveStatusDisplay20 } from 'dsds-mcp/src/spec/dsds-lib.js';
+import { formatInlineLinks } from 'dsds-mcp/src/inline-links.js';
 
-const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
+// Prose, with `dsds:` inline links rewritten as text plus target, so no
+// `dsds:` URL reaches a Markdown renderer as an href (DSDS 0.23.0, §6.5).
+const asText = v => formatInlineLinks(typeof v === 'string' ? v : (v?.value ?? ''));
 
 // Escape a value for use inside a Markdown table cell. In GFM, an unescaped `|`
 // is a column separator even inside an inline-code span, so union types like

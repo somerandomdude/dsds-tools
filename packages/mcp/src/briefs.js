@@ -84,9 +84,9 @@ Call \`dsds_list_entities\` once to see everything documented, grouped by kind, 
 - **A pattern beats primitives.** If a documented pattern covers your layout or flow,
   read it with \`dsds_get_entity\` before composing anything yourself — it carries the
   component combinations and rules the design system team already settled.
-- **A chunk beats writing it again.** If a chunk covers your use case, fetch it with
-  \`dsds_get_chunk\` and use its code directly. \`dsds_get_agent_context\` lists a component's
-  chunks as an index, so you can pick one instead of reading all of them.
+- **A chunk beats writing it again.** If \`dsds_get_chunk\` is in your tool list and a chunk
+  covers your use case, fetch it and use its code directly. \`dsds_get_agent_context\` lists a
+  component's chunks as an index, so you can pick one instead of reading all of them.
 - **Never hardcode a colour, spacing value or type size.** Reference the token.
 
 ---
@@ -109,8 +109,9 @@ narrower calls when you need less:
 - \`dsds_get_document_block(identifier, blockType)\` — one section only, e.g. "api" for props
   or "accessibility" for WCAG detail.
 
-\`dsds_build_component(step:"start", identifier)\` is available if you would rather answer a
-prop-by-prop wizard than write the JSX yourself. It is an option, not a requirement.
+If \`dsds_build_component\` is in your tool list, \`dsds_build_component(step:"start", identifier)\`
+lets you answer a prop-by-prop wizard instead of writing the JSX yourself. It is an option,
+not a requirement.
 
 ---
 

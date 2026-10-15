@@ -1,3 +1,4 @@
+import { formatInlineLinks } from '../inline-links.js';
 import { getUpdateNotice } from '../spec/version.js';
 import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
 import { notFoundMessage, entityIdentifiers } from '../suggest.js';
@@ -35,7 +36,7 @@ export const getAgentContextDef = {
   },
 };
 
-const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
+const asText = v => formatInlineLinks(typeof v === 'string' ? v : (v?.value ?? ''));
 
 
 
