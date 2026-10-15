@@ -1,6 +1,9 @@
 /**
- * Integrity checks — pure functions, no I/O. The guard (scripts/check-integrity.js)
- * supplies the data; these decide pass/fail. Each returns an array of error strings
+ * Integrity checks — pure functions, no I/O. Two consumers supply the data and
+ * these decide pass/fail: `scripts/check-integrity.js` in this package, and
+ * `dsds doctor` in packages/cli. That second consumer is why this lives in
+ * `src/` rather than `scripts/` despite nothing inside `src/` importing it —
+ * it is published API. Each returns an array of error strings
  * (empty = pass).
  *
  * Covers the three reference classes from the integrity PRD:
@@ -31,12 +34,33 @@ export function extractIconImports(code, iconPackage) {
   return [...names];
 }
 
-/** Parse exported icon names from the icon package's `dist/index.d.ts` string. */
+/**
+ * Parse exported icon names from the icon package's `dist/index.d.ts` string.
+ *
+ * Skips `never`-typed declarations. @sanity/icons v5 removed every named icon
+ * from its root entry but kept a `@deprecated` tombstone per icon so a moved
+ * icon isn't mistaken for a deleted one:
+ *
+ *   declare const ArrowUpIcon: never;   // v5 tombstone — NOT a usable export
+ *   declare const ArrowUpIcon: ForwardRefExoticComponent<…>;  // v3 — real
+ *
+ * Counting the tombstones as exports made checkIconImports blind to exactly
+ * the failure it exists to catch: a root-barrel `import {ArrowUpIcon} from
+ * '@sanity/icons'` type-checks (the tombstone satisfies it) but resolves to
+ * `undefined` at runtime, so `<Icon icon={ArrowUpIcon} />` renders nothing.
+ * Chunk code files carried such an import undetected for weeks before this.
+ * Excluding `: never` is version-safe: v5 root yields no named icons (so any
+ * root-barrel icon import is correctly flagged), v3 is unaffected.
+ */
 export function parseIconExports(dts) {
   const set = new Set();
-  const re = /(?:export\s+)?declare const\s+([A-Z][A-Za-z0-9]*Icon)\b/g;
+  const re = /(?:export\s+)?declare const\s+([A-Z][A-Za-z0-9]*Icon)\s*(?::\s*([^;\n]+))?/g;
   let m;
-  while ((m = re.exec(dts ?? '')) !== null) set.add(m[1]);
+  while ((m = re.exec(dts ?? '')) !== null) {
+    const type = m[2]?.trim();
+    if (type === 'never') continue;
+    set.add(m[1]);
+  }
   return set;
 }
 
@@ -60,7 +84,9 @@ export function checkIconImports(chunks, iconExports, iconPackage) {
  */
 export function checkKindReferences(text, kindsWithEntities) {
   const errors = [];
-  const re = /kind\s*[=:]\s*['"`]?([a-z][a-z-]*)['"`]?/gi;
+  // Namespaced kinds (`sanity.chunk`, `dsds.asset`) include dots; stopping at
+  // the first dot checked `sanity`, which no entity has.
+  const re = /kind\s*[=:]\s*['"`]?([a-z][a-z-]*(?:\.[a-z][a-z-]*)*)['"`]?/gi;
   const seen = new Set();
   let m;
   while ((m = re.exec(text ?? '')) !== null) {
@@ -205,24 +231,54 @@ export function checkExampleProps(entities) {
   return [...new Set(errors)];
 }
 
-/** Flag any version source that does not match the bundled spec version. */
+/**
+ * Flag any version source that does not match what it should track.
+ *
+ * Most sources track the bundled spec version. A source may override that
+ * with its own `expected` — the legacy 0.15.2 examples do, because they
+ * document a model that does not move when the current spec does. Without
+ * that, every spec bump reported four false positives against README prose
+ * that was correct.
+ */
 export function checkVersions(bundled, sources) {
   const errors = [];
-  for (const { label, version } of sources) {
-    if (version !== bundled) {
-      errors.push(`Version drift: ${label} is "${version}", expected "${bundled}".`);
+  for (const { label, version, expected } of sources) {
+    const want = expected ?? bundled;
+    if (version !== want) {
+      errors.push(`Version drift: ${label} is "${version}", expected "${want}".`);
     }
   }
   return errors;
 }
 
-/** Extract spec-version strings from the README (for the version check). */
-export function readmeVersions(readme) {
+/**
+ * Extract spec-version strings from the README (for the version check).
+ *
+ * Two populations, and conflating them is a bug. The prose that names the
+ * bundled spec tracks BUNDLED_VERSION. The JSON document examples are legacy
+ * 0.15.2 — `dsdsVersion` is a legacy-only field, renamed `schemaVersion` in
+ * 0.20.0 — and they track whatever `src/spec/dsds.bundled.schema.json`
+ * actually is, which has stayed at 0.15.2 while the 0.20.x/0.21.0 model moved
+ * into the vendored schema-<version>/ directories.
+ *
+ * @param {string} readme
+ * @param {string|null} legacyVersion - version of the bundled legacy schema,
+ *   read from its own `$id`. Omit to hold the examples to the bundled spec
+ *   version, which is what the caller wants only if the two ever merge again.
+ */
+export function readmeVersions(readme, legacyVersion = null) {
   const out = [];
   const push = (re, label) => { const m = (readme ?? '').match(re); if (m) out.push({ label, version: m[1] }); };
   push(/Bundled spec version:\*\*\s*([0-9][0-9.]*)/, 'README "Bundled spec version"');
   push(/Defaults to `([0-9][0-9.]*)`/, 'README "DSDS_SCHEMA_VERSION default"');
-  for (const m of (readme ?? '').matchAll(/designsystemdocspec\.org\/v([0-9][0-9.]*)\//g)) out.push({ label: 'README schema URL', version: m[1] });
-  for (const m of (readme ?? '').matchAll(/"dsdsVersion":\s*"([0-9][0-9.]*)"/g)) out.push({ label: 'README dsdsVersion example', version: m[1] });
+  const legacy = legacyVersion ? { expected: legacyVersion } : {};
+  for (const m of (readme ?? '').matchAll(/designsystemdocspec\.org\/v([0-9][0-9.]*)\//g)) out.push({ label: 'README legacy schema URL', version: m[1], ...legacy });
+  for (const m of (readme ?? '').matchAll(/"dsdsVersion":\s*"([0-9][0-9.]*)"/g)) out.push({ label: 'README legacy dsdsVersion example', version: m[1], ...legacy });
   return out;
+}
+
+/** The version of the bundled legacy schema, from its own `$id`. */
+export function legacySchemaVersion(schema) {
+  const m = /\/v([0-9][0-9.]*)\//.exec(schema?.$id ?? '');
+  return m ? m[1] : null;
 }

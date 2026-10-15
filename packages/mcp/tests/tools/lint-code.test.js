@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lintInlineHandler, lintByPathHandler } from '../../src/tools/lint-code.js';
+import { lintHandler } from '../../src/tools/lint-code.js';
 
 const noPlugins = () => ({ plugins: [], resolveDir: process.cwd() });
 const fixturePlugin = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd() });
 
-describe('lintInlineHandler', () => {
+describe('dsds_lint — source strings', () => {
   it('returns isError when no plugins configured', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;' }, noPlugins);
+    const result = await lintHandler({ code: 'const x = 1;' }, noPlugins);
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('LINT_PLUGINS');
     expect(result.content[0].text).toContain('LINT_RESOLVE_DIR');
@@ -20,24 +20,24 @@ describe('lintInlineHandler', () => {
       plugins: ['eslint-plugin-does-not-exist-xyz'],
       resolveDir: process.cwd(),
     });
-    const result = await lintInlineHandler({ code: 'const x = 1;' }, getLintConfig);
+    const result = await lintHandler({ code: 'const x = 1;' }, getLintConfig);
     expect(result.isError).toBe(true);
   });
 
-  it('requires code or files, not a path', async () => {
-    const result = await lintInlineHandler({ path: 'App.tsx' }, fixturePlugin);
+  it('requires code, a path, or files', async () => {
+    const result = await lintHandler({}, fixturePlugin);
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('dsds_lint_by_path');
+    expect(result.content[0].text).toContain('Provide `path`');
   });
 
   it('reports that nothing was persisted (read-only contract)', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
+    const result = await lintHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
     expect(result.content[0].text).toContain('No file was read or written');
     expect(result.content[0].text).toMatch(/Checked \d+ character/);
   });
 
   it('returns structuredContent with a remaining count and per-file entries', async () => {
-    const result = await lintInlineHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
+    const result = await lintHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
     expect(result.structuredContent).toBeDefined();
     expect(typeof result.structuredContent.remaining).toBe('number');
     expect(Array.isArray(result.structuredContent.files)).toBe(true);
@@ -45,11 +45,12 @@ describe('lintInlineHandler', () => {
   });
 });
 
-describe('lintByPathHandler (harness gate)', () => {
-  it('requires a path, not code', async () => {
-    const result = await lintByPathHandler({ code: 'const x = 1;' }, fixturePlugin);
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('dsds_lint_inline');
+describe('dsds_lint — files on disk (harness gate)', () => {
+  // One tool takes both shapes now, so a source string is valid here too —
+  // it just runs in memory rather than reading from disk.
+  it('accepts a source string in place of a path', async () => {
+    const result = await lintHandler({ code: 'const x = 1;', filename: 'App.tsx' }, fixturePlugin);
+    expect(result.isError).toBeFalsy();
   });
 
   it('apply mode lints a file on disk via path and leaves a clean file unchanged', async () => {
@@ -57,7 +58,7 @@ describe('lintByPathHandler (harness gate)', () => {
     try {
       writeFileSync(join(dir, 'App.tsx'), 'const x = 1;\n');
       const cfg = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd(), sourceDir: dir });
-      const result = await lintByPathHandler({ apply: true, files: [{ path: 'App.tsx' }] }, cfg);
+      const result = await lintHandler({ apply: true, files: [{ path: 'App.tsx' }] }, cfg);
       expect(result.structuredContent.files[0].filename).toBe('App.tsx');
       expect(readFileSync(join(dir, 'App.tsx'), 'utf8')).toBe('const x = 1;\n');
     } finally {
@@ -69,13 +70,20 @@ describe('lintByPathHandler (harness gate)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lint-missing-'));
     try {
       const cfg = () => ({ plugins: ['eslint-plugin-fixture'], resolveDir: process.cwd(), sourceDir: dir });
-      const result = await lintByPathHandler({ files: [{ path: 'Nope.tsx' }] }, cfg);
+      const result = await lintHandler({ files: [{ path: 'Nope.tsx' }] }, cfg);
       const text = result.content[0].text;
       expect(text).toContain('was not found');
       expect(text).toContain('does not create them');
-      expect(text).toContain('dsds_lint_inline');
+      // Points at THIS tool's `code` argument, not at the removed
+      // `dsds_lint_inline`. Asserting a tool name that no longer exists is
+      // what let the rename ship with the old names still in the coaching
+      // text — an agent hitting this error was told to call a missing tool.
+      expect(text).toContain('pass `code` instead of `path`');
+      expect(text).not.toContain('dsds_lint_inline');
+      expect(text).not.toContain('dsds_lint_by_path');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 });
+

@@ -14,7 +14,7 @@ beforeAll(() => {
   cpSync(VALID_FIXTURE_DIR, join(projectDir, 'dsds'), { recursive: true });
   writeFileSync(
     join(projectDir, 'dsds.config.json'),
-    JSON.stringify({ paths: ['./dsds/system.dsds.json'] })
+    JSON.stringify({ paths: ['./dsds/system.dsds.yaml'] })
   );
 });
 

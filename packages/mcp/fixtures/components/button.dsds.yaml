@@ -1,4 +1,4 @@
-id: button
 kind: component
+id: button
 name: Button
 description: Triggers an action.

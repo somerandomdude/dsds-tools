@@ -33,8 +33,14 @@ export function startWatching(paths, state) {
 async function reloadFile(absPath, state) {
   const { systems: fresh, errors } = await loadSystems([absPath]);
 
-  if (errors.length > 0) {
-    process.stderr.write(`[dsds-mcp] Reload error ${absPath}: ${errors[0].error}\n`);
+  // A broken sibling is reported but does not block the reload — the rest of
+  // the system is still good. Only a failure of the file itself does.
+  for (const e of errors.filter((x) => x.sibling)) {
+    process.stderr.write(`[dsds-mcp] Reload: skipped ${e.path}: ${e.error}\n`);
+  }
+  const fatal = errors.filter((x) => !x.sibling);
+  if (fatal.length > 0) {
+    process.stderr.write(`[dsds-mcp] Reload error ${absPath}: ${fatal[0].error}\n`);
     return;
   }
 

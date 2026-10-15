@@ -1,6 +1,11 @@
+import { formatInlineLinks } from '../inline-links.js';
 import { getUpdateNotice } from '../spec/version.js';
-import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
-import { resolveStatusDisplay20 } from '../spec/dsds20-lib.js';
+import { notFoundMessage } from '../suggest.js';
+import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
+import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render.js';
+import { accessRecord } from '../logger.js';
+import { resolveStatusDisplay20 } from '../spec/dsds-lib.js';
+import { ERROR_CODES, notFoundError, toolError } from '../errors.js';
 
 export const getEntityDef = {
   name: 'dsds_get_entity',
@@ -18,14 +23,16 @@ export const getEntityDef = {
   },
 };
 
+/** An entry's full documentation in document order. */
 export async function getEntityHandler({ identifier }, getSystems, getSummaries, getIntro = null, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   const introEntities = getIntro ? getIntro() : [];
   if (systems.length === 0 && introEntities.length === 0) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: 'No DSDS files configured. Set the `DSDS_PATHS` environment variable.' }],
-    };
+    return toolError({
+      code: ERROR_CODES.NOT_CONFIGURED,
+      text: noDocumentsConfiguredBrief(),
+      message: 'No DSDS files configured.',
+    });
   }
 
   const needle = identifier.toLowerCase();
@@ -49,11 +56,12 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   }
 
   if (!found) {
-    const available = getSummaries().map(s => `\`${s.identifier}\``).join(', ');
-    return {
-      isError: true,
-      content: [{ type: 'text', text: `Entity "${identifier}" not found.\n\nAvailable identifiers: ${available}` }],
-    };
+    return notFoundError({
+      label: 'Entity',
+      input: identifier,
+      candidates: getSummaries().map(s => s.identifier),
+      listHint: '`dsds_list_entities`',
+    });
   }
 
   const lines = [
@@ -80,14 +88,15 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
   if (found.tokenType) lines.push(`**Token type:** ${found.tokenType}\n`);
   if (found.source) lines.push(`**Source:** \`${typeof found.source === 'string' ? found.source : found.source.href}\`\n`);
 
-  // Relationships: authored outgoing edges (resolved to name/kind) + derived
-  // incoming edges (who points at this entity). Falls back to the raw authored
-  // edges when the graph isn't available.
+  // Relationships: authored outgoing edges, resolved to name/kind. Falls back
+  // to the raw authored edges when the graph isn't available. The derived
+  // incoming list (every entity that points here) was dropped on 2026-10-08,
+  // here and in dsds_get_agent_context: ~20 lines for each core component,
+  // and no agent in that day's run found anything through it.
   const graph = getGraph ? getGraph() : null;
   if (graph) {
     const out = graph.out.get(found.identifier) ?? [];
-    const incoming = graph.in.get(found.identifier) ?? [];
-    if (out.length || incoming.length) {
+    if (out.length) {
       lines.push('## Relationships', '');
       if (out.length) {
         lines.push('**Outgoing** (this entity → others):', '');
@@ -97,16 +106,6 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
           const role = r.role ? ` — ${r.role}` : '';
           const req = r.required ? ' *(required)*' : '';
           lines.push(`- **${r.relation}** \`${r.target}\`${meta}${role}${req}`);
-        }
-        lines.push('');
-      }
-      if (incoming.length) {
-        lines.push('**Incoming** (others → this entity, derived):', '');
-        for (const r of incoming) {
-          const t = graph.nodes.get(r.target);
-          const meta = t ? ` (${t.kind})` : '';
-          const req = r.required ? ' *(required)*' : '';
-          lines.push(`- **${r.relation}** \`${r.target}\`${meta}${req}`);
         }
         lines.push('');
       }
@@ -121,47 +120,49 @@ export async function getEntityHandler({ identifier }, getSystems, getSummaries,
     lines.push('');
   }
 
-  if (found.__dsds20) {
-    // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields,
-    // not sections — render those first, then the sections array itself.
-    renderTraits20(found.traits, lines);
-    renderCombos20(found.combos, lines);
-    renderSourceAndImports20(found, lines);
-    renderApi20(found, lines, propsConfig);
-    if (found.sections?.length) {
-      renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
-    } else {
-      lines.push('*No sections defined for this entry.*');
-    }
-    renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
-  } else if (found.documentBlocks?.length) {
-    lines.push(`## Documentation (${found.documentBlocks.length} block${found.documentBlocks.length !== 1 ? 's' : ''})`, '');
-    for (const block of found.documentBlocks) {
-      lines.push(`### ${block.kind}`, '', '```json', JSON.stringify(block, null, 2), '```', '');
-    }
-  } else {
-    lines.push('*No document blocks defined for this entity.*');
-  }
+  // get_entity serves everything, so the served set is the declared set.
+  const served = [];
+  const parts = [];
 
-  if (found.agentDocumentBlocks?.length) {
-    lines.push(
-      `## Agent Document Blocks (${found.agentDocumentBlocks.length} block${found.agentDocumentBlocks.length !== 1 ? 's' : ''} — agent consumption only)`,
-      ''
-    );
-    for (const block of found.agentDocumentBlocks) {
-      lines.push(`### ${block.kind} (agent-only)`, '', '```json', JSON.stringify(block, null, 2), '```', '');
-    }
+  // Real 0.20.0: traits/combos/sourceFiles/imports are top-level fields,
+  // not sections — render those first, then the sections array itself.
+  let at = lines.length;
+  renderTraits20(found.traits, lines); if (lines.length > at) parts.push('traits');
+  at = lines.length;
+  renderCombos20(found.combos, lines); if (lines.length > at) parts.push('combos');
+  at = lines.length;
+  renderSourceAndImports20(found, lines); if (lines.length > at) parts.push('imports');
+  at = lines.length;
+  renderApi20(found, lines, propsConfig); if (lines.length > at) parts.push('api');
+  if (found.sections?.length) {
+    renderSections20(found.sections, lines, { filePath: found.__filePath, sharedEntries: found.__sharedEntries });
+    served.push(...found.sections);
+  } else {
+    lines.push('*No sections defined for this entry.*');
   }
+  renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
 
   const notice = getUpdateNotice();
   if (notice) lines.push(notice);
 
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: found.kind,
+      sections: served,
+      parts,
+      requested: identifier,
+      chars: text.length,
+    }),
+  };
 }
 
 function resolveText(value) {
   if (!value) return '';
-  return typeof value === 'string' ? value : (value.value ?? '');
+  return formatInlineLinks(typeof value === 'string' ? value : (value.value ?? ''));
 }
 
 function resolveStatus(status) {

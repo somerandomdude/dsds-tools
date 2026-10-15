@@ -1,16 +1,16 @@
-schemaVersion: "0.20.0"
+schemaVersion: "0.22.0"
 
 name: Pizza Party Design System
 
 entries:
-  - id: pizza-party-design-system
-    kind: system
+  - kind: system
+    id: pizza-party-design-system
     name: Pizza Party Design System
     description: The design system behind Pizza Party Super-time.
     metadata:
+      status: {status: alpha}
       organization: Pizza Party Super-time LLC
       version: 0.1.0
-      status: {status: alpha}
       platforms: [web-component]
 
 refs:

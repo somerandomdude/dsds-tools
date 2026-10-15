@@ -26,6 +26,7 @@ export const contextBriefDef = {
   },
 };
 
+/** The briefing for one use case (build, author, ask), plus what is currently loaded. */
 export async function contextBriefHandler({ useCase, task }, getSystems, getSummaries) {
   const brief = useCase === 'build' ? BUILD_BRIEF : useCase === 'ask' ? ASK_BRIEF : AUTHOR_BRIEF;
   const sections = [];
@@ -59,14 +60,23 @@ function buildSystemStatus(getSystems, getSummaries) {
       '',
       '> No DSDS files are configured for this server (`DSDS_PATHS` is not set).',
       '> The steps above describe what to do once files are loaded.',
-      '> Spec tools (`dsds_spec_overview`, `dsds_spec_scaffold`, `dsds_validate`) are available without configuration.',
+      '> Spec tools (`dsds_spec_entity_schema`, `dsds_validate`, `dsds_style_check`) are available without configuration.',
     ].join('\n');
   }
 
   const summaries = getSummaries();
   const deprecated = summaries.filter(e => e.status === 'deprecated');
   const experimental = summaries.filter(e => e.status === 'experimental');
-  const draft = summaries.filter(e => e.status === 'draft');
+  // Every other status, grouped by its own word. The spec's status vocabulary
+  // is open ("Any term is allowed"), so a fixed `draft` bucket went empty the
+  // moment a corpus said `unavailable` instead, and those entries vanished
+  // from the brief with nothing to say so.
+  const otherStatuses = new Map();
+  for (const e of summaries) {
+    if (!e.status || ['stable', 'deprecated', 'experimental'].includes(e.status)) continue;
+    if (!otherStatuses.has(e.status)) otherStatuses.set(e.status, []);
+    otherStatuses.get(e.status).push(e);
+  }
 
   const byKind = {};
   for (const s of summaries) {
@@ -101,12 +111,12 @@ function buildSystemStatus(getSystems, getSummaries) {
     );
   }
 
-  if (draft.length > 0) {
+  for (const [status, entries] of otherStatuses) {
     lines.push(
       '',
-      `### Draft (${draft.length}) — not ready for production`,
+      `### Status: ${status} (${entries.length})`,
       '',
-      draft.map(e => `- \`${e.identifier}\``).join('\n'),
+      entries.map(e => `- \`${e.identifier}\``).join('\n'),
     );
   }
 

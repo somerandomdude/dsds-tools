@@ -1,5 +1,15 @@
 const RESOURCE_PREFIX = 'dsds://entity/';
 
+// loadSystems() annotates each 0.20.0 entity in place with bookkeeping the
+// renderers need — __dsds20, __filePath, and __sharedEntries, the base
+// document's shared[] pool. That pool holds entities carrying the same pool,
+// so a loaded entity is a cyclic object graph and JSON.stringify throws on
+// it ("Converting circular structure to JSON"). None of it is part of the
+// DSDS document either, so drop every internal key: the resource body is
+// then what the author wrote, and serializing it terminates.
+const dropInternalKeys = (key, value) => (key.startsWith('__') ? undefined : value);
+
+/** One MCP resource descriptor per entity, addressed as `dsds://entity/<id>`. */
 export function listResources(getSummaries) {
   return getSummaries().map(s => ({
     uri: `${RESOURCE_PREFIX}${encodeURIComponent(s.identifier)}`,
@@ -9,6 +19,7 @@ export function listResources(getSummaries) {
   }));
 }
 
+/** The entity behind a `dsds://entity/<id>` uri as JSON, or null if the uri is unknown. */
 export function readResource(uri, getSystems) {
   if (!uri.startsWith(RESOURCE_PREFIX)) return null;
 
@@ -22,7 +33,7 @@ export function readResource(uri, getSystems) {
       return {
         uri,
         mimeType: 'application/json',
-        text: JSON.stringify(entity, null, 2),
+        text: JSON.stringify(entity, dropInternalKeys, 2),
       };
     }
   }

@@ -1,12 +1,9 @@
-id: example-guide
 kind: sanity.guide
+id: example-guide
 name: Example Guide
 description: A representative sanity.guide fixture for conformance testing.
 metadata:
   tags: [accessibility]
-related:
-  - to: example-pattern
-    rel: relates-to
 sections:
   - kind: steps
     for: all
@@ -21,5 +18,8 @@ sections:
     for: agent
     framing: how-to-use
     items:
-      - statement: Follow the checklist in order.
-        level: should
+      - level: should
+        statement: Follow the checklist in order.
+refs:
+  - to: example-pattern
+    rel: relates-to

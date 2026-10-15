@@ -6,8 +6,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const BIN = fileURLToPath(new URL('../src/index.js', import.meta.url));
-export const BUTTON_FIXTURE = fileURLToPath(new URL('./fixtures/button.dsds.json', import.meta.url));
-export const VALID_SYSTEM = fileURLToPath(new URL('./fixtures/valid/system.dsds.json', import.meta.url));
+export const BUTTON_FIXTURE = fileURLToPath(new URL('./fixtures/button.dsds.yaml', import.meta.url));
+export const VALID_SYSTEM = fileURLToPath(new URL('./fixtures/valid/system.dsds.yaml', import.meta.url));
 export const VALID_FIXTURE_DIR = fileURLToPath(new URL('./fixtures/valid', import.meta.url));
 // Resolve the dsds-mcp package wherever the installer put it (hoisted to the
 // workspace root in the monorepo, nested under node_modules otherwise).

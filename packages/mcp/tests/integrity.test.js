@@ -29,6 +29,35 @@ describe('parseIconExports', () => {
     expect(s.has('SearchIcon')).toBe(true);
     expect(s.has('helper')).toBe(false);
   });
+
+  // Regression (2026-09-03): @sanity/icons v5 removed every named icon from
+  // its root entry but left a `@deprecated ... : never` tombstone per icon.
+  // Counting those as exports gave checkIconImports a false all-clear on
+  // root-barrel icon imports — which type-check but are `undefined` at
+  // runtime — letting 9 broken chunk code files through undetected.
+  it('skips `never`-typed deprecation tombstones, keeping real exports', () => {
+    const dts = [
+      '/** @deprecated `ArrowUpIcon` is no longer exported from the root entry (removed in v5) */',
+      'declare const ArrowUpIcon: never;',
+      'declare const RealIcon: ForwardRefExoticComponent<Props>;',
+    ].join('\n');
+    const s = parseIconExports(dts);
+    expect(s.has('ArrowUpIcon')).toBe(false);
+    expect(s.has('RealIcon')).toBe(true);
+  });
+
+  it('flags a root-barrel import once the tombstones are excluded', () => {
+    const v5Dts = 'declare const ArrowUpIcon: never;\ndeclare const ArrowDownIcon: never;';
+    const exports = parseIconExports(v5Dts);
+    expect(exports.size).toBe(0);
+    const errors = checkIconImports(
+      [{ identifier: 'stat-card', code: "import { ArrowUpIcon } from '@acme/icons'" }],
+      exports,
+      ICON_PKG,
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('ArrowUpIcon');
+  });
 });
 
 describe('checkIconImports', () => {
@@ -129,5 +158,14 @@ describe('example-vs-API consistency (R4)', () => {
 describe('integration: check-integrity script', () => {
   it.runIf(process.env.DSDS_PATHS)('passes on the configured design system', () => {
     execFileSync('node', ['scripts/check-integrity.js'], { cwd: ROOT, stdio: 'pipe' }); // throws on exit 1
+  });
+});
+
+// Namespaced kinds include a dot (2026-10-13): the pattern stopped at it and
+// checked `sanity` for a brief that named `sanity.chunk`.
+describe('checkKindReferences — namespaced kinds', () => {
+  it('reads the whole namespaced kind', () => {
+    expect(checkKindReferences('call it with kind: sanity.chunk', new Set(['sanity.chunk']))).toEqual([]);
+    expect(checkKindReferences('call it with kind=dsds.asset', new Set(['component']))[0]).toContain('"kind=dsds.asset"');
   });
 });

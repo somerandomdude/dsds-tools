@@ -36,52 +36,52 @@ describe('resolveConfig', () => {
 
   it('loads a JSON config file and resolves relative paths against its directory', async () => {
     writeFileSync(join(dir, 'dsds.config.json'), JSON.stringify({
-      paths: ['./docs/system.dsds.json'],
+      paths: ['./docs/system.dsds.yaml'],
       lintPlugins: ['eslint-plugin-x'],
       packageExportPaths: { '@acme/ui': './node_modules/@acme/ui' },
       enableFeedback: false,
     }));
     const config = await resolveConfig({ cwd: dir });
     expect(config.meta.configFile).toBe(resolve(dir, 'dsds.config.json'));
-    expect(config.paths).toEqual([resolve(dir, 'docs/system.dsds.json')]);
+    expect(config.paths).toEqual([resolve(dir, 'docs/system.dsds.yaml')]);
     expect(config.lintPlugins).toEqual(['eslint-plugin-x']);
     expect(config.packageExportPaths.get('@acme/ui')).toBe(resolve(dir, 'node_modules/@acme/ui'));
     expect(config.enableFeedback).toBe(false);
   });
 
   it('loads an .mjs config file', async () => {
-    writeFileSync(join(dir, 'dsds.config.mjs'), `export default { paths: ['./a.dsds.json'], iconPackage: '@acme/icons' };\n`);
+    writeFileSync(join(dir, 'dsds.config.mjs'), `export default { paths: ['./a.dsds.yaml'], iconPackage: '@acme/icons' };\n`);
     const config = await resolveConfig({ cwd: dir });
-    expect(config.paths).toEqual([resolve(dir, 'a.dsds.json')]);
+    expect(config.paths).toEqual([resolve(dir, 'a.dsds.yaml')]);
     expect(config.iconPackage).toBe('@acme/icons');
   });
 
   it('discovers the config file by walking up from a nested cwd', async () => {
-    writeFileSync(join(dir, 'dsds.config.json'), JSON.stringify({ paths: ['./root.dsds.json'] }));
+    writeFileSync(join(dir, 'dsds.config.json'), JSON.stringify({ paths: ['./root.dsds.yaml'] }));
     const nested = join(dir, 'a', 'b', 'c');
     mkdirSync(nested, { recursive: true });
     const config = await resolveConfig({ cwd: nested });
     expect(config.meta.configFile).toBe(resolve(dir, 'dsds.config.json'));
-    expect(config.paths).toEqual([resolve(dir, 'root.dsds.json')]);
+    expect(config.paths).toEqual([resolve(dir, 'root.dsds.yaml')]);
   });
 
   it('lets environment variables win per key over the file', async () => {
     writeFileSync(join(dir, 'dsds.config.json'), JSON.stringify({
-      paths: ['./from-file.dsds.json'],
+      paths: ['./from-file.dsds.yaml'],
       lintPlugins: ['eslint-plugin-from-file'],
     }));
-    process.env['DSDS_PATHS'] = '/from/env.dsds.json';
+    process.env['DSDS_PATHS'] = '/from/env.dsds.yaml';
     const config = await resolveConfig({ cwd: dir });
-    expect(config.paths).toEqual(['/from/env.dsds.json']);           // env wins
+    expect(config.paths).toEqual(['/from/env.dsds.yaml']);           // env wins
     expect(config.lintPlugins).toEqual(['eslint-plugin-from-file']); // file fills the rest
   });
 
   it('honors an explicit configPath option', async () => {
     const custom = join(dir, 'custom.config.json');
-    writeFileSync(custom, JSON.stringify({ paths: ['./x.dsds.json'] }));
+    writeFileSync(custom, JSON.stringify({ paths: ['./x.dsds.yaml'] }));
     const config = await resolveConfig({ cwd: tmpdir(), configPath: custom });
     expect(config.meta.configFile).toBe(custom);
-    expect(config.paths).toEqual([resolve(dir, 'x.dsds.json')]);
+    expect(config.paths).toEqual([resolve(dir, 'x.dsds.yaml')]);
   });
 
   it('honors the DSDS_CONFIG environment variable', async () => {
@@ -102,10 +102,10 @@ describe('resolveConfig', () => {
 
   it('reports an unparseable file as an error and falls back to env', async () => {
     writeFileSync(join(dir, 'dsds.config.json'), '{ not json');
-    process.env['DSDS_PATHS'] = '/env/wins.dsds.json';
+    process.env['DSDS_PATHS'] = '/env/wins.dsds.yaml';
     const config = await resolveConfig({ cwd: dir });
     expect(config.meta.configFileError).toContain('failed to load');
-    expect(config.paths).toEqual(['/env/wins.dsds.json']);
+    expect(config.paths).toEqual(['/env/wins.dsds.yaml']);
   });
 
   it('accepts comma-separated strings for list keys', async () => {

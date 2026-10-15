@@ -22,5 +22,7 @@ jobs:
       - run: npm ci
       - name: Test all workspaces
         run: npm test
+      - name: Complexity check
+        run: npm run lint:complexity
       - name: Integrity guard (version check)
         run: npm run check:integrity

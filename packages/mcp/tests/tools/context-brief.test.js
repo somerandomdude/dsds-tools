@@ -34,15 +34,15 @@ describe('contextBriefHandler', () => {
 
     it('includes entity counts when systems are loaded', async () => {
       const { systems } = await loadSystems([
-        `${fixturesDir}/button.dsds.json`,
-        `${fixturesDir}/tokens.dsds.json`,
+        `${fixturesDir}/button.dsds.yaml`,
+        `${fixturesDir}/tokens.dsds.yaml`,
       ]);
       const result = await contextBriefHandler({ useCase: 'build' }, ...makeGetters(systems));
       expect(result.content[0].text).toContain('4 entities loaded');
     });
 
     it('lists deprecated entities as warnings', async () => {
-      const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.json`]);
+      const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.yaml`]);
       const result = await contextBriefHandler({ useCase: 'build' }, ...makeGetters(systems));
       expect(result.content[0].text).toContain('deprecated');
       expect(result.content[0].text).toContain('color-grey-100');
@@ -52,7 +52,7 @@ describe('contextBriefHandler', () => {
   describe('author use case', () => {
     it('returns the author brief', async () => {
       const result = await contextBriefHandler({ useCase: 'author' }, () => [], () => []);
-      expect(result.content[0].text).toContain('Before you author');
+      expect(result.content[0].text).toContain('DSDS Authoring Briefing');
       expect(result.isError).toBeFalsy();
     });
 
@@ -65,7 +65,7 @@ describe('contextBriefHandler', () => {
     });
 
     it('does not include system status section', async () => {
-      const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+      const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
       const result = await contextBriefHandler({ useCase: 'author' }, ...makeGetters(systems));
       // author brief never shows system status
       expect(result.content[0].text).not.toContain('entities loaded');
@@ -88,11 +88,29 @@ describe('contextBriefHandler', () => {
     });
 
     it('includes system status so answers reflect what is loaded', async () => {
-      const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.json`]);
+      const { systems } = await loadSystems([`${fixturesDir}/tokens.dsds.yaml`]);
       const result = await contextBriefHandler({ useCase: 'ask' }, ...makeGetters(systems));
       expect(result.content[0].text).toContain('entities loaded');
       // deprecated entities must be surfaced so they aren't recommended
       expect(result.content[0].text).toContain('color-grey-100');
     });
+  });
+});
+
+// The spec's status vocabulary is open. A fixed `draft` bucket went empty when
+// a corpus said `unavailable`, and those entries left the brief silently.
+describe('contextBriefHandler — status groups', () => {
+  it('lists every non-stable status under its own word', async () => {
+    const summaries = [
+      { identifier: 'tabs', kind: 'component', status: 'unavailable' },
+      { identifier: 'toast', kind: 'component', status: 'unavailable' },
+      { identifier: 'select', kind: 'component', status: 'beta' },
+      { identifier: 'box', kind: 'component', status: 'stable' },
+    ];
+    const text = (await contextBriefHandler({ useCase: 'build' }, () => [{ entities: [] }], () => summaries)).content[0].text;
+    expect(text).toContain('### Status: unavailable (2)');
+    expect(text).toMatch(/- `tabs`\n- `toast`/);
+    expect(text).toContain('### Status: beta (1)');
+    expect(text).not.toContain('### Status: stable');
   });
 });

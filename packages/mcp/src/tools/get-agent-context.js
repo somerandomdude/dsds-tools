@@ -1,19 +1,31 @@
+import { formatInlineLinks } from '../inline-links.js';
 import { getUpdateNotice } from '../spec/version.js';
+import { noDocumentsConfiguredBrief } from '../setup-guidance.js';
+import { notFoundMessage, entityIdentifiers } from '../suggest.js';
 import { resolvePropValues, isBooleanProp } from '../prop-types.js';
-import { renderApi20, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render-0.20.0.js';
+import { findSharedPropGroups, findSharedRules, renderApi20, renderSharedPropGroups, renderSharedRules, renderCombos20, renderExtensions20, renderSections20, renderSourceAndImports20, renderTraits20 } from '../spec/render.js';
+import { notFoundError } from '../errors.js';
+import { renderTable } from '../render/table.js';
+import { accessRecord } from '../logger.js';
+import { renderAssetMembers } from '../icon-catalog.js';
+
+/** Entry kind for telemetry — 0.20+ entries carry `kind`, older ones do not. */
+const entityKindOf = e => e.kind ?? e.entityKind ?? undefined;
 
 export const getAgentContextDef = {
   name: 'dsds_get_agent_context',
   description:
     'Get the agent-facing context for an entity — its agent-only document blocks (agentDocumentBlocks), the props table, and the hard constraints from its guidelines. ' +
     'This is the most LLM-optimized content in a DSDS document. Use it to understand the rules and edge cases for an entity before building with it. ' +
-    'Returns a compact view by default (agent rules + props); pass verbose:true only if you need the full human documentation (use-case prose, sections, code examples).',
+    'Returns a compact view by default (agent rules + props); pass verbose:true only if you need the full human documentation (use-case prose, sections, code examples). ' +
+    'Pass every component you are about to use in one call: `identifier` takes a list, and each entity is returned in its own section.',
   inputSchema: {
     type: 'object',
     properties: {
       identifier: {
-        type: 'string',
-        description: 'The entity identifier or name.',
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Entity identifiers or names, e.g. ["button", "card", "text"]. A single string is accepted too.',
       },
       verbose: {
         type: 'boolean',
@@ -24,109 +36,14 @@ export const getAgentContextDef = {
   },
 };
 
-const asText = v => (typeof v === 'string' ? v : (v?.value ?? ''));
+const asText = v => formatInlineLinks(typeof v === 'string' ? v : (v?.value ?? ''));
 
-function renderGuidelines(block, lines) {
-  for (const item of block.items ?? []) {
-    const level = item.level ? `**${item.level}** — ` : '';
-    lines.push(`- ${level}${asText(item.guidance)}`);
-    if (item.rationale) lines.push(`  - Why: ${asText(item.rationale)}`);
-    if (item.evidence) lines.push(`  - Evidence: ${item.evidence}`);
-    for (const c of item.criteria ?? []) {
-      lines.push(`  - Criterion \`${c.identifier}\`: ${asText(c.statement)}`);
-    }
-  }
-  lines.push('');
-}
 
-function renderUseCases(block, lines) {
-  if (block.purpose) lines.push(asText(block.purpose), '');
-  for (const uc of block.items ?? []) {
-    const stance = uc.stance === 'discouraged' ? 'Avoid when' : 'Use when';
-    let line = `- **${stance}:** ${asText(uc.description)}`;
-    if (uc.alternative?.identifier) {
-      line += ` → use \`${uc.alternative.identifier}\` instead`;
-      if (uc.alternative.rationale) line += ` (${asText(uc.alternative.rationale)})`;
-    }
-    lines.push(line);
-  }
-  lines.push('');
-}
 
-function renderSectionItem(section, lines) {
-  if (section.title) lines.push(`**${section.title}**`, '');
-  if (section.body) lines.push(asText(section.body), '');
-  for (const ex of section.examples ?? []) {
-    if (ex.description) lines.push(ex.description, '');
-    if (ex.presentation?.kind === 'code') {
-      lines.push('```' + (ex.presentation.language ?? ''), ex.presentation.code, '```', '');
-    }
-  }
-  for (const sub of section.sections ?? []) {
-    renderSectionItem(sub, lines);
-  }
-}
 
-function renderSections(block, lines) {
-  for (const section of block.items ?? []) {
-    renderSectionItem(section, lines);
-  }
-}
 
-function renderApi(block, lines) {
-  lines.push('| Prop | Type | Required | Description |');
-  lines.push('|------|------|----------|-------------|');
-  for (const prop of block.properties ?? []) {
-    const req = prop.required ? 'yes' : '—';
-    const type = prop.type ? `\`${prop.type}\`` : '—';
-    lines.push(`| \`${prop.identifier}\` | ${type} | ${req} | ${asText(prop.description ?? '')} |`);
-  }
-  lines.push('');
-}
 
-// Lead with the closed value sets (tone, numeric scales, booleans) as hard
-// constraints. These are the props agents most often get wrong by carrying over
-// values from other libraries (e.g. Button tone="positive", Card padding/radius)
-// — surfacing the exact allowed values up front, not buried in the prop table,
-// is the cheapest way to prevent those build failures.
-function renderConstraints(apiBlock, lines) {
-  if (!apiBlock) return false;
-  const rows = [];
-  for (const prop of apiBlock.properties ?? []) {
-    if (!prop?.identifier) continue;
-    // Spec-authority order: schema.enum → values → type-string parse.
-    const union = resolvePropValues(prop);
-    if (union) {
-      const values = union.map(m => (m.isNumber ? m.value : `"${m.value}"`)).join(' | ');
-      rows.push(`- \`${prop.identifier}\` — exactly one of: ${values}`);
-    } else if (isBooleanProp(prop)) {
-      rows.push(`- \`${prop.identifier}\` — boolean: {true} | {false}`);
-    }
-  }
-  if (rows.length === 0) return false;
-  lines.push(
-    '## Allowed prop values — hard constraints',
-    '',
-    'These props accept a CLOSED set of values. Use EXACTLY one of the listed values; any other value (including ones valid in other libraries) is a build error. String values are quoted, numbers go in braces (e.g. `padding={3}`, `tone="critical"`).',
-    '',
-    ...rows,
-    '',
-  );
-  return true;
-}
 
-function renderBlock(block, lines) {
-  switch (block.kind) {
-    case 'guidelines': lines.push('## Rules', ''); renderGuidelines(block, lines); break;
-    case 'useCases': lines.push('## When to use', ''); renderUseCases(block, lines); break;
-    case 'sections': renderSections(block, lines); break;
-    case 'api': lines.push('## Props', ''); renderApi(block, lines); break;
-    case 'imports': break; // skip — trivial (just the import statement)
-    case 'accessibility': break; // skip — verbose keyboard/criteria detail not needed for code generation
-    default:
-      lines.push(`## ${block.kind}`, '', '```json', JSON.stringify(block, null, 2), '```', '');
-  }
-}
 
 // Real 0.20.0 agent context: traits/combos ARE the hard constraints (no
 // separate "allowed prop values" derivation needed — they're already a
@@ -135,165 +52,207 @@ function renderBlock(block, lines) {
 // Compact (default) renders `for: agent`/`for: all` sections only — a
 // `for: human` section is prose for people, not something an agent needs
 // to spend context on before writing code. Verbose renders everything.
-function renderAgentContext20(found, verbose, getGraph, propsConfig) {
+function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = true, sharedPropGroups = null, sharedRules = null } = {}) {
   const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
   if (found.description) lines.push(asText(found.description), '');
 
-  renderTraits20(found.traits, lines);
-  renderCombos20(found.combos, lines);
-  renderSourceAndImports20(found, lines);
-  renderApi20(found, lines, propsConfig);
+  // `parts` tracks the generated views this response actually carried, so the
+  // log distinguishes "read Card's props" from "read Card's guidelines".
+  const parts = [];
+  const mark = (name, before) => { if (lines.length > before) parts.push(name); };
 
+  let at = lines.length;
+  renderTraits20(found.traits, lines); mark('traits', at);
+  at = lines.length;
+  renderCombos20(found.combos, lines); mark('combos', at);
+  at = lines.length;
+  renderSourceAndImports20(found, lines); mark('imports', at);
+  at = lines.length;
+  renderApi20(found, lines, propsConfig, { sharedPropGroups }); mark('api', at);
+
+  // Only what this entry points at. The reverse list — every entry that points
+  // here — was dropped on 2026-10-08: for core components it ran to ~20 lines
+  // (Box, Flex, Text are used by most chunks), about 10k characters per
+  // 26-component lookup, and in that day's run no agent found a chunk through
+  // it. Dropped from dsds_get_entity too.
   const graph = getGraph ? getGraph() : null;
   if (graph) {
     const deps = graph.out.get(found.identifier) ?? [];
-    const dependents = graph.in.get(found.identifier) ?? [];
-    if (deps.length || dependents.length) {
+    if (deps.length) {
       lines.push('## Relationships', '');
-      if (deps.length) {
-        lines.push('**This depends on / composes:**');
-        for (const r of deps) lines.push(`- ${r.relation} → \`${r.target}\`${r.required ? ' (required)' : ''}`);
-      }
-      if (dependents.length) {
-        lines.push(`**Used by ${dependents.length} entit${dependents.length === 1 ? 'y' : 'ies'}:**`);
-        for (const r of dependents) lines.push(`- ${r.via} ← \`${r.target}\`${r.required ? ' **(breaking)**' : ''}`);
-      }
+      lines.push('**This points at:**');
+      for (const r of deps) lines.push(`- ${r.relation} → \`${r.target}\`${r.required ? ' (required)' : ''}`);
       lines.push('');
+      parts.push('relationships');
     }
   }
 
-  const sections = found.sections ?? [];
-  const sectionCtx = { filePath: found.__filePath, sharedEntries: found.__sharedEntries };
+  let sections = found.sections ?? [];
+  // An asset entry (an icon set, a logo set) lists its members in its first
+  // definitions section. Render them compactly; the rest renders as usual.
+  if (found.kind === 'dsds.asset') {
+    renderAssetMembers(found, lines, { verbose });
+    const members = sections.find((s) => s.kind === 'definitions');
+    sections = sections.filter((s) => s !== members);
+  }
+  // Extension content the server is configured to leave out of this view
+  // (`agentContextOmit`). Verbose returns everything.
+  const omit = verbose ? [] : (propsConfig?.agentContextOmit ?? []);
+  const omittedNames = [];
+  const sectionCtx = { filePath: found.__filePath, sharedEntries: found.__sharedEntries, omit, omittedNames, sharedRules };
+  // Mirrors renderSections20's own audience filter — the served set, not the
+  // declared set, is what the access log records.
+  const served = verbose ? sections : sections.filter((s) => s.for === 'agent' || s.for === 'all');
+  let omitted = 0;
   if (sections.length === 0) {
-    lines.push('*No sections defined for this entry.*');
+    if (found.kind !== 'dsds.asset') lines.push('*No sections defined for this entry.*');
   } else if (verbose) {
     renderSections20(sections, lines, sectionCtx);
   } else {
-    renderSections20(sections, lines, { ...sectionCtx, audience: 'agent' });
-    const omitted = sections.filter((s) => s.for === 'human').length;
+    renderSections20(sections, lines, { ...sectionCtx, audience: 'agent', forBuild: true });
+    omitted = sections.filter((s) => s.for === 'human').length;
     if (omitted > 0) {
       lines.push(`> ${omitted} human-only section(s) omitted for brevity. Call dsds_get_agent_context with verbose:true if you need them.`, '');
     }
   }
-  renderExtensions20(found.$extensions, lines, { heading: '## Tool data' });
+  // Extensions render in full, including migration guides.
+  //
+  // These were gated behind `verbose` to save ~13% of payload, on the
+  // reasoning that a v3-to-v5 migration guide is useless to an agent building
+  // something new. Two runs afterwards failed to build on v3 prop names, and
+  // the correction for one of them — `flexGrow` for a v3 `flex` — existed
+  // only in the gated content. The payload saving is not worth removing the
+  // v3-to-v5 prop mapping from what an agent reads.
+  //
+  // `renderExtensions20` still takes `compact`; flip this to `!verbose` to
+  // restore the gate if a measurement says the saving was fine after all.
+  //
+  // `forBuild` is the narrower cut made instead (2026-10-07): it keeps the
+  // prop mapping and breaking changes and drops the codemod and the prose
+  // that restates the mapping. See PORTING_ONLY_KEYS in spec/render.js.
+  renderExtensions20(found.$extensions, lines, { heading: '## Tool data', compact: false, forBuild: !verbose, omit, omittedNames });
+  if (omittedNames.length > 0) {
+    const kinds = [...new Set(omittedNames)].map((n) => `\`${n}\``).join(', ');
+    lines.push(`> Left out by this server's configuration: ${kinds}. Call dsds_get_agent_context with verbose:true if you need it.`, '');
+  }
 
-  const notice = getUpdateNotice();
-  if (notice) lines.push(notice);
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  const update = notice ? getUpdateNotice() : null;
+  if (update) lines.push(update);
+  const text = lines.join('\n');
+  return {
+    content: [{ type: 'text', text }],
+    access: accessRecord({
+      identifier: found.identifier,
+      name: found.name,
+      entityKind: entityKindOf(found),
+      sections: served,
+      parts,
+      omitted,
+      mode: verbose ? 'verbose' : 'compact',
+      chars: text.length,
+    }),
+  };
 }
 
+function findEntity(systems, identifier) {
+  const needle = String(identifier).toLowerCase();
+  for (const system of systems) {
+    const entity = system.entities.find(
+      e => e.identifier?.toLowerCase() === needle || e.name?.toLowerCase() === needle
+    );
+    if (entity) return entity;
+  }
+  return null;
+}
+
+/**
+ * Entries rendered for an agent: rules and props, audience-filtered, compact
+ * by default.
+ *
+ * `identifier` takes one id or a list. The list exists because the lookup is
+ * mandatory per component: in the 2026-09-23 14.22 run agents made 15–17 of
+ * these calls per iteration, one component at a time, and imported 87–96% of
+ * what they looked up. The cost was round-trips, not wasted reads. A list
+ * turns those into one call, with each entity in its own section.
+ */
 export async function getAgentContextHandler({ identifier, verbose = false }, getSystems, getGraph = null, propsConfig = null) {
   const systems = getSystems();
   if (systems.length === 0) {
     return {
       isError: true,
-      content: [{ type: 'text', text: 'No DSDS files configured. Set the `DSDS_PATHS` environment variable.' }],
+      content: [{ type: 'text', text: noDocumentsConfiguredBrief() }],
     };
   }
 
-  const needle = identifier.toLowerCase();
-  let found = null;
+  const requested = [...new Set((Array.isArray(identifier) ? identifier : [identifier])
+    .filter((id) => typeof id === 'string' && id.trim())
+    .map((id) => id.trim()))];
 
-  for (const system of systems) {
-    const entity = system.entities.find(
-      e => e.identifier?.toLowerCase() === needle || e.name?.toLowerCase() === needle
-    );
-    if (entity) { found = entity; break; }
-  }
-
-  if (!found) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: `Entity "${identifier}" not found. Use dsds_list_entities to see available identifiers.` }],
-    };
-  }
-
-  if (found.__dsds20) return renderAgentContext20(found, verbose, getGraph, propsConfig);
-
-  const agentBlocks = found.agentDocumentBlocks ?? [];
-  const docBlocks = found.documentBlocks ?? [];
-
-  if (agentBlocks.length === 0 && docBlocks.length === 0) {
-    const lines = [
-      `# ${found.name ?? found.identifier} — no agent context defined`,
-      '',
-      'This entity has no `agentDocumentBlocks` and no `documentBlocks`.',
-      '',
-      'Add an `agentDocumentBlocks` array — it accepts the same document block kinds as `documentBlocks` but is intended for agent (AI/LLM) consumption only and is never rendered for humans. Typical content:',
-      '- A `guidelines` block with generation constraints (`level`: must/must-not, optional `rationale`)',
-      '- A `useCases` block disambiguating this entity from confusable ones (discouraged items with `alternative`)',
-      '- A `sections` block with ready-to-use code examples',
-    ];
-    return { content: [{ type: 'text', text: lines.join('\n') }] };
-  }
-
-  const lines = [
-    `# ${found.name ?? found.identifier} — Agent Context`,
-    '',
-  ];
-
-  if (found.description) {
-    lines.push(asText(found.description), '');
-  }
-
-  // Lead with the closed value sets (tone/scale/boolean) — the constraints
-  // agents most often violate. Derived from the same api block rendered below.
-  renderConstraints(docBlocks.find(b => b.kind === 'api'), lines);
-
-  // Blast radius up front: what this entity needs (dependencies) and what would
-  // break if you change it (dependents). Derived from the relationship graph.
-  const graph = getGraph ? getGraph() : null;
-  if (graph) {
-    const deps = graph.out.get(found.identifier) ?? [];
-    const dependents = graph.in.get(found.identifier) ?? [];
-    if (deps.length || dependents.length) {
-      lines.push('## Relationships', '');
-      if (deps.length) {
-        lines.push('**This depends on / composes:**');
-        for (const r of deps) lines.push(`- ${r.relation} → \`${r.target}\`${r.required ? ' (required)' : ''}`);
-      }
-      if (dependents.length) {
-        const breaking = dependents.filter(d => d.required);
-        lines.push(`**Used by ${dependents.length} entit${dependents.length === 1 ? 'y' : 'ies'}** — changing this affects them${breaking.length ? `; ${breaking.length} depend on it as required (breaking)` : ''}:`);
-        for (const r of dependents) lines.push(`- ${r.via} ← \`${r.target}\`${r.required ? ' **(breaking)**' : ''}`);
-      }
-      lines.push('');
+  if (requested.length <= 1) {
+    const one = requested[0] ?? '';
+    const found = findEntity(systems, one);
+    if (!found) {
+      return notFoundError({
+        label: 'Entity',
+        input: one,
+        candidates: entityIdentifiers(systems),
+        listHint: '`dsds_list_entities`',
+      });
     }
-  } else if (found.relationships?.length) {
-    lines.push('## Relationships', '');
-    for (const r of found.relationships) {
-      const req = r.required ? ' (required)' : '';
-      const role = r.role ? ` — ${r.role}` : '';
-      lines.push(`- ${r.relation} → \`${r.target}\`${role}${req}`);
-    }
-    lines.push('');
+    return renderAgentContext20(found, verbose, getGraph, propsConfig);
   }
 
-  if (agentBlocks.length > 0) {
-    lines.push('## Agent-optimized context', '');
-    for (const block of agentBlocks) renderBlock(block, lines);
+  // A batch never fails as a whole: a typo in one id must not cost the agent
+  // the other fifteen. Misses are listed at the top, with suggestions, so they
+  // are seen before the agent writes code against a component it never read.
+  const rendered = [];
+  const missing = [];
+  const seen = new Set();
+  const entities = [];
+  for (const id of requested) {
+    const found = findEntity(systems, id);
+    if (!found) { missing.push(id); continue; }
+    if (seen.has(found.identifier)) continue;
+    seen.add(found.identifier);
+    entities.push({ id, found });
+  }
+  // Prop groups several of these components share, listed once at the top
+  // (see findSharedPropGroups in spec/render.js).
+  const sharedPropGroups = propsConfig ? findSharedPropGroups(entities.map((e) => e.found), propsConfig) : new Map();
+  // Shared rules several of them point to, given in full once at the top
+  // (see findSharedRules in spec/render.js).
+  const sharedRules = findSharedRules(entities.map((e) => e.found), { audience: verbose ? null : 'agent' });
+  for (const { id, found } of entities) {
+    rendered.push({ id, ...renderAgentContext20(found, verbose, getGraph, propsConfig, { notice: false, sharedPropGroups, sharedRules }) });
   }
 
-  // Compact (default): only the props table from documentBlocks — props are
-  // essential for correct code, the rest (use-case prose, sections, examples)
-  // is verbose and accumulates in context. Verbose: render everything.
-  const docBlocksToRender = docBlocks.filter(b => b.kind !== 'imports' && b.kind !== 'accessibility');
-  if (verbose) {
-    if (docBlocksToRender.length > 0) {
-      lines.push('## Full component documentation', '');
-      for (const block of docBlocksToRender) renderBlock(block, lines);
+  const out = [];
+  if (missing.length) {
+    const candidates = entityIdentifiers(systems);
+    out.push(`> **Not found (${missing.length}):**`);
+    for (const id of missing) {
+      out.push(`> - \`${id}\` — ${notFoundMessage({ label: 'Entity', input: id, candidates, listHint: '`dsds_list_entities`' }).replace(/\n+/g, ' ')}`);
     }
-  } else {
-    const apiBlock = docBlocksToRender.find(b => b.kind === 'api');
-    if (apiBlock) renderBlock(apiBlock, lines);
-    const omitted = docBlocksToRender.filter(b => b.kind !== 'api').map(b => b.kind);
-    if (omitted.length > 0) {
-      lines.push(`> ${omitted.length} more documentation block(s) omitted for brevity (${omitted.join(', ')}). Call dsds_get_agent_context with verbose:true, or dsds_get_document_block, if you need them.`, '');
-    }
+    out.push('');
   }
+  out.push(`Agent context for ${rendered.length} entit${rendered.length === 1 ? 'y' : 'ies'}: ${rendered.map((r) => `\`${r.access.identifier}\``).join(', ')}.`, '');
+  if (sharedRules.size) {
+    const block = [];
+    renderSharedRules(sharedRules, block, { forBuild: !verbose });
+    out.push(...block);
+  }
+  if (sharedPropGroups.size) {
+    const block = [];
+    renderSharedPropGroups(sharedPropGroups, block);
+    out.push(...block);
+  }
+  for (const r of rendered) out.push('---', '', r.content[0].text, '');
+  const update = getUpdateNotice();
+  if (update) out.push(update);
 
-  const notice = getUpdateNotice();
-  if (notice) lines.push(notice);
-
-  return { content: [{ type: 'text', text: lines.join('\n') }] };
+  return {
+    ...(rendered.length === 0 ? { isError: true } : {}),
+    content: [{ type: 'text', text: out.join('\n') }],
+    access: rendered.map((r) => ({ ...r.access, ...(r.id.toLowerCase() !== String(r.access.identifier).toLowerCase() ? { requested: r.id } : {}), batch: requested.length })),
+  };
 }

@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { loadSystems } from '../../src/loader.js';
 import { getChunkHandler } from '../../src/tools/get-chunk.js';
 
-// Real sanity.chunk entries name their code via a `rel: file` pointer to a
-// sibling non-YAML file, rather than inlining it — this was previously
-// unhandled (dsds_get_chunk only recognized legacy kind:'chunk'/'blueprint'
-// and a `code.code` field neither of which exist on real 0.20.0 chunks).
+// Real sanity.chunk entries name their code via a `rel: source` pointer to a
+// sibling non-YAML file (`rel: file` before 0.22.0), rather than inlining it.
+// dsds_get_chunk once only recognized legacy kind:'chunk'/'blueprint' and a
+// `code.code` field, neither of which exist on a real chunk.
 const CHUNK_YAML = `
 id: test-chunk
 kind: sanity.chunk
@@ -16,15 +16,13 @@ name: Test Chunk
 description: A chunk for testing.
 metadata:
   status: {status: stable}
-related:
+uses:
+  - to: box
+alternatives:
   - to: some-other-chunk
-    rel: alternative-to
 refs:
   - href: ./code/test-chunk.tsx
-    rel: file
-    role: source
-  - to: box
-    rel: composes
+    rel: source
 sections:
   - kind: guidelines
     for: all
@@ -58,7 +56,7 @@ describe('getChunkHandler — real 0.20.0 (sanity.chunk)', () => {
     expect(result.isError).toBeFalsy();
   });
 
-  it('resolves and renders the sibling code file named via a rel:file ref', async () => {
+  it('resolves and renders the sibling code file named via a rel: source ref', async () => {
     const { systems } = await loadSystems([chunkPath]);
     const result = await getChunkHandler({ identifier: 'test-chunk' }, () => systems);
     const text = result.content[0].text;
@@ -66,12 +64,19 @@ describe('getChunkHandler — real 0.20.0 (sanity.chunk)', () => {
     expect(text).toContain("export const TestChunk");
   });
 
-  it('renders relationships derived from both related and refs', async () => {
+  it('renders relationships from the named pointer fields (uses, alternatives)', async () => {
     const { systems } = await loadSystems([chunkPath]);
     const result = await getChunkHandler({ identifier: 'test-chunk' }, () => systems);
     const text = result.content[0].text;
     expect(text).toContain('**alternative-to** `some-other-chunk`');
-    expect(text).toContain('**composes** `box`');
+    expect(text).toContain('**uses** `box`');
+  });
+
+  it('still reads a code file written the 0.21 way, as rel: file', async () => {
+    writeFileSync(chunkPath, CHUNK_YAML.replace('rel: source', 'rel: file'));
+    const { systems } = await loadSystems([chunkPath]);
+    const result = await getChunkHandler({ identifier: 'test-chunk' }, () => systems);
+    expect(result.content[0].text).toContain('export const TestChunk');
   });
 
   it('renders sections (guidelines) instead of the legacy useCases/guidelines fields', async () => {

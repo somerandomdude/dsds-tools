@@ -1,5 +1,5 @@
-id: example-extensions-only
 kind: component
+id: example-extensions-only
 name: Example Extensions Only
 description: A component with no sourceFiles/traits/sections — only $extensions.
 $extensions:

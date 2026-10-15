@@ -1,24 +1,36 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { suggestIcons } from '../icon-suggest.js';
+import { resolveIconGuidance } from '../icon-catalog.js';
 
 export const checkExportsDef = {
   name: 'dsds_check_exports',
   description:
-    'Check whether specific components or exports actually exist in a configured package. Use this before importing a component — catches cases where docs describe a component that the package has not yet shipped. Read-only: returns which names exist; does NOT modify packages, install anything, or write files. Requires PACKAGE_EXPORT_PATHS to be configured.',
+    'Check whether specific components or exports actually exist in a configured package. Use this before importing a component — catches cases where docs describe a component that the package has not yet shipped. ' +
+    'Icons are checked too: pass an icon name (`CogIcon`) to get the subpath to import it from, or a subpath import specifier (`@sanity/icons/Cog`) to confirm it exists. ' +
+    'Read-only: returns which names exist; does NOT modify packages, install anything, or write files. Requires PACKAGE_EXPORT_PATHS to be configured.',
   inputSchema: {
     type: 'object',
     properties: {
       components: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Component or export names to check, e.g. ["Box", "TextInput", "Badge"].',
+        description: 'Component, export or icon names, or subpath import specifiers, e.g. ["Box", "TextInput", "CogIcon", "@sanity/icons/Cog"].',
       },
     },
     required: ['components'],
   },
 };
 
-export function checkExportsHandler({ components }, getExportPaths) {
+/** Report which of the named components the configured packages actually export. */
+export function checkExportsHandler({ components }, getExportPaths, getIconConfig = () => ({})) {
+  // An agent sometimes sends the same name twice; answer it once.
+  components = [...new Set(components)];
+  // Icon guidance comes from the docs' icon asset entry when one is loaded,
+  // else from the TSV; resolved lazily, only if an icon needs suggestions.
+  const iconConfig = getIconConfig() ?? {};
+  const iconPackage = iconConfig.iconPackage ?? null;
+  const loadGuidance = () => resolveIconGuidance(iconConfig).guidelines;
   const packagePaths = getExportPaths();
 
   if (packagePaths.size === 0) {
@@ -59,7 +71,50 @@ export function checkExportsHandler({ components }, getExportPaths) {
 
   const lines = ['## Export check', ''];
 
+  // Every icon the icon package really has. @sanity/icons keeps each name at
+  // its root typed `never`, so the deprecated-to-never set is the full list.
+  const iconExports = iconPackage ? packageExports.get(iconPackage) : null;
+  const allIcons = iconExports
+    ? [...new Set([...iconExports.deprecated.keys(), ...[...iconExports.names].filter((n) => /Icon$/.test(n))])]
+    : [];
+  const iconSubpath = (name) => `${iconPackage}/${name.replace(/Icon$/, '')}`;
+  let iconGuidelines = null;
+  const iconLines = [];
+
+  const subpaths = new Map(); // pkgName → Set of subpaths, or null when it has no exports map
+  const subpathsOf = (pkgName) => {
+    if (!subpaths.has(pkgName)) subpaths.set(pkgName, readSubpathExports(packagePaths.get(pkgName)));
+    return subpaths.get(pkgName);
+  };
+
   for (const name of components) {
+    // A subpath import specifier, e.g. `@sanity/icons/Cog`. Agents could not
+    // check these before (2026-10-07: "dsds_check_exports only checks the
+    // package root, so subpath icon names could not be verified").
+    const pkgName = [...packagePaths.keys()]
+      .filter((p) => name.startsWith(`${p}/`))
+      .sort((a, b) => b.length - a.length)[0];
+    if (pkgName) {
+      const rest = name.slice(pkgName.length + 1);
+      const known = subpathsOf(pkgName);
+      const isIconPkg = pkgName === iconPackage;
+      if (known === null) {
+        lines.push(`? **${name}** — \`${pkgName}\` has no \`exports\` map in its package.json, so its subpaths cannot be checked.`);
+      } else if (known.has(`./${rest}`)) {
+        lines.push(`✓ **${name}** — subpath exists${isIconPkg ? `; it exports \`${rest}Icon\`` : ''}`);
+      } else if (isIconPkg && allIcons.length) {
+        iconGuidelines ??= loadGuidance();
+        const suggestions = suggestIcons(`${rest}Icon`, allIcons, iconGuidelines);
+        const hint = suggestions.length
+          ? ` Did you mean ${suggestions.map((s) => `\`${iconSubpath(s.name)}\``).join('; ')}?`
+          : ' No close match — check the icon guidelines for the icon that fits the purpose.';
+        lines.push(`✗ **${name}** — no such subpath in \`${pkgName}\`.${hint}`);
+      } else {
+        lines.push(`✗ **${name}** — no such subpath in \`${pkgName}\``);
+      }
+      continue;
+    }
+
     const found = [];
     const deprecated = []; // { pkgName, note }
     const notFound = [];
@@ -73,15 +128,49 @@ export function checkExportsHandler({ components }, getExportPaths) {
       }
     }
 
+    // A real icon: say where to import it from. It used to be reported as a
+    // warning ("deprecated to `never`; will not compile"), which agents read as
+    // the icon being broken — 23 feedback items across 13 runs.
+    const iconAtRoot = iconPackage && deprecated.find((d) => d.pkgName === iconPackage);
+    if (found.length === 0 && iconAtRoot) {
+      // The subpath is derived from the name, so confirm the package really
+      // ships it. A package with no exports map cannot be checked; say nothing.
+      const known = subpathsOf(iconPackage);
+      const sub = `./${name.replace(/Icon$/, '')}`;
+      if (known && !known.has(sub)) {
+        lines.push(`✗ **${name}** — listed at the \`${iconPackage}\` root, but \`${iconSubpath(name)}\` does not exist`);
+        continue;
+      }
+      iconLines.push(name);
+      lines.push(`✓ **${name}** — import from \`${iconSubpath(name)}\``);
+      continue;
+    }
+
     if (found.length > 0) {
       lines.push(`✓ **${name}** — exported from ${found.map(p => `\`${p}\``).join(', ')}`);
     } else if (deprecated.length > 0) {
       for (const { pkgName, note } of deprecated) {
         lines.push(`⚠ **${name}** — present in \`${pkgName}\`'s types but deprecated to \`never\`; importing it will not compile. ${note}`);
       }
+    } else if (allIcons.length && /Icon$/.test(name)) {
+      iconGuidelines ??= loadGuidance();
+      const suggestions = suggestIcons(name, allIcons, iconGuidelines);
+      const hint = suggestions.length
+        ? ` Did you mean ${suggestions
+            .map((s) => `\`${s.name}\`${s.purpose ? ` (${s.purpose.replace(/\.$/, '')})` : ''} — \`${iconSubpath(s.name)}\``)
+            .join('; ')}?`
+        : ' No close match — check the icon guidelines for the icon that fits the purpose.';
+      lines.push(`✗ **${name}** — not an icon in \`${iconPackage}\`.${hint}`);
     } else {
       lines.push(`✗ **${name}** — not found in ${notFound.map(p => `\`${p}\``).join(', ')}`);
     }
+  }
+
+  if (iconLines.length) {
+    lines.splice(2, 0,
+      `> Each icon is imported from its own subpath, e.g. \`import { ${iconLines[0]} } from '${iconSubpath(iconLines[0])}'\`. ` +
+      `The \`${iconPackage}\` root still lists every icon name, typed \`never\`, so a root import does not compile.`,
+      '');
   }
 
   if (packageErrors.length > 0) {
@@ -90,6 +179,20 @@ export function checkExportsHandler({ components }, getExportPaths) {
   }
 
   return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
+/**
+ * The subpaths a package's `exports` map declares (`./Cog`, …), or null when
+ * it has no map. Never throws: an unreadable package.json reads as no map.
+ */
+export function readSubpathExports(pkgPath) {
+  try {
+    const { exports } = JSON.parse(readFileSync(join(pkgPath, 'package.json'), 'utf8'));
+    if (!exports || typeof exports !== 'object') return null;
+    return new Set(Object.keys(exports).filter((k) => k.startsWith('./')));
+  } catch {
+    return null;
+  }
 }
 
 function readPackageExports(pkgPath) {

@@ -24,7 +24,7 @@ import { loadSystems } from '../src/loader.js';
 import { BUNDLED_VERSION } from '../src/spec/version.js';
 import { BUILD_BRIEF } from '../src/briefs.js';
 import {
-  checkExampleProps, checkIconImports, checkKindReferences, checkVersions, parseIconExports, readmeVersions,
+  checkExampleProps, checkIconImports, checkKindReferences, checkVersions, legacySchemaVersion, parseIconExports, readmeVersions,
 } from '../src/integrity.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -78,7 +78,10 @@ if (allEntities.length) {
 // ── R3: one spec version across version.js, config, README, DSDS files ───────
 const versionSources = [{ label: 'config default (DSDS_SCHEMA_VERSION)', version: cfg.schemaVersion }];
 try {
-  versionSources.push(...readmeVersions(readFileSync(join(ROOT, 'README.md'), 'utf8')));
+  // The README's JSON examples document the legacy model, which is pinned to
+  // whatever the bundled legacy schema says it is — not to the current spec.
+  const legacy = legacySchemaVersion(JSON.parse(readFileSync(join(ROOT, 'src/spec/dsds.bundled.schema.json'), 'utf8')));
+  versionSources.push(...readmeVersions(readFileSync(join(ROOT, 'README.md'), 'utf8'), legacy));
 } catch { /* no README */ }
 for (const p of cfg.paths) {
   try {

@@ -1,0 +1,41 @@
+schemaVersion: "0.22.0"
+
+name: Test Design System
+
+entries:
+  - kind: component
+    id: button
+    name: Button
+    description: Triggers an action.
+    metadata:
+      tags: [action, form]
+      status: {status: stable}
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must
+            statement: Give every Button an accessible name.
+          - level: should-not
+            statement: Do not use a Button for navigation. Use a Link instead.
+    traits:
+      - traitType: variant
+        values: [default, primary, critical]
+        id: tone
+        description: The Button's semantic tone.
+
+  - kind: component
+    id: card
+    name: Card
+    description: Groups related content on a surface.
+    metadata:
+      tags: [layout, surface]
+      status: {status: stable}
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: should
+            statement: Keep a Card's content to one subject.

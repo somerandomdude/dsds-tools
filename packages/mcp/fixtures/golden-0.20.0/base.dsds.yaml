@@ -1,13 +1,37 @@
-schemaVersion: "0.20.0"
+schemaVersion: "0.22.0"
 name: Golden Fixture System
 
 entries:
-  - id: full-featured
-    kind: component
+  - kind: component
+    id: full-featured
     name: Full Featured
     description: Exercises extensions, examples, and same-as resolution together.
+    sections:
+      - kind: guidelines
+        for: all
+        framing: how-to-use
+        items:
+          - level: must
+            statement: Pair with an onChange handler.
+            example:
+              title: Controlled Example
+              description: Ties the component to state.
+              ref:
+                href: ./code/example.tsx
+                rel: source
+            $extensions:
+              acme.item-level:
+                note: item-level extension
+          - level: should
+            refs:
+              - to: shared-a11y#focus-visible
+                rel: same-as
+        $extensions:
+          acme.section-level:
+            note: section-level extension
     traits:
-      - kind: boolean
+      - traitType: state
+        kind: boolean
         id: loading
         description: Shows a spinner.
     $extensions:
@@ -20,32 +44,9 @@ entries:
         nodeId: "1:1"
       acme.custom:
         note: unrecognized namespace, must still render
-    sections:
-      - kind: guidelines
-        for: all
-        framing: how-to-use
-        $extensions:
-          acme.section-level:
-            note: section-level extension
-        items:
-          - statement: Pair with an onChange handler.
-            level: must
-            example:
-              title: Controlled Example
-              description: Ties the component to state.
-              ref:
-                href: ./code/example.tsx
-                rel: file
-            $extensions:
-              acme.item-level:
-                note: item-level extension
-          - level: should
-            refs:
-              - to: shared-a11y#focus-visible
-                rel: same-as
 
-  - id: nested-freeform
-    kind: sanity.foundation
+  - kind: sanity.foundation
+    id: nested-freeform
     name: Nested Freeform
     description: Exercises deeply nested freeform content.
     sections:
@@ -73,8 +74,8 @@ entries:
                       acme.freeform-level:
                         note: freeform-item-level extension
 
-  - id: custom-section-kind
-    kind: sanity.guide
+  - kind: sanity.guide
+    id: custom-section-kind
     name: Custom Section Kind
     description: Exercises humanization of an untitled custom section kind.
     sections:
@@ -84,8 +85,8 @@ entries:
           - title: Breaking change
             body: Something changed.
 
-  - id: novel-custom-kind
-    kind: acme.case-study
+  - kind: acme.case-study
+    id: novel-custom-kind
     name: Novel Custom Kind
     description: An entry kind with no dedicated renderer anywhere in the MCP.
     sections:
@@ -95,16 +96,16 @@ entries:
           - title: Overview
             body: Generic content rendered with no special-casing for this kind.
 
-  - id: showcase-example
-    kind: sanity.pattern
+  - kind: sanity.pattern
+    id: showcase-example
     name: Showcase Example
     description: Exercises a visual showcase (not a code ref).
     sections:
       - kind: guidelines
         for: all
         items:
-          - statement: Use this layout for empty states.
-            level: should
+          - level: should
+            statement: Use this layout for empty states.
             example:
               title: Empty State Screenshot
               showcase:
@@ -121,5 +122,5 @@ shared:
         for: all
         items:
           - id: focus-visible
-            statement: Focus must be visible at all times.
             level: must
+            statement: Focus must be visible at all times.

@@ -1,9 +1,8 @@
-import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { writeLog } from '../logger.js';
+import { requireFromProject } from './require-from-project.js';
 
 // Session-level lint result cache. An agent can pass { cacheKey, filename } instead of
 // { code, filename } on subsequent calls to avoid re-sending unchanged file content.
@@ -29,20 +28,7 @@ function pluginPrefix(packageName) {
   return packageName;
 }
 
-async function requirePlugin(packageName, resolveDir) {
-  const req = createRequire(resolve(resolveDir, 'package.json'));
-  try {
-    const mod = req(packageName);
-    return mod.default ?? mod;
-  } catch (err) {
-    if (err.code === 'ERR_REQUIRE_ESM') {
-      const resolved = req.resolve(packageName);
-      const mod = await import(pathToFileURL(resolved).href);
-      return mod.default ?? mod;
-    }
-    throw err;
-  }
-}
+const requirePlugin = requireFromProject;
 
 function rulesFromPlugin(prefix, plugin) {
   const recommended = plugin.configs?.recommended;
@@ -89,88 +75,108 @@ function inferLanguage(filename) {
   return 'js';
 }
 
-export const lintByPathDef = {
-  name: 'dsds_lint_by_path',
+export const lintDef = {
+  name: 'dsds_lint',
   description:
-    'Lint one or more files ALREADY WRITTEN TO DISK, given their paths. Reads each file from disk, ' +
-    'auto-applies fixable violations, and returns the corrected code plus any remaining violations. ' +
-    'Does NOT save, create, or modify files — it only reads them (the `apply` flag, for harness use, is the sole exception). ' +
-    'If a path does not exist it returns an error and tells you to persist the file first — it never creates the file for you. ' +
-    'Prefer this over dsds_lint_inline: pass paths, not source, so you never re-send file contents. ' +
-    'Use the `files` array to lint every file in one call. ' +
+    'Lint code against the design system\'s own ESLint rules. Returns findings only, never a rewritten file: ' +
+    'each finding that needs a change from you, and for fixable ones the exact lines to edit ' +
+    '(or, where the host applies fixes itself, a note to leave them alone). Re-emit only the files you change. ' +
+    'Pass `path` (or `files: [{path}]`) for code already written to disk — preferred, since you never re-send contents. ' +
+    'Pass `code` for a source string not yet on a disk. Nothing is ever written, created, or modified ' +
+    '(the `apply` flag, for harness use, is the sole exception). ' +
+    'A missing path returns an error telling you to persist the file first; it never creates the file for you. ' +
     'ONE PASS: a clean or auto-fixed result is FINAL — do not re-lint unchanged files to "confirm". ' +
     'Code produced by dsds_build_component is already design-system-valid — do not lint it. ' +
-    'Design-system rules fire on JSX; linting a stub with no JSX gives a false all-clear, so lint your finished component code.',
+    'Design-system rules fire on JSX; linting a stub with no JSX gives a false all-clear, so lint finished component code.',
   inputSchema: {
     type: 'object',
     properties: {
       files: {
         type: 'array',
-        description: 'Lint multiple on-disk files at once. Pass every file you wrote.',
+        description: 'Lint several files in one call. Each entry carries either `path` (on disk) or `code` (a string).',
         items: {
           type: 'object',
           properties: {
             path:     { type: 'string', description: 'Path to a file on disk, relative to the lint project root.' },
-            filename: { type: 'string', description: "Optional filename override for parser inference (e.g. 'App.tsx'). Defaults to the path." },
+            code:     { type: 'string', description: 'Source code to lint, when the file is not on disk.' },
+            filename: { type: 'string', description: "Filename for parser inference (e.g. 'App.tsx'). Defaults to the path." },
+            cacheKey: { type: 'string', description: 'Cache key from a previous result. Pass instead of `code` to skip re-sending unchanged content.' },
           },
-          required: ['path'],
         },
       },
       path: {
         type: 'string',
         description: 'Single-file mode: path to a file on disk, relative to the lint project root.',
       },
+      code: {
+        type: 'string',
+        description: 'Single-file mode: source code to lint, when the file is not on disk.',
+      },
       filename: {
         type: 'string',
-        description: 'Single-file mode: optional filename override for parser inference. Defaults to the path.',
+        description: "Single-file mode: filename for parser inference (e.g. 'Component.tsx').",
+      },
+      cacheKey: {
+        type: 'string',
+        description: 'Single-file mode: cache key from a previous call. Pass instead of `code`.',
       },
       apply: {
         type: 'boolean',
-        description: 'Harness/automation only: write auto-fixed code back to disk (lint as a non-skippable gate). Agents copy the corrected code from the response instead.',
+        description: 'Harness/automation only: write auto-fixed code back to disk (lint as a non-skippable gate). Agents make the listed line edits instead.',
       },
     },
   },
 };
 
-export const lintInlineDef = {
-  name: 'dsds_lint_inline',
-  description:
-    'Lint a source STRING in memory (read-only). Returns lint findings and auto-fixed code for you to copy into your files. ' +
-    'Does NOT save, create, or modify any file — nothing is written to disk and nothing is persisted. It only checks the text you pass; ' +
-    'the response reports how many characters were checked and confirms no file was touched. ' +
-    'For a file that is already on disk, use dsds_lint_by_path instead (pass the path, not the source). ' +
-    'Code produced by dsds_build_component is already design-system-valid — do not lint it. ' +
-    'Design-system rules fire on JSX; linting a stub with no JSX gives a false all-clear, so lint your finished component code.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      files: {
-        type: 'array',
-        description: 'Lint multiple source strings at once.',
-        items: {
-          type: 'object',
-          properties: {
-            code:     { type: 'string', description: 'Source code to lint. Required unless `cacheKey` is provided.' },
-            filename: { type: 'string', description: "Filename for parser inference (e.g. 'App.tsx')." },
-            cacheKey: { type: 'string', description: 'Cache key from a previous dsds_lint_inline result. Pass instead of `code` to skip re-sending unchanged content.' },
-          },
-        },
-      },
-      code: {
-        type: 'string',
-        description: 'Single-file mode: source code to lint. Use `files` when you have multiple.',
-      },
-      filename: {
-        type: 'string',
-        description: "Single-file mode: filename for parser inference (e.g. 'Component.tsx'). Defaults to Component.tsx.",
-      },
-      cacheKey: {
-        type: 'string',
-        description: 'Single-file mode: cache key from a previous call. Pass instead of `code` to skip re-sending unchanged content.',
-      },
-    },
-  },
-};
+// Last content linted per filename in this process, for "unchanged since
+// your last call". Keyed by the same hash as the result cache.
+const lastLinted = new Map();
+
+/**
+ * The line-level edits that turn `before` into `after`, as hunks of
+ * `{ line, removed, added }` numbered against `before`. A longest-common-
+ * subsequence diff: files here are hundreds of lines, so O(n·m) is fine.
+ */
+export function lineEdits(before, after) {
+  const a = before.split('\n');
+  const b = after.split('\n');
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const hunks = [];
+  let i = 0, j = 0, cur = null;
+  const flush = () => { if (cur) { hunks.push(cur); cur = null; } };
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) { flush(); i++; j++; continue; }
+    cur ??= { line: i + 1, removed: [], added: [] };
+    if (j < m && (i >= n || dp[i][j + 1] >= dp[i + 1][j])) { cur.added.push(b[j]); j++; }
+    else { cur.removed.push(a[i]); i++; }
+  }
+  flush();
+  return hunks;
+}
+
+const MAX_EDITS_SHOWN = 20;
+
+/** Hunks as a compact diff an agent can apply by hand. */
+function renderEdits(hunks, lang) {
+  const out = [];
+  for (const h of hunks.slice(0, MAX_EDITS_SHOWN)) {
+    out.push(`line ${h.line}:`, '```diff');
+    for (const l of h.removed) out.push(`- ${l}`);
+    for (const l of h.added) out.push(`+ ${l}`);
+    out.push('```');
+  }
+  if (hunks.length > MAX_EDITS_SHOWN) {
+    out.push(`…and ${hunks.length - MAX_EDITS_SHOWN} more edit${hunks.length - MAX_EDITS_SHOWN === 1 ? '' : 's'} of the same kinds.`);
+  }
+  void lang;
+  return out;
+}
 
 async function writeLintLog(logsDir, fileResults) {
   const relevant = fileResults.filter(f => f.messages?.length > 0 || f.fixed);
@@ -196,43 +202,30 @@ async function writeLintLog(logsDir, fileResults) {
 }
 
 /**
- * dsds_lint_by_path — lint files already written to disk, by path. Reads each
- * file; a missing path returns corrective coaching (this tool does not create files).
+ * Lint by path or by source string, or a mix of both in one `files` array.
+ *
+ * `mode` only affects framing: a by-path run can write fixes back with
+ * `apply`, and an in-memory run says explicitly that no file was touched.
+ * A call carrying any `path` is treated as by-path.
  */
-export async function lintByPathHandler(args, getLintConfig, logsDir = null) {
+export async function lintHandler(args, getLintConfig, logsDir = null) {
   const filesToLint = args.files?.length
-    ? args.files.map(f => ({ path: f.path, filename: f.filename }))
+    ? args.files.map(f => ({ path: f.path, code: f.code, filename: f.filename, cacheKey: f.cacheKey }))
     : args.path != null
       ? [{ path: args.path, filename: args.filename }]
-      : null;
+      : args.code != null || args.cacheKey != null
+        ? [{ code: args.code, filename: args.filename, cacheKey: args.cacheKey }]
+        : null;
 
   if (!filesToLint) {
     return {
       isError: true,
-      content: [{ type: 'text', text: 'Provide `path` (a file on disk) or `files: [{ path }]`. This tool lints files by path — to lint a source string without a file, use `dsds_lint_inline`.' }],
+      content: [{ type: 'text', text: 'Provide `path` (a file on disk), `code` (a source string), or `files: [{ path }]` / `files: [{ code }]`.' }],
     };
   }
-  return runLint(filesToLint, getLintConfig, { logsDir, apply: !!args.apply, mode: 'path' });
-}
 
-/**
- * dsds_lint_inline — lint a source string in memory. Read-only: nothing is read
- * from or written to disk. No `path` argument, so there is no illusion of persistence.
- */
-export async function lintInlineHandler(args, getLintConfig, logsDir = null) {
-  const filesToLint = args.files?.length
-    ? args.files.map(f => ({ code: f.code, filename: f.filename, cacheKey: f.cacheKey }))
-    : args.code != null || args.cacheKey != null
-      ? [{ code: args.code, filename: args.filename, cacheKey: args.cacheKey }]
-      : null;
-
-  if (!filesToLint) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: 'Provide `code` (a source string) or `files: [{ code }]`. This tool checks a string in memory — to lint a file already on disk, use `dsds_lint_by_path`.' }],
-    };
-  }
-  return runLint(filesToLint, getLintConfig, { logsDir, apply: false, mode: 'inline' });
+  const mode = filesToLint.some(f => f.path != null) ? 'path' : 'inline';
+  return runLint(filesToLint, getLintConfig, { logsDir, apply: mode === 'path' && !!args.apply, mode });
 }
 
 // Shared linter. `mode` is 'path' (entries have `path`) or 'inline' (entries
@@ -292,7 +285,7 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     }
   }));
 
-  if (Object.keys(loadedPlugins).length === 0) {
+  if (pluginNames.length > 0 && Object.keys(loadedPlugins).length === 0) {
     return {
       isError: true,
       content: [{
@@ -320,13 +313,23 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     }
   }
 
+  const hasEslintRules = Object.keys(loadedPlugins).length > 0;
+
   // fix: true — auto-apply all fixable violations; result.output holds the corrected code.
-  const eslint = new ESLint({
-    overrideConfigFile: true,
-    overrideConfig,
-    cwd: lintDir,
-    fix: true,
-  });
+  const eslint = hasEslintRules
+    ? new ESLint({
+        overrideConfigFile: true,
+        overrideConfig,
+        cwd: lintDir,
+        fix: true,
+      })
+    : null;
+  // A fix run reports only what is left, so the findings it fixed are
+  // invisible in its result. This second, no-fix pass names them, for the
+  // "fixable" part of the output.
+  const eslintReport = hasEslintRules
+    ? new ESLint({ overrideConfigFile: true, overrideConfig, cwd: lintDir, fix: false })
+    : null;
 
   // Warn the agent if it submitted stub files (no JSX → design-system rules won't fire)
   const stubFiles = detectStubFiles(filesToLint);
@@ -347,7 +350,7 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
             `"${file.path}" was not found (looked in ${lintDir}). ` +
             'This tool reads files; it does not create them. ' +
             'Make sure whatever process manages your files has persisted this one to disk, then re-run with just the path. ' +
-            'Do not pass the file contents here — dsds_lint_by_path only reads from disk (to lint a string without a file, use dsds_lint_inline).',
+            'Do not pass the file contents here — a `path` entry only reads from disk (to lint a string without a file, pass `code` instead of `path`).',
         });
         continue;
       }
@@ -372,16 +375,23 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     if (!file.code) {
       fileResults.push({
         filename, messages: [], fixedCode: null, fixed: false, cacheKey: null,
-        error: 'Provide either `code` (source) or `cacheKey` (from a previous dsds_lint_inline call).',
+        error: 'Provide either `code` (source) or `cacheKey` (from a previous dsds_lint call).',
       });
       continue;
     }
 
     const filePath = resolve(lintDir, filename);
+    // Cache key reflects the code the caller actually submitted, so a later
+    // call with the same cacheKey and no code gets the same result without
+    // re-running ESLint.
+    const originalCode = file.code;
+    const cacheKey = computeCacheKey(originalCode);
+
+
     try {
-      const results = await eslint.lintText(file.code, { filePath });
+      const results = hasEslintRules ? await eslint.lintText(file.code, { filePath }) : [];
       const r = results[0];
-      // output is only set when at least one fix was applied
+      // `output` is only set when ESLint applied a fix.
       const fixedCode = r?.output ?? null;
       const fixed = fixedCode !== null;
       // Harness mode: write the auto-fixed code back to the file on disk so the
@@ -397,10 +407,24 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
         column: m.column,
         fix: !!m.fix,
       }));
-      const cacheKey = computeCacheKey(file.code);
-      const result = { filename, messages, fixedCode, fixed, cacheKey };
+      let fixedMessages = [];
+      if (fixed && eslintReport) {
+        const before = (await eslintReport.lintText(originalCode, { filePath }))[0]?.messages ?? [];
+        const left = new Set(messages.map(m => `${m.ruleId}:${m.message}`));
+        fixedMessages = before
+          .filter(m => m.fix && !left.has(`${m.ruleId}:${m.message}`))
+          .map(m => ({ ruleId: m.ruleId, severity: m.severity, message: m.message, line: m.line, column: m.column }));
+      }
+      const edits = fixed ? lineEdits(originalCode, fixedCode) : [];
+      // Same file, same content as the last call in this process: say so
+      // rather than repeating the findings the agent already has.
+      const unchanged = lastLinted.get(filename) === cacheKey;
+      lastLinted.set(filename, cacheKey);
+      const result = {
+        filename, messages, fixedCode, fixed, cacheKey, fixedMessages, edits,
+      };
       storeCacheEntry(cacheKey, result);
-      fileResults.push(result);
+      fileResults.push(unchanged ? { ...result, unchanged: true } : result);
     } catch (err) {
       fileResults.push({ filename, error: err.message, messages: [], fixedCode: null, fixed: false, cacheKey: null });
     }
@@ -409,112 +433,62 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
   // Write log entry (best-effort, non-blocking)
   if (logsDir) writeLintLog(logsDir, fileResults);
 
-  // Render output
+  // Render output.
+  //
+  // Findings only — never a whole corrected file. The old output returned the
+  // full fixed source and told the agent to "apply the corrected code", so
+  // every lint call was followed by the agent re-emitting every file it had
+  // linted. On 2026-09-22 that roughly doubled output tokens for Haiku and
+  // Sonnet alike, and led the agent tester to hide this tool from both.
+  //
+  // A fixable finding is shown as the lines that change, or — when the host
+  // applies ESLint's fixes itself (`lintAutofixByHost`) — as a note to leave
+  // it alone. Output grows with the number of findings, not with file size.
   const lines = [];
-  const isBatch = filesToLint.length > 1;
-  const toolName = mode === 'path' ? 'dsds_lint_by_path' : 'dsds_lint_inline';
+  const toolName = 'dsds_lint';
+  const { autofixByHost = false } = getLintConfig();
 
   const totalRemaining = fileResults.reduce((n, f) => n + (f.messages?.length ?? 0), 0);
-  const filesFixed = fileResults.filter(f => f.fixed).length;
+  const totalFixable = fileResults.reduce((n, f) => n + (f.fixedMessages?.length ?? 0), 0);
   const filesWithErrors = fileResults.filter(f => f.error).length;
-  const filesClean = fileResults.filter(f => !f.error && !f.fixed && f.messages?.length === 0).length;
-  const filesAutoFixedClean = fileResults.filter(f => f.fixed && f.messages?.length === 0).length;
-  const filesWithRemaining = fileResults.filter(f => f.messages?.length > 0).length;
+  const filesUnchanged = fileResults.filter(f => f.unchanged).length;
 
-  if (isBatch) {
-    const allClean = totalRemaining === 0 && !fileResults.some(f => f.error);
-    if (allClean && filesFixed === 0) {
-      lines.push(`All ${fileResults.length} files lint clean.`);
-    } else if (allClean && filesFixed > 0) {
-      lines.push(
-        `All ${fileResults.length} files lint clean after auto-fix. ` +
-        `Apply the corrected code for ${filesFixed} file${filesFixed === 1 ? '' : 's'} below.`,
-        '',
-      );
-    } else {
-      const parts = [];
-      if (filesFixed > 0) parts.push(`${filesFixed} auto-fixed`);
-      if (filesClean > 0) parts.push(`${filesClean} clean`);
-      if (filesWithRemaining > 0) parts.push(`${filesWithRemaining} with remaining violations`);
-      if (filesWithErrors > 0) parts.push(`${filesWithErrors} error`);
-      lines.push(
-        `## Lint results — ${fileResults.length} file${fileResults.length === 1 ? '' : 's'} (${parts.join(', ')}), ` +
-        `${totalRemaining} remaining violation${totalRemaining === 1 ? '' : 's'}`,
-        '',
-      );
+  const sevOf = (m) => (m.severity === 2 ? 'error' : 'warn');
+  const header = [];
+  header.push(`${fileResults.length} file${fileResults.length === 1 ? '' : 's'} linted`);
+  if (totalFixable) header.push(`${totalFixable} fixable automatically`);
+  header.push(`${totalRemaining} need${totalRemaining === 1 ? 's' : ''} a change from you`);
+  if (filesWithErrors) header.push(`${filesWithErrors} could not be linted`);
+  lines.push(`## Lint results — ${header.join(', ')}`, '');
+
+  for (const f of fileResults) {
+    if (f.error) {
+      lines.push(`### \`${f.filename}\` — could not lint`, '', f.error, '');
+      continue;
     }
-
-    for (const f of fileResults) {
-      if (f.error) {
-        lines.push(`### \`${f.filename}\` — ESLint error`, '', f.error, '');
-        continue;
-      }
-
-      const lang = inferLanguage(f.filename);
-
-      if (f.fixed && f.messages.length === 0) {
-        lines.push(`### \`${f.filename}\` — all violations auto-fixed`, '');
-        lines.push('**Corrected code:**', '');
-        lines.push('```' + lang, f.fixedCode, '```', '');
-        continue;
-      }
-
-      if (f.fixed && f.messages.length > 0) {
-        lines.push(`### \`${f.filename}\` — ${f.messages.length} remaining violation${f.messages.length === 1 ? '' : 's'} (auto-fixes applied)`, '');
-        lines.push('**Corrected code** (apply this, then address the remaining violations below):', '');
-        lines.push('```' + lang, f.fixedCode, '```', '');
-        lines.push('**Remaining violations:**', '');
-        for (const m of f.messages) {
-          const sev = m.severity === 2 ? 'error' : 'warn';
-          lines.push(`#### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-          lines.push(m.message, '');
-        }
-        continue;
-      }
-
-      if (f.messages.length === 0) {
-        lines.push(`### \`${f.filename}\` — clean`, '');
-        continue;
-      }
-
-      lines.push(`### \`${f.filename}\` — ${f.messages.length} violation${f.messages.length === 1 ? '' : 's'}`, '');
-      for (const m of f.messages) {
-        const sev = m.severity === 2 ? 'error' : 'warn';
-        lines.push(`#### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-        lines.push(m.message, '');
+    if (f.unchanged) {
+      lines.push(`### \`${f.filename}\` — unchanged since your last ${toolName} call`, '',
+        'The result you already have still stands. Lint it again only after you change it.', '');
+      continue;
+    }
+    const fixable = f.fixedMessages ?? [];
+    if (!fixable.length && !f.messages.length) {
+      lines.push(`### \`${f.filename}\` — clean`, '');
+      continue;
+    }
+    lines.push(`### \`${f.filename}\``, '');
+    for (const m of f.messages) {
+      lines.push(`- ${m.line ? `**line ${m.line}** ` : ''}\`${m.ruleId ?? 'eslint'}\` [${sevOf(m)}] — ${m.message}`);
+    }
+    if (fixable.length) {
+      if (autofixByHost) {
+        lines.push(`- ${fixable.length} more finding${fixable.length === 1 ? '' : 's'} (${[...new Set(fixable.map(m => m.ruleId))].map(r => `\`${r}\``).join(', ')}) will be fixed automatically after your turn. Do not change or re-emit the file for ${fixable.length === 1 ? 'it' : 'them'}.`);
+      } else {
+        lines.push('', `**Fixable — make these line edits** (${fixable.length} finding${fixable.length === 1 ? '' : 's'}: ${[...new Set(fixable.map(m => m.ruleId))].map(r => `\`${r}\``).join(', ')}):`, '');
+        lines.push(...renderEdits(f.edits ?? [], inferLanguage(f.filename)));
       }
     }
-  } else {
-    // Single-file output
-    const { filename, messages, fixedCode, fixed, error } = fileResults[0];
-    const lang = inferLanguage(filename);
-
-    if (error) {
-      lines.push(`ESLint error: ${error}`);
-    } else if (fixed && messages.length === 0) {
-      lines.push('All violations were auto-fixed.', '');
-      lines.push('**Corrected code:**', '');
-      lines.push('```' + lang, fixedCode, '```');
-    } else if (fixed && messages.length > 0) {
-      lines.push(`## Lint results — ${messages.length} remaining violation${messages.length === 1 ? '' : 's'} (auto-fixes applied)`, '');
-      lines.push('**Corrected code** (apply this, then address the remaining violations below):', '');
-      lines.push('```' + lang, fixedCode, '```', '');
-      lines.push('**Remaining violations:**', '');
-      for (const m of messages) {
-        const sev = m.severity === 2 ? 'error' : 'warn';
-        lines.push(`### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-        lines.push(m.message, '');
-      }
-    } else if (messages.length === 0) {
-      lines.push('No lint issues found.');
-    } else {
-      lines.push(`## Lint results — ${messages.length} violation${messages.length === 1 ? '' : 's'}`, '');
-      for (const m of messages) {
-        const sev = m.severity === 2 ? 'error' : 'warn';
-        lines.push(`### \`${m.ruleId ?? 'unknown'}\` [${sev}] — line ${m.line}, col ${m.column}`, '');
-        lines.push(m.message, '');
-      }
-    }
+    lines.push('');
   }
 
   if (stubFiles.length > 0) {
@@ -535,12 +509,13 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
 
   // One-pass directive: when nothing is left to fix, tell the agent to stop here
   // rather than re-linting to "confirm" (which just re-sends the same code).
-  if (totalRemaining === 0 && filesWithErrors === 0) {
-    lines.push(
-      '',
-      `> ✓ One pass complete — apply the corrected code above and move on. Do NOT call ${toolName} again to confirm. ` +
-      'Lint again only if you change a file.',
-    );
+  if (filesWithErrors === 0) {
+    const next = totalRemaining > 0
+      ? 'Fix the findings above in the files named, and re-emit only those files.'
+      : autofixByHost || totalFixable === 0
+        ? 'Nothing needs a change from you.'
+        : 'Make the line edits above, and re-emit only the files they touch.';
+    lines.push('', `> ✓ One pass complete. ${next} Do NOT call ${toolName} again to confirm; lint again only if you change a file.`);
   }
 
   // Inline mode is read-only — make the no-persistence contract explicit so a
@@ -549,8 +524,8 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     const chars = filesToLint.reduce((n, f) => n + (typeof f.code === 'string' ? f.code.length : 0), 0);
     lines.push(
       '',
-      `> Checked ${chars} character${chars === 1 ? '' : 's'} in memory. No file was read or written — dsds_lint_inline does not persist anything. ` +
-      'To save a file, write it through whatever process manages your project; to lint a file already on disk, use dsds_lint_by_path.',
+      `> Checked ${chars} character${chars === 1 ? '' : 's'} in memory. No file was read or written — dsds_lint never persists anything. ` +
+      'To save a file, write it through whatever process manages your project; to lint a file already on disk, pass `path` instead of `code`.',
     );
   }
 
@@ -574,9 +549,11 @@ async function runLint(filesToLint, getLintConfig, { logsDir = null, apply = fal
     // the text above; the harness reads this.
     structuredContent: {
       remaining: totalRemaining,
+      fixable: totalFixable,
       files: fileResults.map((f) => ({
         filename: f.filename,
         fixed: !!f.fixed,
+        fixedMessages: f.fixedMessages ?? [],
         messages: f.messages ?? [],
         error: f.error ?? null,
       })),

@@ -14,8 +14,8 @@ const fixturesDir = resolve(__dirname, '../../fixtures');
 
 async function buildGetters() {
   const { systems } = await loadSystems([
-    `${fixturesDir}/button.dsds.json`,
-    `${fixturesDir}/tokens.dsds.json`,
+    `${fixturesDir}/button.dsds.yaml`,
+    `${fixturesDir}/tokens.dsds.yaml`,
   ]);
   return [() => systems, () => summarizeEntities(systems)];
 }

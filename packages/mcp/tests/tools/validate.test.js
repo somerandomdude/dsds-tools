@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateHandler } from '../../src/tools/validate.js';
+import { BUNDLED_VERSION } from '../../src/spec/version.js';
 
 // The legacy schema pins `dsdsVersion` to a const of '0.15.2', independent
 // of BUNDLED_VERSION (which now declares the MCP's default spec, 0.20.0).
@@ -12,25 +13,27 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const fixturesDir = resolve(__dirname, '../../fixtures');
 
 describe('validateHandler — auto-detects legacy JSON vs real 0.20.0 YAML', () => {
-  it('validates a legacy 0.15.2 JSON document', async () => {
+  // The 0.15.2 model is no longer served. A legacy document is a clear
+  // rejection rather than a silent validation against the wrong schema.
+  it('rejects a legacy 0.15.2 JSON document', async () => {
     const document = JSON.stringify({
       dsdsVersion: LEGACY_VERSION,
       entity: { kind: 'component', identifier: 'x', name: 'X' },
     });
     const result = await validateHandler({ document });
-    expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain('Valid DSDS Document');
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Not a DSDS');
   });
 
   it('validates a real 0.20.0 YAML document', async () => {
     const document = readFileSync(resolve(fixturesDir, 'button.dsds.yaml'), 'utf-8');
     const result = await validateHandler({ document });
     expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain('Valid DSDS 0.20.0 Document');
+    expect(result.content[0].text).toContain(`Valid DSDS ${BUNDLED_VERSION} Document`);
   });
 
   it('reports a real 0.20.0 semantic-rule violation with its [DSDS-XX] id', async () => {
-    const document = readFileSync(resolve(fixturesDir, 'invalid-0.20.0/DSDS-04-unique-entry-id.yaml'), 'utf-8');
+    const document = readFileSync(resolve(__dirname, '../fixtures/conformance-0.23.0/DSDS-04-unique-entry-id.yaml'), 'utf-8');
     const result = await validateHandler({ document });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('[DSDS-04]');

@@ -7,126 +7,131 @@ import { BUNDLED_VERSION } from './spec/version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/** Expand a leading `~` to the user's home directory. */
 function expandHome(p) {
   if (p === '~' || p.startsWith('~/')) return homedir() + p.slice(1);
   return p;
 }
 
-export function loadConfig() {
-  const rawPaths = process.env['DSDS_PATHS'];
-  const paths = rawPaths
-    ? rawPaths.split(',').map(p => expandHome(p.trim())).filter(Boolean)
-    : [];
+const asList = value =>
+  (value == null ? [] : Array.isArray(value) ? value : String(value).split(','))
+    .map(s => String(s).trim())
+    .filter(Boolean);
 
-  const rawLintPaths = process.env['LINT_PATHS'];
-  const lintPaths = rawLintPaths
-    ? rawLintPaths.split(',').map(p => expandHome(p.trim())).filter(Boolean)
-    : [];
+const isFalsy = v => /^(false|0|no|off)$/i.test(String(v).trim());
 
-  const rawLintPlugins = process.env['LINT_PLUGINS'];
-  const lintPlugins = rawLintPlugins
-    ? rawLintPlugins.split(',').map(p => p.trim()).filter(Boolean)
-    : [];
+// Every setting, once. Each row drives all three things the old file spelled
+// out separately: reading the environment, normalising a config-file value,
+// and answering "did the environment actually set this?".
+//
+//   kind  'list'     comma-separated or array, trimmed
+//         'pathList' a list, each entry home-expanded (and file-relative in a config file)
+//         'path'     one home-expanded path
+//         'string'   one trimmed string
+//         'bool'     true unless the value reads false/0/no/off
+//         'map'      "a=b,c=d" pairs, or an object in a config file; values are paths
+//         'enum'     one of `values`, falling back to `fallback`
+const SETTINGS = [
+  { key: 'paths',             env: 'DSDS_PATHS',                 kind: 'pathList' },
+  { key: 'introPaths',        env: 'DSDS_INTRO_PATHS',           kind: 'pathList', altEnv: 'DSDS_INTRO_PATH' },
+  { key: 'lintPaths',         env: 'LINT_PATHS',                 kind: 'pathList' },
+  { key: 'lintPlugins',       env: 'LINT_PLUGINS',               kind: 'list' },
+  // Extension content left out of dsds_get_agent_context's default view, as
+  // dotted paths: a namespace (`io.jev`) or one block inside it
+  // (`com.sanity.ui.migrationGuide`). The view says what it left out, and
+  // `verbose: true` still returns everything. For content that is right for
+  // some readers and noise for this server's: v3-to-v5 migration guides for an
+  // agent building on v5 alone, for example.
+  { key: 'agentContextOmit',  env: 'DSDS_AGENT_CONTEXT_OMIT',    kind: 'list' },
+  { key: 'lintResolveDir',    env: 'LINT_RESOLVE_DIR',           kind: 'path',   default: () => process.cwd() },
+  // The root of the project being linted, where the agent's files live. When
+  // set, a by-path lint resolves against it and ESLint runs with it as cwd,
+  // so files written there count as inside the base path. Plugins still
+  // resolve from lintResolveDir.
+  { key: 'lintSourceDir',     env: 'LINT_SOURCE_DIR',            kind: 'path',   default: () => null },
+  // The host applies ESLint's auto-fixes itself (the agent-tester lint gate
+  // does). When on, dsds_lint tells the agent to leave fixable findings alone
+  // instead of showing the edit for each.
+  { key: 'lintAutofixByHost', env: 'LINT_AUTOFIX_BY_HOST',       kind: 'bool',   default: () => false },
+  { key: 'packageExportPaths', env: 'PACKAGE_EXPORT_PATHS',      kind: 'map' },
+  // The package whose exports count as the icon set. Unset means no icon check.
+  { key: 'iconPackage',       env: 'ICON_PACKAGE',               kind: 'string' },
+  // A TSV of icon guidelines (Icon name, Alternative names, Purpose, …). When
+  // set, dsds_check_exports suggests real icons for a name that doesn't exist,
+  // by what the agent meant: `SettingsIcon` → `CogIcon` ("settings" alias).
+  { key: 'iconGuidelinesPath', env: 'ICON_GUIDELINES_PATH',      kind: 'path' },
+  // A checkout of the design system's source. Only used to tell whether a
+  // cached prop table has gone stale — unset disables that check, not prop
+  // serving itself (see spec/prop-extractor.js).
+  { key: 'uiSourceRoot',      env: 'DSDS_UI_SOURCE_ROOT',        kind: 'path' },
+  // A props-extractor tool directory (an `npm run all` producing
+  // out/dsds-extensions.json). Unset disables API-table serving.
+  { key: 'propsExtractorDir', env: 'DSDS_PROPS_EXTRACTOR_DIR',   kind: 'path' },
+  { key: 'feedbackDir',       env: 'DSDS_FEEDBACK_DIR',          kind: 'path',   default: () => resolve(__dirname, '../feedback') },
+  { key: 'logsDir',           env: 'DSDS_LOGS_DIR',              kind: 'path',   default: () => resolve(__dirname, '../logs') },
+  { key: 'enableFeedback',    env: 'DSDS_ENABLE_FEEDBACK',       kind: 'bool',   default: () => true },
+  // Inline renders intro entities in full (thousands of tokens); off injects
+  // a one-line index instead and agents pull the rest with dsds_get_entity.
+  { key: 'introInline',       env: 'DSDS_INTRO_INLINE',          kind: 'bool',   default: () => true },
+  // How hard the server pushes an agent to economise on lookups when an
+  // intro is inlined. `thorough` trades tokens for correctness; see
+  // plans/ for the measurement behind the default.
+  { key: 'researchMode',      env: 'RESEARCH_MODE',              kind: 'enum',   values: ['thorough', 'frugal'], fallback: 'thorough' },
+  { key: 'schemaVersion',     env: 'DSDS_SCHEMA_VERSION',        kind: 'string', default: () => BUNDLED_VERSION },
+];
 
-  const rawLintResolveDir = process.env['LINT_RESOLVE_DIR'];
-  const lintResolveDir = rawLintResolveDir ? expandHome(rawLintResolveDir.trim()) : process.cwd();
-
-  // LINT_SOURCE_DIR is the root of the project being linted (where the agent's
-  // files live). When set, `dsds_lint_by_path({ path })` resolves paths against it
-  // and ESLint runs with it as cwd, so files written there are "inside base
-  // path". Plugins are still resolved from LINT_RESOLVE_DIR. Defaults to the
-  // resolve dir (current behavior) when unset.
-  const rawLintSourceDir = process.env['LINT_SOURCE_DIR'];
-  const lintSourceDir = rawLintSourceDir ? expandHome(rawLintSourceDir.trim()) : null;
-
-  // DSDS_INTRO_PATHS accepts comma-separated paths; DSDS_INTRO_PATH is the legacy single-path alias.
-  const rawIntros = process.env['DSDS_INTRO_PATHS'] ?? process.env['DSDS_INTRO_PATH'];
-  const introPaths = rawIntros
-    ? rawIntros.split(',').map(p => expandHome(p.trim())).filter(Boolean)
-    : [];
-  const rawFeedbackDir = process.env['DSDS_FEEDBACK_DIR'];
-  const rawLogsDir = process.env['DSDS_LOGS_DIR'];
-
-  // Feedback is on by default; set DSDS_ENABLE_FEEDBACK to a falsy string
-  // (false/0/no/off) to remove the dsds_feedback tool and its instruction entirely.
-  const rawEnableFeedback = process.env['DSDS_ENABLE_FEEDBACK'];
-  const enableFeedback = rawEnableFeedback == null
-    ? true
-    : !/^(false|0|no|off)$/i.test(rawEnableFeedback.trim());
-
-  // Intro entities are injected into every system prompt. Inline (default) renders
-  // them in full (~thousands of tokens). Set DSDS_INTRO_INLINE to a falsy string to
-  // inject only a compact index (title + one-line each) instead — much smaller per
-  // prompt; agents can pull full content with dsds_get_entity when needed.
-  const rawIntroInline = process.env['DSDS_INTRO_INLINE'];
-  const introInline = rawIntroInline == null
-    ? true
-    : !/^(false|0|no|off)$/i.test(rawIntroInline.trim());
-
-  // PACKAGE_EXPORT_PATHS: comma-separated "packageName=packagePath" pairs.
-  // Example: @your-org/ui=/path/to/your-ui/packages/ui,@your-org/icons=/path/to/your-icons
-  const rawExportPaths = process.env['PACKAGE_EXPORT_PATHS'];
-  const packageExportPaths = new Map();
-  if (rawExportPaths) {
-    for (const entry of rawExportPaths.split(',').map(s => s.trim()).filter(Boolean)) {
-      const eqIdx = entry.indexOf('=');
-      if (eqIdx > 0) {
-        const pkgName = entry.slice(0, eqIdx).trim();
-        const pkgPath = expandHome(entry.slice(eqIdx + 1).trim());
-        if (pkgName && pkgPath) packageExportPaths.set(pkgName, pkgPath);
-      }
-    }
+function parseMapString(raw) {
+  const map = new Map();
+  for (const entry of asList(raw)) {
+    const eq = entry.indexOf('=');
+    if (eq <= 0) continue;
+    const name = entry.slice(0, eq).trim();
+    const path = expandHome(entry.slice(eq + 1).trim());
+    if (name && path) map.set(name, path);
   }
+  return map;
+}
 
-  // ICON_PACKAGE: the package name whose exports the integrity guard treats as the
-  // icon set (e.g. "@acme/icons"). When set, chunk code that imports from this
-  // package is checked against its real exports. Unset (default) → no icon check.
-  const rawIconPackage = process.env['ICON_PACKAGE'];
-  const iconPackage = rawIconPackage ? rawIconPackage.trim() : null;
+/** Read one setting from the environment, or its default when unset. */
+function fromEnv(setting) {
+  const raw = process.env[setting.env] ?? (setting.altEnv ? process.env[setting.altEnv] : undefined);
+  const fallback = setting.default ? setting.default() : (setting.kind === 'map' ? new Map() : setting.kind === 'list' || setting.kind === 'pathList' ? [] : null);
+  if (raw == null) return setting.kind === 'enum' ? setting.fallback : fallback;
 
-  // DSDS_UI_SOURCE_ROOT: repo root containing `packages/ui` for the design
-  // system's source (e.g. an `@sanity/ui` checkout). Used only to verify a
-  // 0.20.0 `sourceFiles` prop-table cache hasn't gone stale — unset disables
-  // freshness verification, not prop serving itself (see prop-extractor-0.20.0.js).
-  const rawUiSourceRoot = process.env['DSDS_UI_SOURCE_ROOT'];
-  const uiSourceRoot = rawUiSourceRoot ? expandHome(rawUiSourceRoot.trim()) : null;
+  switch (setting.kind) {
+    case 'list':     return asList(raw);
+    case 'pathList': return asList(raw).map(expandHome);
+    case 'path':     return expandHome(raw.trim());
+    case 'string':   return raw.trim();
+    case 'bool':     return !isFalsy(raw);
+    case 'map':      return parseMapString(raw);
+    case 'enum':     return setting.values.includes(raw.trim().toLowerCase()) ? raw.trim().toLowerCase() : setting.fallback;
+    default:         return raw;
+  }
+}
 
-  // DSDS_PROPS_EXTRACTOR_DIR: path to a sanity-ui-props-extractor-shaped tool
-  // (an `npm run all` script producing `out/dsds-extensions.json`). Unset
-  // disables 0.20.0 API-table serving entirely — components render without
-  // one, same as today.
-  const rawPropsExtractorDir = process.env['DSDS_PROPS_EXTRACTOR_DIR'];
-  const propsExtractorDir = rawPropsExtractorDir ? expandHome(rawPropsExtractorDir.trim()) : null;
-
-  return {
-    paths,
-    lintPaths,
-    lintPlugins,
-    lintResolveDir,
-    lintSourceDir,
-    introPaths,
-    packageExportPaths,
-    iconPackage,
-    uiSourceRoot,
-    propsExtractorDir,
-    enableFeedback,
-    introInline,
-    feedbackDir: rawFeedbackDir ? expandHome(rawFeedbackDir.trim()) : resolve(__dirname, '../feedback'),
-    logsDir: rawLogsDir ? expandHome(rawLogsDir.trim()) : resolve(__dirname, '../logs'),
-    schemaVersion: process.env['DSDS_SCHEMA_VERSION'] ?? BUNDLED_VERSION,
-  };
+/**
+ * The configuration as the environment describes it, with defaults filled in.
+ *
+ * @returns {object} one property per SETTINGS row, plus `logsDirExplicit`
+ *   (whether logging was actually asked for, as opposed to `logsDir` merely
+ *   holding its default — a long-lived server logs unconditionally, a
+ *   one-shot CLI must not).
+ */
+export function loadConfig() {
+  const out = {};
+  for (const setting of SETTINGS) out[setting.key] = fromEnv(setting);
+  out.logsDirExplicit = process.env['DSDS_LOGS_DIR'] != null;
+  return out;
 }
 
 // ── Project-local config file ─────────────────────────────────────────────────
 //
-// resolveConfig() layers a dsds.config.{mjs,js,json} file under the environment
-// variables: env vars win per key, file values fill the rest, loadConfig()'s
-// defaults fill whatever remains. Relative paths in the file resolve against
-// the file's own directory, so the config travels with the repo.
-//
-// File keys mirror the config object: paths, introPaths, lintPaths,
-// lintPlugins, lintResolveDir, lintSourceDir, packageExportPaths (object map),
-// iconPackage, feedbackDir, logsDir, enableFeedback, introInline, schemaVersion.
+// resolveConfig() layers a dsds.config.{mjs,js,json} file under the
+// environment: env vars win per key, file values fill the rest, defaults fill
+// whatever remains. Relative paths in the file resolve against the file's own
+// directory, so the config travels with the repo. File keys are the `key`
+// column of SETTINGS.
 
 export const CONFIG_FILENAMES = ['dsds.config.mjs', 'dsds.config.js', 'dsds.config.json'];
 
@@ -145,89 +150,52 @@ export function findConfigFile(startDir = process.cwd()) {
 }
 
 async function loadConfigFile(filePath) {
-  if (filePath.endsWith('.json')) {
-    return JSON.parse(await readFile(filePath, 'utf-8'));
-  }
+  if (filePath.endsWith('.json')) return JSON.parse(await readFile(filePath, 'utf-8'));
   const mod = await import(pathToFileURL(filePath).href);
   return mod.default ?? mod;
 }
 
-const asList = value =>
-  (value == null ? [] : Array.isArray(value) ? value : String(value).split(','))
-    .map(s => String(s).trim())
-    .filter(Boolean);
-
-function normalizeFileConfig(raw, fileDir) {
+/** Normalise one config-file value, resolving any path against the file's directory. */
+function fromFile(setting, value, fileDir) {
   const resolveFrom = p => resolve(fileDir, expandHome(String(p).trim()));
-  const pathList = v => asList(v).map(resolveFrom);
-  const out = {};
-  if (raw.paths != null) out.paths = pathList(raw.paths);
-  if (raw.introPaths != null) out.introPaths = pathList(raw.introPaths);
-  if (raw.lintPaths != null) out.lintPaths = pathList(raw.lintPaths);
-  if (raw.lintPlugins != null) out.lintPlugins = asList(raw.lintPlugins);
-  if (raw.lintResolveDir != null) out.lintResolveDir = resolveFrom(raw.lintResolveDir);
-  if (raw.lintSourceDir != null) out.lintSourceDir = resolveFrom(raw.lintSourceDir);
-  if (raw.packageExportPaths != null) {
-    const map = new Map();
-    for (const [pkg, pkgPath] of Object.entries(raw.packageExportPaths)) {
-      if (pkg && pkgPath) map.set(pkg, resolveFrom(pkgPath));
+  switch (setting.kind) {
+    case 'list':     return asList(value);
+    case 'pathList': return asList(value).map(resolveFrom);
+    case 'path':     return resolveFrom(value);
+    case 'string':   return String(value).trim();
+    case 'bool':     return !!value;
+    case 'enum':     return setting.values.includes(String(value).trim().toLowerCase()) ? String(value).trim().toLowerCase() : setting.fallback;
+    case 'map': {
+      const map = new Map();
+      for (const [name, path] of Object.entries(value ?? {})) {
+        if (name && path) map.set(name, resolveFrom(path));
+      }
+      return map;
     }
-    out.packageExportPaths = map;
+    default: return value;
   }
-  if (raw.iconPackage != null) out.iconPackage = String(raw.iconPackage).trim();
-  if (raw.uiSourceRoot != null) out.uiSourceRoot = resolveFrom(raw.uiSourceRoot);
-  if (raw.propsExtractorDir != null) out.propsExtractorDir = resolveFrom(raw.propsExtractorDir);
-  if (raw.feedbackDir != null) out.feedbackDir = resolveFrom(raw.feedbackDir);
-  if (raw.logsDir != null) out.logsDir = resolveFrom(raw.logsDir);
-  if (raw.enableFeedback != null) out.enableFeedback = !!raw.enableFeedback;
-  if (raw.introInline != null) out.introInline = !!raw.introInline;
-  if (raw.schemaVersion != null) out.schemaVersion = String(raw.schemaVersion);
-  return out;
-}
-
-// Which keys the environment explicitly provides (as opposed to defaulted).
-function envProvidedKeys() {
-  const has = name => process.env[name] != null;
-  return {
-    paths: has('DSDS_PATHS'),
-    lintPaths: has('LINT_PATHS'),
-    lintPlugins: has('LINT_PLUGINS'),
-    lintResolveDir: has('LINT_RESOLVE_DIR'),
-    lintSourceDir: has('LINT_SOURCE_DIR'),
-    introPaths: has('DSDS_INTRO_PATHS') || has('DSDS_INTRO_PATH'),
-    packageExportPaths: has('PACKAGE_EXPORT_PATHS'),
-    iconPackage: has('ICON_PACKAGE'),
-    uiSourceRoot: has('DSDS_UI_SOURCE_ROOT'),
-    propsExtractorDir: has('DSDS_PROPS_EXTRACTOR_DIR'),
-    enableFeedback: has('DSDS_ENABLE_FEEDBACK'),
-    introInline: has('DSDS_INTRO_INLINE'),
-    feedbackDir: has('DSDS_FEEDBACK_DIR'),
-    logsDir: has('DSDS_LOGS_DIR'),
-    schemaVersion: has('DSDS_SCHEMA_VERSION'),
-  };
 }
 
 /**
  * Resolve the effective configuration: env vars > config file > defaults.
  *
- * The file is looked up at `configPath` (or the DSDS_CONFIG env var) when
- * given, otherwise discovered by walking up from `cwd`. A missing or broken
- * file never throws — the error is reported in `meta.configFileError` and the
- * env/default configuration is returned, so a bad file can't take the MCP
- * server down.
+ * The file is looked up at `configPath` (or DSDS_CONFIG) when given, otherwise
+ * discovered by walking up from `cwd`. A missing or broken file never throws —
+ * the error lands in `meta.configFileError` and the env/default configuration
+ * is returned, so a bad file cannot take the server down.
  *
  * @returns {Promise<object>} the loadConfig() shape plus
  *   `meta: { configFile: string|null, configFileError: string|null }`
  */
 export async function resolveConfig({ cwd = process.cwd(), configPath = undefined } = {}) {
-  // Callers pass `configPath: null` to mean "no --config flag" — treat null
-  // and undefined alike so the DSDS_CONFIG env var applies in both cases
-  // (default parameters only fire on undefined, which silently disabled it).
+  // Callers pass `configPath: null` for "no --config flag" — treat null and
+  // undefined alike so DSDS_CONFIG applies in both cases (a default parameter
+  // only fires on undefined, which silently disabled it).
   configPath = configPath ?? process.env['DSDS_CONFIG'] ?? null;
   const envConfig = loadConfig();
   const meta = { configFile: null, configFileError: null };
 
-  let filePath = null;
+  let filePath;
   if (configPath) {
     filePath = resolve(cwd, expandHome(String(configPath).trim()));
     if (!existsSync(filePath)) {
@@ -240,18 +208,22 @@ export async function resolveConfig({ cwd = process.cwd(), configPath = undefine
   }
 
   meta.configFile = filePath;
-  let fileConfig;
+  let raw;
   try {
-    fileConfig = normalizeFileConfig((await loadConfigFile(filePath)) ?? {}, dirname(filePath));
+    raw = (await loadConfigFile(filePath)) ?? {};
   } catch (err) {
     meta.configFileError = `failed to load ${filePath}: ${err.message}`;
     return { ...envConfig, meta };
   }
 
-  const envProvided = envProvidedKeys();
+  const fileDir = dirname(filePath);
   const merged = { ...envConfig };
-  for (const [key, value] of Object.entries(fileConfig)) {
-    if (!envProvided[key]) merged[key] = value;
+  for (const setting of SETTINGS) {
+    const envSet = process.env[setting.env] != null || (setting.altEnv && process.env[setting.altEnv] != null);
+    if (envSet || raw[setting.key] == null) continue;
+    merged[setting.key] = fromFile(setting, raw[setting.key], fileDir);
   }
+  // A config file naming `logsDir` is as explicit a request as the env var.
+  merged.logsDirExplicit = process.env['DSDS_LOGS_DIR'] != null || raw.logsDir != null;
   return { ...merged, meta };
 }

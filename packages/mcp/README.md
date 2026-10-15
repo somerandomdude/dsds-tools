@@ -9,7 +9,9 @@ Three use cases:
 
 The DSDS spec is bundled at the version listed below. The server checks for updates on startup and surfaces a notice in tool responses when a newer version is available.
 
-**Bundled spec version:** 0.20.0
+**Bundled spec version:** 0.23.0
+
+Validation runs the spec's own reference validator, vendored with its schema in `src/spec/dsds-<version>/`, so `dsds_validate` reports exactly what `npx dsds-validate` would. Re-vendor a release with `npm run update-schema -- <path-to-spec-checkout>`.
 
 ---
 
@@ -189,12 +191,21 @@ Configuration is done via environment variables passed through your MCP client c
 | `DSDS_PATHS` | No | Comma-separated paths to your DSDS file(s). Required for design system access tools. |
 | `PACKAGE_EXPORT_PATHS` | No | Comma-separated `packageName=path` pairs pointing to each package root. Used by `dsds_check_exports` to verify components exist before importing. See below. |
 | `DSDS_INTRO_PATHS` | No | Comma-separated paths to DSDS files loaded as design system introductions. Content from each entity is prepended to the server instructions and exposed via the `dsds-intro` prompt. `DSDS_INTRO_PATH` (singular) still works as a single-path alias. |
-| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to `0.20.0`. |
+| `RESEARCH_MODE` | No | `thorough` (default) or `frugal`. How hard the server pushes an agent to economise on lookups when an intro is inlined. See [Research mode](#research-mode--thorough-or-frugal). |
+| `DSDS_SCHEMA_VERSION` | No | Override the spec version string. Defaults to the bundled version. |
 | `DSDS_FEEDBACK_DIR` | No | Directory where session feedback from `dsds_feedback` is written. Defaults to `feedback/` inside the dsds-mcp directory. |
 | `DSDS_LOGS_DIR` | No | Directory where the lint tools write per-session lint logs. Defaults to `logs/` inside the dsds-mcp directory. |
 | `LINT_PLUGINS` | No | Comma-separated ESLint plugin package names to use with the lint tools. Each name must be resolvable from `LINT_RESOLVE_DIR`. |
 | `LINT_RESOLVE_DIR` | No | Absolute path the plugin names are resolved from (Node module resolution is anchored here). Point it at a project that has the plugins in `node_modules/`, or at a standalone plugin's own directory (see [Linting code](#linting-code-with-eslint-plugins)). `~` is expanded. Defaults to the current working directory. |
 | `LINT_SOURCE_DIR` | No | Absolute path to the project whose code is being linted, used to resolve `dsds_lint_by_path({ path })` and as ESLint's working dir. Plugins are still resolved from `LINT_RESOLVE_DIR`. `~` is expanded. Defaults to unset. |
+| `LINT_UI_CODEMODS` | No | Opt in to the lint-time codemod pass. Off unless set to a truthy value. |
+| `LINT_UI_CODEMOD_PRESET` | No | Name of a preset under `src/codemod-presets/` supplying every field below — currently `sanity-ui`. Unknown names fail loudly at startup. |
+| `LINT_UI_CODEMOD_PACKAGE` | No | Package holding the jscodeshift transforms, resolved from `LINT_RESOLVE_DIR`. |
+| `LINT_UI_CODEMOD_TRANSFORMS` | No | Comma-separated transform names. Every name given is attempted. |
+| `LINT_UI_CODEMOD_TRANSFORM_PATH` | No | How the package exposes one transform as a module, with `<pkg>`/`<name>` placeholders, e.g. `<pkg>/transforms/latest/<name>`. Nothing resolves without it. |
+| `LINT_UI_CODEMOD_FROM_PACKAGE` | No | Import source the transforms migrate away from. |
+| `LINT_UI_CODEMOD_TO_PACKAGE` | No | Import source they migrate to. |
+| `LINT_UI_CODEMOD_TODO_MARKER` | No | Marker in the package's "double check this" comments, rewritten into a JSX-safe form. Omit to skip that pass. |
 
 ### Pointing at your design system
 
@@ -244,6 +255,77 @@ Each path can point to any file already in `DSDS_PATHS`, or to a separate docume
 The server renders content from both `documentBlocks` and `agentDocumentBlocks` when building the instructions text. Entities with `agentDocumentBlocks` will have their agent-optimized guidelines and sections included directly.
 
 `DSDS_INTRO_PATH` (singular) still works as a backward-compatible alias for a single path.
+
+An inlined intro is rendered before the tool catalog, so the guide is the first
+thing an agent reads.
+
+### Research mode — `thorough` or `frugal`
+
+`RESEARCH_MODE` sets how hard the server pushes an agent to economise on
+lookups once an intro is inlined. It has no effect with a compact index, since
+there is nothing inlined to economise against.
+
+| Mode | Behaviour |
+|---|---|
+| `thorough` (default) | No spending guidance. The agent verifies each component against the docs before using it. |
+| `frugal` | Adds a research budget to the instructions: use what the inlined guides state, prefer `dsds_get_document_block(identifier, "api")` over full agent context, and stop researching after roughly five lookups. |
+
+```json
+{
+  "mcpServers": {
+    "dsds": {
+      "command": "npx",
+      "args": ["dsds-mcp"],
+      "env": {
+        "DSDS_PATHS": "/path/to/my-design-system.dsds.json",
+        "DSDS_INTRO_PATHS": "/path/to/api-essentials.dsds.yaml",
+        "RESEARCH_MODE": "frugal"
+      }
+    }
+  }
+}
+```
+
+Or in `dsds.config.mjs`:
+
+```js
+export default {
+  paths: ['./my-design-system.dsds.yaml'],
+  introPaths: ['./overview/api-essentials.dsds.yaml'],
+  researchMode: 'frugal',
+}
+```
+
+#### Which to pick
+
+This is a trade, not an optimisation. Measured on a 5-iteration-per-arm agent
+build task with Opus, identical documentation in both modes:
+
+| Mode | Lookups / iteration | Tokens / iteration | Type errors (5 iterations) |
+|---|---:|---:|---:|
+| `thorough` | ~13 | ~199,000 | 2–5 |
+| `frugal` | ~4.6 | ~145,000 | ~23 |
+
+Roughly 54,000 tokens per iteration buys about a 5x reduction in type errors.
+Both modes completed every build; the difference is how much repair work the
+agent needed on the way.
+
+`thorough` is the default. An agent working unattended costs more in a failed
+build and a debugging session than it does in tokens. Choose `frugal` when a
+human is reviewing the output anyway, when the task is small enough that the
+API surface is already familiar, or when a token budget is the binding
+constraint.
+
+One caveat worth stating: inlining a guide does **not** by itself reduce
+lookups. Six attempts at that — expanding the guide, moving it above the tool
+catalog, adding an explicit exemption from the lookup rule — left lookups
+unchanged at ~13. Only the budget in `frugal` moved them, and it moved the
+error count with them. Knowledge tells an agent what is true; a budget tells it
+when to stop asking.
+
+### Referencing tokens in documentation text
+
+Reference a token the way DSDS does: its token entry's `id` in braces — `{space-3}`, `{color.action.primary}` — anywhere in a statement, description or freeform body. A reference names a documented `kind: token` entry, not a raw DTCG key, so a DTCG token no entry documents can't be referenced. The server serves it as "`space-3` (12px)", reading the value through the entry's `source`, so the value is never copied into the docs. Code spans, fenced blocks, and braces after `=` or `$` are left alone. `dsds doctor` fails on a reference that names no token and warns on pixel values in prose that duplicate one.
 
 ### Linting code with ESLint plugins
 
@@ -405,11 +487,12 @@ These help a team author DSDS-compliant documentation.
 | `dsds_spec_entity_schema` | Full field definitions for a given entity kind (`component`, `token`, `theme`, etc.) |
 | `dsds_spec_document_blocks` | Document block types valid for an entity kind, with descriptions |
 | `dsds_spec_scaffold` | Minimal valid DSDS JSON template for an entity kind. Use `kind="system"` for a multi-entity document |
-| `dsds_validate` | Validate a DSDS JSON string against the bundled schema |
+| `dsds_validate` | Validate a DSDS document with the spec's reference validator. Returns errors, warnings and documentation suggestions, each with its rule id |
+| `dsds_style_check` | Check a document against the authoring style guide. Returns it in field order, from the spec's `dsds-format` (comments kept), and flags sections, guideline items and entries out of reading order (`DSDS-18`, `DSDS-19`, `DSDS-21`). Advisory only — never changes what `dsds_validate` says |
 
 **Authoring workflow:**
 ```
-dsds_context_brief(useCase="author") → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate
+dsds_context_brief(useCase="author") → dsds_spec_entity_schema → dsds_spec_scaffold → dsds_spec_document_blocks → dsds_validate → dsds_style_check
 ```
 
 ### Design system tools — require `DSDS_PATHS`
@@ -424,6 +507,7 @@ These let agents query an existing DSDS document.
 | `dsds_get_entity` | Full documentation for an entity by identifier or name. Returns all `documentBlocks` and `agentDocumentBlocks`. |
 | `dsds_get_document_block` | One specific block (e.g. `api`, `accessibility`) from an entity — faster than fetching the full entity |
 | `dsds_get_agent_context` | Agent-optimized view of an entity. Leads with an **Allowed prop values** block — every closed value set (tones, numeric scales, booleans) as hard constraints, resolved from `schema.enum` → `values` → the `type` string. Then renders content from both `agentDocumentBlocks` and `documentBlocks` (guidelines, use cases, props, sections — minus verbose accessibility and import blocks). The primary tool for understanding how to use a component. |
+| `dsds_get_tokens` | Token names and values, read from the DTCG `.tokens.json` files the corpus references through each token entry's `source`. Look up by `names` (`space-3`, `--radius-2`), `group` (`space`, `typography`, `heading`, `blue`) or `query`. Each row gives the CSS custom property the package's CSS declares, the value, and the entry's description. No configuration: a file the docs stop referencing stops being served. CLI: `dsds tokens`. |
 
 | `dsds_build_component` | Interactive wizard for implementing a documented component: `step:"start"` lists every prop with its allowed values; `step:"finalize"` with an `answers` map returns type-valid JSX (numeric values braced, strings quoted, enum values validated). Value sets resolve `schema.enum` → `values` → `type` string, so systems documented either way get full options. Returns reference JSX only — it does not write files. |
 | `dsds_author_component_doc` | Guided wizard that authors a DSDS component-documentation JSON entity from scratch — no schema knowledge needed. |
@@ -458,6 +542,23 @@ dsds_context_brief(useCase="ask") → dsds_search_entities → dsds_get_agent_co
 | `dsds_feedback` | Submit a session rating (1–5) and notes on what worked or was confusing. Call this at the end of any session where you used DSDS tools. Written to `DSDS_FEEDBACK_DIR`. |
 
 ---
+
+## Codemod presets
+
+The lint tools can run jscodeshift codemods before ESLint, moving components from an old package to a new one. The runner is generic: which transforms to run, how the package lays out its transform modules, and what its TODO comments look like are all configuration.
+
+Design-system-specific knowledge lives in `src/codemod-presets/` as data, selected by name:
+
+```
+LINT_UI_CODEMODS=1
+LINT_UI_CODEMOD_PRESET=sanity-ui
+```
+
+A preset supplies the package, the from/to import sources, the transform-module template, the vetted transform list, and the TODO marker. Every field is a default — an explicit `LINT_UI_CODEMOD_*` variable always wins, so a preset is a starting point rather than a lock-in. Configure the fields individually and no preset is needed at all.
+
+Adding a design system means adding one file beside `sanity-ui.js` and registering it in that directory's `index.js`. Nothing in the runner, the config loader, or the tools changes.
+
+A preset is also where a transform gets *excluded*, with the reason recorded beside it. `sanity-ui` leaves out `card` and `label` because both were verified to produce wrong output, and that finding is worth keeping where the next reader will see it. The runner itself no longer vets anything: before 0.20.1 it filtered the caller's transform list against a hardcoded nine-name `@sanity/ui` allowlist, so any other design system could configure the pass completely and still silently get zero transforms.
 
 ## DSDS file format
 
@@ -503,6 +604,30 @@ Use it to add generation constraints, anti-patterns, and disambiguation notes wi
 
 ---
 
+## Architecture
+
+Everything this server advertises comes from `src/surface.js`. `createSurface()`
+returns all four MCP capability groups as one object, and `src/server.js` is a
+thin envelope of protocol handlers over it:
+
+```
+                    src/surface.js
+       ┌────────────┬───────┴───────┬──────────────────┐
+   registry.js   prompts.js     resources.js    instructions.js
+   tools +       prompt         dsds://entity/  the briefing sent
+   dispatch      catalog        resources       on connect
+       └────────────┴───────┬───────┴──────────────────┘
+                ┌───────────┴───────────┐
+          src/server.js            dsds-cli
+          MCP transport            shell transport
+          + watcher                one-shot, no watcher
+```
+
+The [dsds CLI](../cli) builds the same surface, which is why `dsds prompt`,
+`dsds resource`, and `dsds instructions` serve exactly what an MCP client
+receives. Put logic in the surface, not in a transport: anything defined in
+`server.js` is, by construction, unreachable from a shell.
+
 ## Development
 
 ```bash
@@ -511,19 +636,61 @@ npm test             # run tests once
 npm run test:watch   # watch mode
 npm run dev          # run the server directly (reads env vars from shell)
 npm run update-schema  # fetch the latest published DSDS schema from designsystemdocspec.org
-npm run logs         # view usage logs (lint + chunk activity) in a readable format
+npm run logs         # view usage logs chronologically
+npm run logs:top     # rank entries, sections, tools, errors and lint rules
 ```
 
 The server records usage to `logs/YYYY-MM-DD.jsonl`:
 
 - **Every tool call** — `{ type: "tool", tool, ok, durationMs }`
-- **Chunk access** — `dsds_get_chunk` writes a detailed `{ type: "chunk", identifier, name }` entry
+- **Content access** — any tool that serves an entry's content writes a
+  `{ type: "access", tool, identifier, name, entityKind, sections, parts, … }` entry
 - **Lint runs** — the lint tools write a detailed `{ type: "lint", … }` entry with per-file violations
+
+### Content-access records
+
+A `tool` record says a tool ran. An `access` record says what came back — which
+entry, and which parts of it:
+
+```json
+{
+  "type": "access", "tool": "dsds_get_agent_context",
+  "identifier": "card", "name": "Card", "entityKind": "component",
+  "mode": "compact",
+  "sections": ["guidelines#When to use", "guidelines@agent"],
+  "sectionCount": 2, "omitted": 2,
+  "parts": ["traits", "api", "relationships"],
+  "chars": 15651
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `identifier` / `name` | The resolved entry. `requested` appears only when the caller's input differed. |
+| `sections` | Sections the response **carried**, labelled `kind`, `kind#Title`, `kind@audience`. `for: all` gets no `@` suffix, so an `@agent` always means something. |
+| `parts` | Generated views the entry does not declare — `traits`, `combos`, `api`, `imports`, `relationships`, `code`. |
+| `omitted` | Sections deliberately withheld, ex: human-only sections in a compact call. |
+| `mode` | The view served, ex: `compact` / `verbose`. |
+| `chars` | Response size — the cheapest proxy for context spend. |
+
+Handlers never write logs. A handler attaches an `access` descriptor
+(`accessRecord` in `src/logger.js`) to its result and `dispatch` writes it, then
+strips the key before the result reaches the transport. One write site, both
+the MCP server and the CLI, no I/O in a render path.
+
+Instrumented: `dsds_get_agent_context`, `dsds_get_entity`,
+`dsds_get_document_block`, `dsds_get_chunk`, `dsds_get_variants`,
+`dsds_get_examples`, `dsds_get_skill`, `dsds_build_component` (`start` only).
+A failed lookup writes nothing — no
+content was served.
+
+`type: "chunk"` is the pre-0.5 name for what `access` now covers; both readers
+still accept it.
 
 Read them back with `npm run logs`. Pass options after `--`:
 
 ```bash
-npm run logs                      # last 7 days: lint + chunk detail, plus a tool-usage summary
+npm run logs                      # last 7 days: lint + access detail, plus summaries
 npm run logs -- --summary         # totals only, no per-entry detail
 npm run logs -- --type tool       # per-call tool log + tool-usage breakdown
 npm run logs -- --type lint       # only lint entries (or --type chunk)
@@ -532,6 +699,25 @@ npm run logs -- --date 2026-06-18 # a single day
 ```
 
 Tool calls always feed the **Tool usage** summary (counts and error totals per tool). They're omitted from the per-entry view in the combined `--type all` mode — where they'd duplicate the chunk/lint detail — but shown per call under `--type tool`.
+
+For rankings rather than a timeline, use `npm run logs:top`. It reads the MCP
+log dir, the pre-0.4 repo-root `logs/`, and `$DSDS_LOGS_DIR` together:
+
+```bash
+npm run logs:top                                # all six rankings
+npm run logs:top -- --section kinds             # access grouped by entity kind
+npm run logs:top -- --section sections          # which parts of which entries
+npm run logs:top -- --section sections --entry card
+npm run logs:top -- --section entries --kind component
+npm run logs:top -- --section entries --top 0   # every entry, no cutoff
+npm run logs:top -- --days 30 --json            # machine-readable
+```
+
+Both readers group content access by `entityKind` first, because a component,
+a chunk and a guide are not comparable as a single ranked list. Records written
+before 0.5 carry no `entityKind`; only `dsds_get_chunk` recorded an identifier
+then, so those are shown as `chunk †` with the inference marked rather than
+asserted.
 
 The spec schema is bundled at `src/spec/dsds.bundled.schema.json`. Run `npm run update-schema` to pull the latest published version automatically. It fetches the schema from `https://designsystemdocspec.org/v{version}/dsds.bundled.schema.json` and updates `BUNDLED_VERSION` in `src/spec/version.js`. The MCP server loads the schema once at startup via `require()`, so restart the server after updating.
 

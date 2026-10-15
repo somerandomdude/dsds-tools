@@ -9,7 +9,11 @@ honor its STOP conditions, and update its status when work changes.
 | --- | --- | --- | --- | --- | --- |
 | [004](004-local-model-evaluation.md) | Evaluate grounded local-model responses | P1 | M | Plan 003 / PR #1 | DONE — conditional smoke run after dependency rebase |
 | [005](005-local-authoring-demo.md) | Prove local docs-to-code authoring in a disposable sandbox | P1 | M | Plans 003 and 004 | HISTORICAL — set aside for Plan 006 |
-| [006](006-qwen-settings-prototype.md) | Build a settings-page prototype from DSDS v0.20 documentation | P1 | 10–18 hours | Current v0.20 tooling; consumer contract/API slice | IN PROGRESS — 006.1 done; paused before 006.2 |
+| [006](006-spec-version-naming.md) | Settle how spec versions are named in `src/spec/` | P3 | XS–S | none | DONE — resolved by 009 |
+| [007](007-toon-output-format.md) | Deliver structured output as TOON | P2 | S–M | none | **REJECTED** — measured -3.7%, cost not worth it; seam kept |
+| [008](008-payload-audit.md) | Audit what the MCP sends, not how it encodes it | P1 | S–M | none | DONE — extension gate applied, -13.3% |
+| [jev](jev-prd.md) | DSDS MCP + Jev: emit questions, never call the API | P2 | M–L | corpus authoring | RE-EVALUATED 2026-09-22 — selection now solved by `rel: agent-test`; opt-in set currently 0 |
+| [009](009-distill-mcp.md) | Distill the MCP: 29 tools → 11, one spec generation, one renderer | P1 | XXL (8 phases) | none | **DONE** — 12,976 → 9,128 lines, 29 → 17 tools; markdown export split out |
 
 Status values: TODO, IN PROGRESS, DONE, BLOCKED, REJECTED, or HISTORICAL.
 
@@ -37,3 +41,13 @@ Status values: TODO, IN PROGRESS, DONE, BLOCKED, REJECTED, or HISTORICAL.
   to prove docs-to-code authoring.
 - Applying generated code to `dsdsds`: rejected for Plan 005; proposals remain
   isolated until deterministic checks and human review establish value.
+- Encoding every payload as TOON: rejected in Plan 007. TOON's headline saving
+  is measured against JSON; we emit Markdown tables, which already beat JSON by
+  19–72% here. Against Markdown the measured prize is 2.5–4.9% of total payload,
+  concentrated entirely in API tables — and encoding raw `structuredContent`
+  makes it *worse* (+461% measured). Prose, bullets and code blocks are 78% of
+  what we deliver and are not TOON-shaped at all.
+
+- Renaming the `src/spec/` modules: deferred to Plan 006. Nothing is broken —
+  the `-0.20.0` names describe the 0.20.x *model*, not a release — but three
+  naming conventions now coexist and the question reopens at every spec bump.

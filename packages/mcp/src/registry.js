@@ -5,33 +5,26 @@
 // (src/server.js) and the dsds CLI (the dsds-cli package) both consume
 // createToolRuntime, so the tool catalog cannot drift between them.
 
-import { specOverviewDef, specOverviewHandler } from './tools/spec-overview.js';
+import { writeLog } from './logger.js';
 import { specEntitySchemaDef, specEntitySchemaHandler } from './tools/spec-entity-schema.js';
-import { specDocumentBlocksDef, specDocumentBlocksHandler } from './tools/spec-document-blocks.js';
-import { specScaffoldDef, specScaffoldHandler } from './tools/spec-scaffold.js';
 import { validateDef, validateHandler } from './tools/validate.js';
+import { styleCheckDef, styleCheckHandler } from './tools/style-check.js';
 import { contextBriefDef, contextBriefHandler } from './tools/context-brief.js';
 import { listEntitiesDef, listEntitiesHandler } from './tools/list-entities.js';
 import { getEntityDef, getEntityHandler } from './tools/get-entity.js';
 import { searchEntitiesDef, searchEntitiesHandler } from './tools/search-entities.js';
 import { getDocumentBlockDef, getDocumentBlockHandler } from './tools/get-document-block.js';
 import { getAgentContextDef, getAgentContextHandler } from './tools/get-agent-context.js';
-import { lintByPathDef, lintByPathHandler, lintInlineDef, lintInlineHandler } from './tools/lint-code.js';
+import { lintDef, lintHandler } from './tools/lint-code.js';
 import { getChunkDef, getChunkHandler } from './tools/get-chunk.js';
+import { getTokensDef, getTokensHandler } from './tools/get-tokens.js';
 import { feedbackDef, feedbackHandler } from './tools/feedback.js';
 import { checkExportsDef, checkExportsHandler } from './tools/check-exports.js';
+import { findIconDef, findIconHandler } from './tools/find-icon.js';
 import { explainErrorDef, explainErrorHandler } from './tools/explain-error.js';
 import { listSkillsDef, listSkillsHandler } from './tools/list-skills.js';
 import { getSkillDef, getSkillHandler } from './tools/get-skill.js';
-import { toMarkdownDef, toMarkdownHandler } from './tools/to-markdown.js';
 import { buildComponentDef, buildComponentHandler } from './tools/build-component.js';
-import { authorComponentDocDef, authorComponentDocHandler } from './tools/author-component-doc.js';
-import {
-  getDependentsDef, getDependentsHandler,
-  getDependenciesDef, getDependenciesHandler,
-  getAlternativesDef, getAlternativesHandler,
-  impactDef, impactHandler,
-} from './tools/relationships.js';
 
 function validateArgs(toolDef, args) {
   const { required = [], properties = {} } = toolDef.inputSchema ?? {};
@@ -49,13 +42,49 @@ function validateArgs(toolDef, args) {
       return `Argument "${field}" must be a string, got ${typeof value}`;
     }
     if (prop.type === 'array' && !Array.isArray(value)) {
-      return `Argument "${field}" must be an array, got ${typeof value}`;
+      // A lone string where a list is expected is the single most common
+      // shape mistake agents make against these tools — every argument
+      // argument error in the usage log has been this one, on
+      // dsds_lint's `files`. The intent is never ambiguous (one
+      // item), so accept it and wrap, rather than rejecting a call whose
+      // meaning is clear. The element shape comes from the schema, so this
+      // stays correct as tools are added:
+      //   items: string  -> ['x']
+      //   items: object  -> [{ <sole required key>: 'x' }]
+      // Anything else — a number, an object, an item schema with several
+      // required keys — is still a real error, because guessing there would
+      // be inventing data.
+      const coerced = coerceScalarToArray(value, prop);
+      if (coerced) {
+        args[field] = coerced;
+      } else {
+        return `Argument "${field}" must be an array, got ${typeof value}`;
+      }
     }
     if (prop.enum && !prop.enum.includes(value)) {
       return `Argument "${field}" must be one of: ${prop.enum.join(', ')}`;
     }
   }
 
+  return null;
+}
+
+/**
+ * Wrap a lone string in the one-element array its schema describes, or return
+ * null when the intent cannot be read off the schema.
+ *
+ * @param {unknown} value
+ * @param {{items?: {type?: string, required?: string[]}}} prop
+ * @returns {unknown[]|null}
+ */
+function coerceScalarToArray(value, prop) {
+  if (typeof value !== 'string') return null;
+  const items = prop.items ?? {};
+  if (items.type === 'string') return [value];
+  if (items.type === 'object') {
+    const required = items.required ?? [];
+    if (required.length === 1) return [{ [required[0]]: value }];
+  }
   return null;
 }
 
@@ -92,6 +121,7 @@ export function createToolRuntime({
   getLintConfig = null,
   getExportPaths = null,
   getPropsConfig = null,
+  getIconConfig = null,
   feedbackDir = null,
   logsDir = null,
   enableFeedback = true,
@@ -99,37 +129,54 @@ export function createToolRuntime({
   const propsConfig = getPropsConfig ?? (() => ({ propsExtractorDir: null, uiSourceRoot: null }));
   const toolDefs = [
     contextBriefDef,
-    specOverviewDef,
     specEntitySchemaDef,
-    specDocumentBlocksDef,
-    specScaffoldDef,
-    authorComponentDocDef,
     buildComponentDef,
     validateDef,
+    styleCheckDef,
     listEntitiesDef,
     getEntityDef,
     searchEntitiesDef,
     getDocumentBlockDef,
     getAgentContextDef,
     getChunkDef,
-    getDependentsDef,
-    getDependenciesDef,
-    getAlternativesDef,
-    impactDef,
-    lintByPathDef,
-    lintInlineDef,
+    getTokensDef,
+    lintDef,
     checkExportsDef,
+    findIconDef,
     explainErrorDef,
     listSkillsDef,
     getSkillDef,
-    toMarkdownDef,
     ...(enableFeedback ? [feedbackDef] : []),
   ];
 
   const toolMap = new Map(toolDefs.map(t => [t.name, t]));
 
+  // Icon config plus the loaded docs, so the icon tools can read an icon asset
+  // entry (`kind: dsds.asset`) instead of a separate TSV. See icon-catalog.js.
+  const iconConfig = () => ({ ...((getIconConfig ?? (() => ({})))() ?? {}), systems: getSystems() });
+
   // Resolve and run a tool call, returning its result (never throws).
   async function dispatch(name, args = {}) {
+    const result = await run(name, args);
+
+    // Content-access telemetry. A handler that served an entry's content
+    // attaches an `access` descriptor (see logger.js accessRecord); this is the
+    // one place it gets written, so both the MCP server and the CLI record it
+    // identically. The key is stripped before the result leaves the runtime —
+    // it is telemetry, not part of the tool's response contract.
+    if (result?.access) {
+      const access = result.access;
+      delete result.access;
+      // A batched lookup serves several entries in one call; each still gets
+      // its own record, so per-entity access counts stay comparable with
+      // runs from before batching.
+      if (logsDir) for (const a of Array.isArray(access) ? access : [access]) writeLog(logsDir, { type: 'access', tool: name, ...a });
+    }
+
+    return result;
+  }
+
+  async function run(name, args = {}) {
     const toolDef = toolMap.get(name);
     if (!toolDef) return errorResponse(`Unknown tool: "${name}"`);
 
@@ -139,30 +186,23 @@ export function createToolRuntime({
     try {
       switch (name) {
         case 'dsds_context_brief':        return contextBriefHandler(args, getSystems, getSummaries);
-        case 'dsds_spec_overview':        return specOverviewHandler(args);
         case 'dsds_spec_entity_schema':   return specEntitySchemaHandler(args);
-        case 'dsds_spec_document_blocks': return specDocumentBlocksHandler(args);
-        case 'dsds_spec_scaffold':        return specScaffoldHandler(args);
         case 'dsds_build_component':      return buildComponentHandler(args, getSystems, getSummaries);
-        case 'dsds_author_component_doc': return authorComponentDocHandler(args);
         case 'dsds_validate':             return validateHandler(args);
+        case 'dsds_style_check':          return styleCheckHandler(args, getSystems);
         case 'dsds_list_entities':        return listEntitiesHandler(args, getSystems, getSummaries);
         case 'dsds_get_entity':           return getEntityHandler(args, getSystems, getSummaries, getIntro, getGraph, propsConfig());
         case 'dsds_search_entities':      return searchEntitiesHandler(args, getSystems, getSummaries);
         case 'dsds_get_document_block':   return getDocumentBlockHandler(args, getSystems, propsConfig());
         case 'dsds_get_agent_context':    return getAgentContextHandler(args, getSystems, getGraph, propsConfig());
         case 'dsds_get_chunk':            return getChunkHandler(args, getSystems, logsDir);
-        case 'dsds_get_dependents':       return getDependentsHandler(args, getGraph);
-        case 'dsds_get_dependencies':     return getDependenciesHandler(args, getGraph);
-        case 'dsds_get_alternatives':     return getAlternativesHandler(args, getGraph);
-        case 'dsds_impact':               return impactHandler(args, getGraph);
-        case 'dsds_lint_by_path':         return lintByPathHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
-        case 'dsds_lint_inline':          return lintInlineHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
-        case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()));
+        case 'dsds_get_tokens':           return getTokensHandler(args, getSystems);
+        case 'dsds_lint':                 return lintHandler(args, getLintConfig ?? (() => ({ plugins: [], resolveDir: process.cwd() })), logsDir);
+        case 'dsds_check_exports':        return checkExportsHandler(args, getExportPaths ?? (() => new Map()), iconConfig);
+        case 'dsds_find_icon':            return findIconHandler(args, getExportPaths ?? (() => new Map()), iconConfig);
         case 'dsds_explain_error':        return explainErrorHandler(args);
         case 'dsds_list_skills':          return listSkillsHandler(args);
         case 'dsds_get_skill':            return getSkillHandler(args);
-        case 'dsds_to_markdown':          return toMarkdownHandler(args, getSystems, propsConfig());
         case 'dsds_feedback':             return feedbackHandler(args, feedbackDir);
         default:                          return errorResponse(`Unknown tool: "${name}"`);
       }

@@ -13,35 +13,44 @@ function makeGetters(systems) {
 
 describe('getEntityHandler', () => {
   it('retrieves an entity by identifier', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
     const result = await getEntityHandler({ identifier: 'button' }, ...makeGetters(systems));
     const text = result.content[0].text;
     expect(text).toContain('Button');
     expect(text).toContain('component');
-    expect(text).toContain('api');
-    expect(text).toContain('accessibility');
+    expect(text).toContain('Guidelines');
     expect(result.isError).toBeFalsy();
   });
 
   it('retrieves an entity by name, case-insensitively', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
     const result = await getEntityHandler({ identifier: 'BUTTON' }, ...makeGetters(systems));
     expect(result.content[0].text).toContain('Button');
   });
 
   it('includes metadata fields', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
     const result = await getEntityHandler({ identifier: 'button' }, ...makeGetters(systems));
     const text = result.content[0].text;
     expect(text).toContain('stable');
-    expect(text).toContain('1.0.0');
+    expect(text).toContain('1.4.0');
   });
 
   it('returns isError with not-found message for unknown entity', async () => {
-    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.json`]);
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
     const result = await getEntityHandler({ identifier: 'nonexistent' }, ...makeGetters(systems));
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('not found');
+    // Points at the listing rather than inlining every identifier: on a real
+    // corpus that was 199 of them on one line.
+    expect(result.content[0].text).toContain('dsds_list_entities');
+  });
+
+  it('suggests a near miss instead of dumping the whole catalog', async () => {
+    const { systems } = await loadSystems([`${fixturesDir}/button.dsds.yaml`]);
+    const result = await getEntityHandler({ identifier: 'buton' }, ...makeGetters(systems));
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Did you mean');
     expect(result.content[0].text).toContain('button');
   });
 

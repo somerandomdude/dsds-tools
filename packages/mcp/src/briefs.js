@@ -17,124 +17,141 @@
 // Shown to agents before they write any code that uses the design system.
 // Edit this to reflect what engineers most commonly get wrong, what tokens
 // or patterns are easy to miss, and what non-obvious rules must be followed.
+//
+// This is a tool RESULT, not part of the cached prefix: every token here is
+// paid at full rate, once per iteration, in 76% of runs. That is why it was
+// cut from 1,718 tokens to ~1,250 — the three changes, from the prompt-size
+// review:
+//
+//   2. Old steps 1, 2, 3, 5 and 6 were five ways of saying "find what exists
+//      first", and between them they instructed `dsds_list_entities` four
+//      separate times. Measured across 1,565 ui5 iterations, that produced
+//      0.46 calls to it per iteration — the repetition bought nothing. They
+//      are now one step that names the tool once and keeps all four rules
+//      (deprecated, patterns, chunks, tokens), since those are distinct even
+//      when the calls collapse.
+//
+//   3. The lookup rule and the setup fact were each stated here AND in
+//      BASE_INSTRUCTIONS. The setup *procedure* stays here, where it is
+//      actionable; the lookup rule keeps its full weight here because this is
+//      the document an agent reads immediately before writing JSX.
+//
+//   4. Two corrections. The old step 4 sent agents to
+//      `dsds_get_document_block(identifier, "variants")` and `"states"` —
+//      0.15.2 block names that return "has no variants section or block" on a
+//      0.20.x corpus, so the instruction bought a failed call and a retry.
+//      option rather than "ALWAYS USE… the required way of adding
+//      components": at 0.02 calls per iteration no agent believed that, and a
+//      false "required" costs credibility for the rules that are obeyed.
+//
+// Step 5's validate-and-repair loop is unchanged — the review flagged it as
+// long, but shortening it was not part of what was approved.
 // -----------------------------------------------------------------------------
 
 export const BUILD_BRIEF = `
-## Before you build: Design System Context Briefing
+## Before you build
 
-Do not write implementation code until you have completed every step below.
-Each step uses a tool from this MCP server — call them in order.
-
----
-
-### Step 1 — Inventory what exists
-
-Call \`dsds_list_entities\` to see every documented entity grouped by kind.
-
-Before continuing, note:
-- Any entity marked **deprecated** must not be used. Check for alternatives.
-- Any entity marked **experimental** or **draft** should be used with caution.
+Five steps, in order. The first four happen before you write any implementation
+code; the fifth is how you finish.
 
 ---
 
-### Step 2 — Find what you need
+### 1 — Set the project up
 
-Call \`dsds_search_entities\` to narrow to the entities relevant to your task.
-Filter by \`kind\`, \`status\`, \`tags\`, or a keyword \`query\`.
+This design system needs one-time setup before ANY component renders correctly: a
+stylesheet import, a theme provider, a polyfill, a build plugin. It is in no
+component's documentation, and missing it fails silently — the page renders, nothing
+throws, and the result is an unstyled app that looks like a success.
 
-If you are unsure what exists, search broadly first, then narrow.
+1. Search for this system's guide category with \`dsds_search_entities\` (a legacy system
+   names the kind plain "guide"; a 0.20.x system typically namespaces it, e.g.
+   "sanity.guide").
+2. Read its getting-started, installation or quick-start entry with \`dsds_get_agent_context\`.
+3. Do every step it lists, in your entry file, before the first component.
 
----
-
-### Step 3 — Check for applicable patterns
-
-Call \`dsds_list_entities\` to see what's loaded, then \`dsds_search_entities\` for this system's pattern category (a legacy system names it plain "pattern"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.pattern") to find patterns that may already document the layout or interaction flow you are about to build.
-
-If a pattern matches your task, read it with \`dsds_get_entity\` before composing anything from primitives. A documented pattern tells you the correct component combinations, required props, and rules the design system team has already worked out.
-
----
-
-### Step 4 — Read the documentation for every entity you plan to use (required, no exceptions)
-
-MUST: before writing a single JSX usage of any component, call at least one of the lookups
-below for it — including a component you are confident about, have used earlier in this same
-session, or already saw inside a chunk. There is no "I already know this one" exception.
-Skipping this for even one component is the single most common cause of otherwise-avoidable
-build failures (missing required props, renamed/removed props, props typed \`never\`). Do not
-rely on general training knowledge of similar libraries — this design system's API frequently
-differs from the conventional pattern.
-
-Use the following lookup order — stop as soon as you have what you need:
-
-1. **\`dsds_get_agent_context(identifier)\`** — start here for every component.
-   Returns the agent-optimized view: generation rules, anti-patterns, prop table, use-case
-   disambiguation, and all guidelines. This is the primary lookup for building.
-
-2. **\`dsds_get_document_block(identifier, blockType)\`** — use when you need one specific
-   section that \`dsds_get_agent_context\` did not cover (e.g. \`accessibility\` for WCAG
-   details, \`variants\` for the full option matrix, \`states\` for interaction behaviour).
-   Faster and cheaper than fetching the whole entity.
-
-3. **\`dsds_build_component(step:"start", identifier)\`** — ALWAYS USE when you're ready to
-add a component to code. This is the required way of adding components.
-
-4. **\`dsds_get_entity(identifier)\`** — use only when you need the raw, complete entity
-   including all blocks in their original JSON structure. Prefer the two calls above.
+Do not skip this because you recognise the library. Setup differs between major versions
+of the same design system.
 
 ---
 
-### Step 5 — Use tokens, not hardcoded values
+### 2 — Find what already exists
 
-Call \`dsds_list_entities\` to find the design token scales that apply to your
-work (spacing, radius, typography, and the rest) — a legacy system groups them
-under the kind named "token-group"; a real 0.20.0 system lists tokens flat
-with a \`metadata.group\` instead. Open a group or token with \`dsds_get_entity\`.
+Call \`dsds_list_entities\` once to see everything documented, grouped by kind, then
+\`dsds_search_entities\` to narrow to your task. Four rules follow from what you find:
 
-Never hardcode color values, spacing, or type sizes. Always reference the
-token identifier from the design system.
-
----
-
-### Step 6 — Check for an applicable chunk
-
-Call \`dsds_list_entities\` to find pre-assembled code that may cover your use case — a legacy system names the kind plain "chunk"; a real 0.20.0 system typically uses a namespaced kind such as "sanity.chunk".
-
-If a chunk matches, call \`dsds_get_chunk(identifier)\` to retrieve the full code and its guidelines. Chunks are production-ready compositions — copy the code directly rather than assembling the same pattern from scratch.
+- **A deprecated entity must not be used.** Read its Relationships in \`dsds_get_entity\` for the
+  replacement. Treat experimental or draft as usable with caution.
+- **A pattern beats primitives.** If a documented pattern covers your layout or flow,
+  read it with \`dsds_get_entity\` before composing anything yourself — it carries the
+  component combinations and rules the design system team already settled.
+- **A chunk beats writing it again.** If \`dsds_get_chunk\` is in your tool list and a chunk
+  covers your use case, fetch it and use its code directly. \`dsds_get_agent_context\` lists a
+  component's chunks as an index, so you can pick one instead of reading all of them.
+- **Never hardcode a colour, spacing value or type size.** Reference the token.
 
 ---
 
-### Step 7 — Verify every import before you write it (required)
+### 3 — Look up every component you are about to use (no exceptions)
 
-If \`dsds_check_exports\` is available, make ONE call with **every** component and icon
-name you intend to import — across all packages — in a single \`components\` array,
-BEFORE emitting any code. This is not optional: it is the one cheap check that
-catches the most common build-breakers.
+MUST: call \`dsds_get_agent_context(identifier)\` for a component before you write a single
+JSX usage of it. Batch them: \`identifier\` takes a list, so look up every component you
+plan to use in one call — including one you are confident about, used earlier this session, or saw
+inside a chunk. There is no "I already know this one" exception. Skipping it for even one
+component is the single most common cause of otherwise-avoidable build failures: missing
+required props, renamed or removed props, props typed \`never\`. This system's API often
+differs from the conventional pattern, so training knowledge of similar libraries is not a
+substitute.
 
-- It catches hallucinated names before they become \`TS2305\`/\`TS2724\` errors —
-  e.g. \`ThemeProvider\`, \`RootTheme\`, or \`createTheme\` imported from the design
-  system package when they are not exported, or \`SettingsIcon\` instead of \`CogIcon\`.
+That one call returns the generation rules, anti-patterns, prop table and guidelines. Two
+narrower calls when you need less:
+
+  The value set is closed, so anything outside it is invalid.
+- \`dsds_get_document_block(identifier, blockType)\` — one section only, e.g. "api" for props
+  or "accessibility" for WCAG detail.
+
+If \`dsds_build_component\` is in your tool list, \`dsds_build_component(step:"start", identifier)\`
+lets you answer a prop-by-prop wizard instead of writing the JSX yourself. It is an option,
+not a requirement.
+
+---
+
+### 4 — Verify every import before you write it
+
+If \`dsds_check_exports\` is available, make ONE call listing **every** component and icon
+name you intend to import, across all packages, before emitting any code. It is the
+cheapest check that catches the most common build-breakers.
+
+If \`dsds_find_icon\` is in your tool list, use it to choose icons: pass what each icon is
+for (\`purposes: ["resolve", "settings"]\`) and it returns the matching icons with their import
+paths. Choosing by purpose is faster than guessing names and checking them.
+
+If the design system documents its icon set as an asset entry (a \`dsds.asset\`, listed with
+the other entries), \`dsds_get_agent_context\` on it gives every icon's name, import path and
+purpose in one call.
+
+- It catches hallucinated names before they become \`TS2305\`/\`TS2724\` — \`ThemeProvider\`,
+  \`RootTheme\` or \`createTheme\` imported when the package exports none of them, or
+  \`SettingsIcon\` instead of \`CogIcon\`.
 - Include every icon name; icons are the top hallucination risk.
 - One call covers all configured packages — there is no \`package\` argument.
-- Do NOT import a name the check reports as missing. Find the real export (search
-  the docs) or drop it.
+- Do NOT import a name it reports missing. Find the real export or drop it.
 
-Note: this verifies export **names**, not package **versions**. Write the
-dependency versions exactly as instructed — do not invent a package or a version
-range (e.g. a non-existent \`@sanity/ui@^4.0.0\`).
+It verifies export **names**, not package **versions**. Write dependency versions exactly as
+instructed; do not invent a package or a version range.
 
 ---
 
-Only after completing these steps should you write code.
+Only now write code.
 
 ---
 
-### Step 8 — Validate and repair before you finish (required)
+### 5 — Validate and repair before you finish (required)
 
 Writing the code is not the end. Before you consider the work done, run an
 ordered, repeating check and fix what it finds — do not skip a stage and do not
 stop at the first green light:
 
-1. **Lint.** Call \`dsds_lint_by_path\` with every file you wrote (use the \`files\` array of \`{ path }\`). Apply the corrected code it returns, then resolve any remaining violations it reports. (If a file is not yet on disk, use \`dsds_lint_inline\` with its source — but neither tool saves files; a clean result never means a file was written.) Lint is not optional or advisory — design-system rules only fire on real JSX, so lint your final component code, not a stub.
+1. **Lint.** If \`dsds_lint\` is in your tool list, call it once with every file you wrote (use the \`files\` array of \`{ path }\`). It returns findings, never a rewritten file: fix each finding that needs a change, make any line edits it lists, and re-emit only the files you changed. If it says a finding will be fixed automatically, leave it alone. (If a file is not yet on disk, pass its source as \`code\` instead of \`path\` — either way nothing is saved; a clean result never means a file was written.) Lint your final component code, not a stub — design-system rules only fire on real JSX. If \`dsds_lint\` is not in your tool list, skip this step: your host lints the files instead.
 2. **Build / render.** Make sure the app actually mounts and renders without console or runtime errors. A file that type-checks but throws on render has not passed. The moment a build or typecheck fails, call \`dsds_explain_error(error)\` with the raw error text before attempting a fix — it names the shape of the mistake so you fix the actual cause instead of re-guessing from raw compiler output.
 3. **Accessibility.** Resolve accessibility issues (labels, landmarks, alt text, ARIA, and color contrast) so the rendered UI is usable by assistive technology.
 
@@ -152,92 +169,89 @@ separate QA pass someone else will do.
 // -----------------------------------------------------------------------------
 
 export const AUTHOR_BRIEF = `
-## Before you author: DSDS Documentation Briefing
+## Before you write: DSDS Authoring Briefing
 
-**Authoring against real DSDS 0.20.0 (\`.dsds.yaml\`)?** Skip everything below and call
-\`dsds_list_skills\` instead — this server bundles the actual authoring skills from the
-design-system-documentation-schema repo's own 0.20.0 branch (\`dsds-specs\`, \`dsds-add\`,
-\`dsds-update\`, \`dsds-validate\`), not a summary of them. They describe the real
-entries/sections/traits/sourceFiles/refs model directly; the steps below describe the
-legacy 0.15.2 JSON model (entityGroups/documentBlocks) this server also still serves.
-
-Do not start writing documentation until you have completed every step below.
-Each step uses a tool from this MCP server — call them in order.
+You are authoring documentation in DSDS format — a structured YAML document,
+not UI code and not prose. Work in this order.
 
 ---
 
-### Step 1 — Understand the spec
+### Step 1 — Learn the model
 
-Call \`dsds_spec_overview\` to understand what DSDS is, what entity types it
-defines, and how it is structured. Read the full output before continuing.
+Call \`dsds_get_skill({ id: "dsds-specs" })\`. It covers the whole model: how a
+document is composed, how \`refs\` resolve, what \`metadata\` carries, and how a
+section is shaped. Read it before writing anything.
+
+A document is one or more \`entries\`, each with \`sections\`. A component entry
+also carries \`traits\` (its variants and states) and \`sourceFiles\`.
 
 ---
 
-### Step 2 — Choose the right entity type
-
-Identify which entity kind matches what you are documenting:
+### Step 2 — Choose the entity kind
 
 | Kind | Use when... |
 |------|-------------|
 | \`component\` | A reusable UI element (Button, Modal, Input, Card) |
-| \`guide\` | Long-form documentation: getting-started, tutorials, concepts, contribution docs |
-| \`pattern\` | A multi-component solution for a user need (empty state, error messaging) |
-| \`foundation\` | A visual domain with rules and a scale (color system, type scale, spacing, motion) |
-| \`theme\` | A set of token overrides for a specific context (dark, high-contrast) |
 | \`token\` | An individual design value (a color, a spacing step, a duration) |
-| \`token-group\` | A named collection of related tokens (color-text, spacing-scale) |
+| \`theme\` | A set of token overrides for a context (dark, high-contrast) |
+| \`system\` | The document that composes a whole design system |
+| \`entry\` | Anything else — a guide, pattern, or foundation. Namespaced custom kinds (\`sanity.guide\`) follow this shape. |
 
-Call \`dsds_spec_entity_schema(kind)\` to see every field available for your
-chosen kind, which are required, and what metadata you can provide.
-
----
-
-### Step 3 — Generate a starter template
-
-Call \`dsds_spec_scaffold(kind)\` to get a minimal valid DSDS JSON template.
-
-If you are documenting a full design system with multiple entities, use
-\`dsds_spec_scaffold('system')\` to get a multi-entity document structure.
+Call \`dsds_spec_entity_schema(kind)\` for every field that kind accepts, which
+are required, and what each one holds. The field list comes from the schema
+itself, so it is never out of date.
 
 ---
 
-### Step 4 — Plan your document blocks
+### Step 3 — Write the sections
 
-Call \`dsds_spec_document_blocks(kind)\` to see which block types are valid for
-your entity and what each one captures.
+Every item in \`sections\` carries a \`kind\`. Lead with the ones that answer what
+engineers actually ask:
 
-Prioritize the blocks that answer the questions engineers ask most:
+1. **\`guidelines\`** — the rules. Each item takes a \`level\`
+   (\`must\`/\`must-not\`/\`should\`/\`should-not\`/\`may\`) and a \`statement\`.
+   Set \`for: agent\` on an item that is noise for a human reader.
+2. **\`definitions\`** — terms this entity introduces.
+3. **\`steps\`** — an ordered procedure.
+4. **\`section\`** — free-form prose for anything the three above do not fit.
 
-1. **\`useCases\`** — when should I use this, and when should I not?
-2. **\`api\`** — what properties, events, and slots does this expose?
-3. **\`guidelines\`** — what rules must I follow when using this?
-4. **\`accessibility\`** — what are the WCAG requirements and keyboard behaviors?
-5. **\`variants\`** — what option axes exist?
-6. **\`imports\`** — how do I import and use this in code?
+Use \`framing: when-to-use\` for selection guidance and \`framing: how-to-use\`
+for conformance rules. They are different questions and readers want them apart.
+
+---
+
+### Step 4 — Say things once
+
+A rule that applies to more than one entity belongs in the shared pool, stated
+once, referenced everywhere else:
+
+\`\`\`yaml
+- refs:
+    - to: shared-foundations#never-disable-error
+      rel: same-as
+\`\`\`
+
+An item that is nothing but a \`same-as\` pointer needs no \`level\` or
+\`statement\` of its own — it *is* the shared rule, and tools render it inline.
+A \`for: agent\` rule that sharpens a human one states its own \`level\` and
+\`statement\` and points back with its \`refines\` field.
+
+Most kinds of pointer have a field of their own, and a pointer there has no
+\`rel\`: \`uses\` (what this is built from or needs), \`alternatives\`,
+\`extends\`, and on a guideline \`evidence\` and \`checks\`. A deprecated entry
+names its successor in \`metadata.status.replacedBy\`. \`refs\` holds the rest,
+each with a \`rel\`: \`same-as\`, \`file\` (another DSDS document only),
+\`source\` (code or a package), \`design\`, \`demo\`, \`relates-to\`.
 
 ---
 
 ### Step 5 — Validate as you go
 
-After completing each section, call \`dsds_validate\` with your current JSON.
-Do not wait until the end — fix errors incrementally.
-
----
-
-### Step 6 — Add agent-only documentation
-
-Once the core documentation is written, add an \`agentDocumentBlocks\` array to
-the entity. It accepts the same document block kinds as \`documentBlocks\`, but
-is intended for agent (AI/LLM) consumption only — tools never render it for
-humans. Use it for guidance that would be noise for human readers:
-
-- A **\`guidelines\`** block with generation constraints (\`level\`: MUST/MUST_NOT,
-  optional \`evidence\` from test runs, \`criteria\` agents can self-check against)
-- A **\`useCases\`** block disambiguating this entity from confusable ones
-  (discouraged items with an \`alternative\`)
-- A **\`sections\`** block with ready-to-use code examples
-
-This step significantly improves agent behavior when building with the system.
+Call \`dsds_validate\` after each section, not at the end. Then
+\`dsds_style_check\` once it validates: it returns the document with its fields
+in the schema's order (the spec's own \`dsds-format\`), and flags sections,
+rules and entries out of reading order. Order never affects validity, but it
+does affect whether the document reads well.
 `.trim();
 
 
@@ -287,7 +301,7 @@ For each relevant entity, use this lookup order — stop as soon as you can answ
 3. **\`dsds_get_entity(identifier)\`** — only when you need the complete raw entity.
 
 For "which should I use" questions, also check relationships and
-\`dsds_get_alternatives(identifier)\` to recommend the right entity and name what
+the Relationships section of \`dsds_get_entity\` to recommend the right entity and name what
 it replaces or is preferred over.
 
 ---
