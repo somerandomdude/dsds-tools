@@ -20,13 +20,13 @@ try {
   main();
 } catch (error) {
   console.error(`Error: ${error.message}`);
-  console.error('Usage: node scripts/evaluate-local-model-suite.mjs --consumer <dir> [--model <tag>] [--runs <count>] [--resume <result-dir>]');
+  console.error('Usage: node scripts/evaluate-local-model-suite.mjs --consumer <dir> [--case-dir <dir>] [--model <tag>] [--runs <count>] [--resume <result-dir>]');
   process.exitCode = 1;
 }
 
 function main() {
   const options = parseSuiteArguments(process.argv.slice(2));
-  const caseDir = resolve(root, 'evaluations/cases');
+  const caseDir = options.caseDir ? resolve(options.caseDir) : resolve(root, 'evaluations/cases');
   const casePaths = readdirSync(caseDir)
     .filter(file => file.endsWith('.json'))
     .sort()
@@ -101,7 +101,7 @@ function main() {
 
 function parseSuiteArguments(argv) {
   const values = new Map();
-  const allowed = new Set(['--consumer', '--model', '--runs', '--resume']);
+  const allowed = new Set(['--consumer', '--case-dir', '--model', '--runs', '--resume']);
 
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
@@ -119,6 +119,7 @@ function parseSuiteArguments(argv) {
 
   return {
     consumer,
+    caseDir: values.get('--case-dir') ?? null,
     model: values.get('--model') ?? 'qwen2.5-coder:7b',
     runs,
     resume: values.get('--resume'),
