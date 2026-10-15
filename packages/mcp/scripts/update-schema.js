@@ -39,53 +39,64 @@ function fail(message) {
   process.exit(1);
 }
 
-const source = process.argv[2] && resolve(process.argv[2]);
-if (!source) fail('pass the path to a checkout of design-system-documentation-schema, at the release to vendor.');
-if (!existsSync(join(source, 'package.json'))) fail(`${source} has no package.json; is it a spec checkout?`);
-
-const version = JSON.parse(readFileSync(join(source, 'package.json'), 'utf-8')).version;
-const missing = [...SCRIPTS, ...REQUIRED_SCHEMA_FILES.map((f) => `schema/${f}`)].filter((f) => !existsSync(join(source, f)));
-if (missing.length) fail(`${source} is missing ${missing.join(', ')}. Check out a 0.22.0 or later release.`);
-
-const current = readFileSync(VERSION_PATH, 'utf-8').match(/BUNDLED_VERSION\s*=\s*'([^']+)'/)?.[1];
-const vendor = join(ROOT, `src/spec/dsds-${version}`);
-
-cpSync(join(source, 'schema'), join(vendor, 'schema'), { recursive: true });
-for (const file of SCRIPTS) {
-  mkdirSync(dirname(join(vendor, file)), { recursive: true });
-  cpSync(join(source, file), join(vendor, file));
+export function updateReadmeVersionSource(source, oldVersion, newVersion) {
+  const old = oldVersion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return source
+    .replace(new RegExp('(\\*\\*Bundled spec version:\\*\\*\\s*)' + old, 'g'), `$1${newVersion}`)
+    .replace(new RegExp('(Defaults to `)' + old + '(`)', 'g'), `$1${newVersion}$2`)
+    .replace(new RegExp('(designsystemdocspec\\.org/v)' + old + '(/)', 'g'), `$1${newVersion}$2`)
+    .replace(new RegExp('("dsdsVersion"\\s*:\\s*")' + old + '(")', 'g'), `$1${newVersion}$2`);
 }
-writeFileSync(
-  join(vendor, 'package.json'),
-  `${JSON.stringify({
-    private: true,
-    type: 'commonjs',
-    description: `Vendored verbatim from somerandomdude/design-system-documentation-schema at ${version}: schema/ and the reference validator, resolver and formatter in scripts/. CommonJS, as upstream ships them. Do not edit; re-vendor with npm run update-schema.`,
-  }, null, 2)}\n`,
-);
-console.log(`Vendored schema and scripts -> src/spec/dsds-${version}/`);
 
-const skillsDir = join(source, '.agents/skills');
-if (existsSync(skillsDir)) {
-  for (const id of readdirSync(skillsDir)) {
-    const skill = join(skillsDir, id, 'SKILL.md');
-    if (!existsSync(skill)) continue;
-    mkdirSync(join(ROOT, 'skills', id), { recursive: true });
-    cpSync(skill, join(ROOT, 'skills', id, 'SKILL.md'));
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const source = process.argv[2] && resolve(process.argv[2]);
+  if (!source) fail('pass the path to a checkout of design-system-documentation-schema, at the release to vendor.');
+  if (!existsSync(join(source, 'package.json'))) fail(`${source} has no package.json; is it a spec checkout?`);
+
+  const version = JSON.parse(readFileSync(join(source, 'package.json'), 'utf-8')).version;
+  const missing = [...SCRIPTS, ...REQUIRED_SCHEMA_FILES.map((f) => `schema/${f}`)].filter((f) => !existsSync(join(source, f)));
+  if (missing.length) fail(`${source} is missing ${missing.join(', ')}. Check out a 0.22.0 or later release.`);
+
+  const current = readFileSync(VERSION_PATH, 'utf-8').match(/BUNDLED_VERSION\s*=\s*'([^']+)'/)?.[1];
+  const vendor = join(ROOT, `src/spec/dsds-${version}`);
+
+  cpSync(join(source, 'schema'), join(vendor, 'schema'), { recursive: true });
+  for (const file of SCRIPTS) {
+    mkdirSync(dirname(join(vendor, file)), { recursive: true });
+    cpSync(join(source, file), join(vendor, file));
   }
-  console.log('Vendored skills -> skills/');
-}
+  writeFileSync(
+    join(vendor, 'package.json'),
+    `${JSON.stringify({
+      private: true,
+      type: 'commonjs',
+      description: `Vendored verbatim from somerandomdude/design-system-documentation-schema at ${version}: schema/ and the reference validator, resolver and formatter in scripts/. CommonJS, as upstream ships them. Do not edit; re-vendor with npm run update-schema.`,
+    }, null, 2)}\n`,
+  );
+  console.log(`Vendored schema and scripts -> src/spec/dsds-${version}/`);
 
-const suite = JSON.parse(readFileSync(join(source, 'schema/conformance-suite.json'), 'utf-8'));
-const suiteDir = join(ROOT, `tests/fixtures/conformance-${version}`);
-mkdirSync(suiteDir, { recursive: true });
-cpSync(join(source, 'schema/conformance-suite.json'), join(suiteDir, 'conformance-suite.json'));
-for (const fixture of suite.fixtures) cpSync(join(source, fixture.file), join(suiteDir, fixture.file.split('/').pop()));
-console.log(`Vendored ${suite.fixtures.length} conformance fixtures -> tests/fixtures/conformance-${version}/`);
+  const skillsDir = join(source, '.agents/skills');
+  if (existsSync(skillsDir)) {
+    for (const id of readdirSync(skillsDir)) {
+      const skill = join(skillsDir, id, 'SKILL.md');
+      if (!existsSync(skill)) continue;
+      mkdirSync(join(ROOT, 'skills', id), { recursive: true });
+      cpSync(skill, join(ROOT, 'skills', id, 'SKILL.md'));
+    }
+    console.log('Vendored skills -> skills/');
+  }
 
-if (current !== version) {
-  writeFileSync(VERSION_PATH, readFileSync(VERSION_PATH, 'utf-8').replace(/BUNDLED_VERSION\s*=\s*'[^']+'/, `BUNDLED_VERSION = '${version}'`));
-  console.log(`BUNDLED_VERSION: ${current} -> ${version}`);
+  const suite = JSON.parse(readFileSync(join(source, 'schema/conformance-suite.json'), 'utf-8'));
+  const suiteDir = join(ROOT, `tests/fixtures/conformance-${version}`);
+  mkdirSync(suiteDir, { recursive: true });
+  cpSync(join(source, 'schema/conformance-suite.json'), join(suiteDir, 'conformance-suite.json'));
+  for (const fixture of suite.fixtures) cpSync(join(source, fixture.file), join(suiteDir, fixture.file.split('/').pop()));
+  console.log(`Vendored ${suite.fixtures.length} conformance fixtures -> tests/fixtures/conformance-${version}/`);
+
+  if (current !== version) {
+    writeFileSync(VERSION_PATH, readFileSync(VERSION_PATH, 'utf-8').replace(/BUNDLED_VERSION\s*=\s*'[^']+'/, `BUNDLED_VERSION = '${version}'`));
+    console.log(`BUNDLED_VERSION: ${current} -> ${version}`);
+  }
+  console.log('\nNext: remove the previous release\'s src/spec/dsds-<old>/ and tests/fixtures/conformance-<old>/,');
+  console.log('point the conformance test at the new fixtures, then run npm test && npm run check:integrity.');
 }
-console.log('\nNext: remove the previous release\'s src/spec/dsds-<old>/ and tests/fixtures/conformance-<old>/,');
-console.log('point the conformance test at the new fixtures, then run npm test && npm run check:integrity.');

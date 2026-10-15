@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 const VALUE_FLAGS = new Set(['--case', '--consumer', '--model', '--out']);
 const BOOLEAN_FLAGS = new Set(['--dry-run', '--force']);
 
-export const HARNESS_VERSION = 2;
+export const HARNESS_VERSION = 3;
 export const OLLAMA_ENDPOINT = 'http://127.0.0.1:11434/api/chat';
 export const OLLAMA_TIMEOUT_MS = 120_000;
 
@@ -71,8 +71,16 @@ export function validateEvaluation(evaluation) {
   const { expect } = evaluation;
   if (!isPlainObject(expect)) throw new Error('expect must be an object');
 
-  const allowedExpectKeys = new Set(['requiredFields', 'fields', 'allowAdditionalFields']);
+  const allowedExpectKeys = new Set([
+    'requiredFields', 'fields', 'allowAdditionalFields',
+    'contract', 'layoutKind', 'requiredRegions', 'requiredConstraints', 'requiredEvidence',
+  ]);
   rejectUnknownKeys(expect, allowedExpectKeys, 'expect');
+
+  if (expect.contract !== undefined) {
+    validateLayoutContractExpectation(expect);
+    return evaluation;
+  }
 
   if (!Array.isArray(expect.requiredFields) || expect.requiredFields.length === 0) {
     throw new Error('expect.requiredFields must be a non-empty array');
@@ -134,6 +142,10 @@ export function scoreResponse(text, evaluation) {
       failures: [{ code: 'invalid_response_type', message: 'Response must be a JSON object' }],
       fields: {},
     };
+  }
+
+  if (evaluation.expect.contract === 'layout-v1') {
+    return scoreLayoutResponse(response, evaluation.expect);
   }
 
   const failures = [];
@@ -199,6 +211,88 @@ export function scoreResponse(text, evaluation) {
     failures,
     fields: fieldResults,
   };
+}
+
+function validateLayoutContractExpectation(expect) {
+  if (expect.contract !== 'layout-v1') {
+    throw new Error('expect.contract must be layout-v1');
+  }
+  requireNonEmptyString(expect.layoutKind, 'expect.layoutKind');
+  validateStringArray(expect.requiredRegions, 'expect.requiredRegions');
+  validateStringArray(expect.requiredConstraints, 'expect.requiredConstraints');
+  validateStringArray(expect.requiredEvidence, 'expect.requiredEvidence');
+  for (const name of ['requiredRegions', 'requiredConstraints', 'requiredEvidence']) {
+    if (expect[name].length === 0 || new Set(expect[name]).size !== expect[name].length) {
+      throw new Error(`expect.${name} must be a non-empty, unique string array`);
+    }
+  }
+}
+
+function scoreLayoutResponse(response, expect) {
+  const failures = [];
+  const requiredFields = ['status', 'layout', 'constraints', 'evidence'];
+  const expectedFields = new Set(requiredFields);
+  const fields = {};
+
+  for (const field of requiredFields) {
+    if (!Object.hasOwn(response, field)) {
+      failures.push({ code: 'missing_field', field, message: `Missing required field: ${field}` });
+    }
+  }
+  for (const field of Object.keys(response)) {
+    if (!expectedFields.has(field)) {
+      failures.push({ code: 'unexpected_field', field, message: `Unexpected response field: ${field}` });
+    }
+  }
+
+  fields.status = { pass: response.status === 'supported', exactMatch: response.status === 'supported' };
+  if (response.status !== 'supported') {
+    failures.push({ code: 'exact_mismatch', field: 'status', message: 'status must exactly equal supported' });
+  }
+
+  const layout = response.layout;
+  const layoutValid = isPlainObject(layout)
+    && layout.kind === expect.layoutKind
+    && Array.isArray(layout.regions)
+    && layout.regions.every(region => isPlainObject(region)
+      && Object.keys(region).every(key => key === 'kind' || key === 'title')
+      && typeof region.kind === 'string'
+      && typeof region.title === 'string');
+  const actualRegions = layoutValid ? layout.regions.map(region => region.kind) : [];
+  const missingRegions = expect.requiredRegions.filter(region => !actualRegions.includes(region));
+  fields.layout = { pass: layoutValid && missingRegions.length === 0, missingRegions };
+  if (!layoutValid) {
+    failures.push({ code: 'invalid_layout', field: 'layout', message: 'layout must be {kind, regions[]}, with each region shaped as {kind, title}' });
+  }
+  for (const region of missingRegions) {
+    failures.push({ code: 'required_region_missing', field: 'layout', region, message: `Missing required layout region: ${region}` });
+  }
+
+  const constraintsValid = Array.isArray(response.constraints) && response.constraints.every(value => typeof value === 'string');
+  const missingConstraints = constraintsValid
+    ? expect.requiredConstraints.filter(constraint => !response.constraints.includes(constraint))
+    : expect.requiredConstraints;
+  fields.constraints = { pass: constraintsValid && missingConstraints.length === 0, missingConstraints };
+  if (!constraintsValid) {
+    failures.push({ code: 'invalid_constraints', field: 'constraints', message: 'constraints must be an array of strings' });
+  }
+  for (const constraint of missingConstraints) {
+    failures.push({ code: 'required_constraint_missing', field: 'constraints', constraint, message: `Missing required constraint: ${constraint}` });
+  }
+
+  const evidenceValid = Array.isArray(response.evidence) && response.evidence.every(value => typeof value === 'string');
+  const missingEvidence = evidenceValid
+    ? expect.requiredEvidence.filter(identifier => !response.evidence.includes(identifier))
+    : expect.requiredEvidence;
+  fields.evidence = { pass: evidenceValid && missingEvidence.length === 0, missingEvidence };
+  if (!evidenceValid) {
+    failures.push({ code: 'invalid_evidence', field: 'evidence', message: 'evidence must be an array of entry identifiers' });
+  }
+  for (const identifier of missingEvidence) {
+    failures.push({ code: 'required_evidence_missing', field: 'evidence', identifier, message: `Missing required evidence identifier: ${identifier}` });
+  }
+
+  return { pass: failures.length === 0, jsonValid: true, failures, fields };
 }
 
 export function buildOllamaRequest(model, prompt) {

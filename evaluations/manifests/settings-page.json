@@ -1,0 +1,26 @@
+{
+  "id": "settings-page",
+  "label": "DSDS v0.20 settings page",
+  "promptKind": "settings-page",
+  "config": "dsds.v020.config.mjs",
+  "entities": [
+    "account-settings",
+    "button",
+    "text-input",
+    "checkbox",
+    "action-group",
+    "site-layout-tokens"
+  ],
+  "dependencies": ["account-settings"],
+  "requiredSourceFiles": [
+    "src/components/button.js",
+    "src/components/text-input.js",
+    "src/components/checkbox.js",
+    "src/shared/dom.js",
+    "src/styles/tokens.css"
+  ],
+  "preview": {
+    "sourceRoot": "src",
+    "mount": "src"
+  }
+}

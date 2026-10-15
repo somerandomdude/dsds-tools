@@ -83,6 +83,33 @@ The suite exits `2` when supported accuracy is below 80% or any unsupported
 case fails to abstain. It exits `1` for harness, evidence, or Ollama transport
 errors.
 
+### Schema-corpus layout evaluation
+
+The historical cases above retain `dsdsds` as their frozen consumer. For the
+current layout experiment, consume the schema repository's checked-in corpus
+instead. Its `dsds.config.mjs` points the CLI at
+`examples/layout-corpus.dsds.yaml`, which follows the component, token,
+composition, source, Storybook, and CEM evidence files.
+
+Preview a composition prompt without calling Ollama:
+
+```sh
+npm run evaluate:local -- \
+  --case evaluations/cases/schema-corpus/settings-page-layout.json \
+  --consumer ../design-system-documentation-schema \
+  --dry-run
+```
+
+Run the layout-only suite against that corpus:
+
+```sh
+npm run evaluate:local:suite -- \
+  --consumer ../design-system-documentation-schema \
+  --case-dir evaluations/cases/schema-corpus \
+  --model qwen2.5-coder:7b \
+  --runs 3
+```
+
 ## When to use which surface
 
 They are complements, not substitutes: MCP is the structured **reasoning**

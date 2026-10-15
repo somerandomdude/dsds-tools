@@ -48,6 +48,21 @@ const unsupportedCase = {
   },
 };
 
+const layoutCase = {
+  id: 'settings-page-layout',
+  stratum: 'supported',
+  task: 'Generate a settings page.',
+  evidence: [['get', 'settings-page']],
+  prompt: 'Return JSON only.',
+  expect: {
+    contract: 'layout-v1',
+    layoutKind: 'settings-page',
+    requiredRegions: ['page-header', 'settings-section', 'destructive-section'],
+    requiredConstraints: ['single-primary-content-column', 'confirm-destructive-action'],
+    requiredEvidence: ['settings-page', 'confirmation-dialog'],
+  },
+};
+
 describe('scoreResponse', () => {
   test('passes when a required literal is in the asserted field', () => {
     const score = scoreResponse(JSON.stringify({
@@ -112,11 +127,37 @@ describe('scoreResponse', () => {
     assert.equal(score.pass, false);
     assert.ok(score.failures.some(failure => failure.code === 'unexpected_field'));
   });
+
+  test('validates the structured layout contract and rejects a non-canonical status', () => {
+    const response = {
+      status: 'supported',
+      layout: {
+        kind: 'settings-page',
+        regions: [
+          { kind: 'page-header', title: 'Account settings' },
+          { kind: 'settings-section', title: 'Profile' },
+          { kind: 'destructive-section', title: 'Delete account' },
+        ],
+      },
+      constraints: ['single-primary-content-column', 'confirm-destructive-action'],
+      evidence: ['settings-page', 'confirmation-dialog'],
+    };
+    assert.equal(scoreResponse(JSON.stringify(response), layoutCase).pass, true);
+
+    response.status = 'success';
+    const score = scoreResponse(JSON.stringify(response), layoutCase);
+    assert.equal(score.pass, false);
+    assert.ok(score.failures.some(failure => failure.code === 'exact_mismatch' && failure.field === 'status'));
+  });
 });
 
 describe('validateEvaluation', () => {
   test('accepts the supported case schema', () => {
     assert.equal(validateEvaluation(supportedCase), supportedCase);
+  });
+
+  test('accepts the layout contract schema', () => {
+    assert.equal(validateEvaluation(layoutCase), layoutCase);
   });
 
   test('rejects an unknown assertion', () => {

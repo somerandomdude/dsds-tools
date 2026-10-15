@@ -567,8 +567,8 @@ DSDS files are JSON documents. Every file needs `dsdsVersion` and either an `ent
 **Single entity:**
 ```json
 {
-  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
-  "dsdsVersion": "0.15.2",
+  "$schema": "https://designsystemdocspec.org/v0.20.0/dsds.bundled.schema.json",
+  "dsdsVersion": "0.20.0",
   "entity": {
     "kind": "component",
     "identifier": "button",
@@ -584,8 +584,8 @@ DSDS files are JSON documents. Every file needs `dsdsVersion` and either an `ent
 **Multi-entity:**
 ```json
 {
-  "$schema": "https://designsystemdocspec.org/v0.15.2/dsds.bundled.schema.json",
-  "dsdsVersion": "0.15.2",
+  "$schema": "https://designsystemdocspec.org/v0.20.0/dsds.bundled.schema.json",
+  "dsdsVersion": "0.20.0",
   "systemInfo": { "systemName": "My Design System" },
   "entityGroups": [
     { "$ref": "./components/button.dsds.json#/entity" },
