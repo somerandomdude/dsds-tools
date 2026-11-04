@@ -1,8 +1,16 @@
-// dsds-0.23.0/ is vendored verbatim from the 0.23.0 release of
+// dsds-0.23.1/ is vendored verbatim from the 0.23.1 release of
 // somerandomdude/design-system-documentation-schema: its schema/ directory,
 // and the reference validator and resolver from its scripts/. Exactly one
 // version is vendored at a time; schema-order.js derives its path from the
 // constant below and throws at load if the directory is missing.
+//
+// What 0.23.1 asks of a consumer, and where this server answers it:
+//
+//   0.23.1  additive. An entry may declare an optional `uuid`, a stable external
+//           identifier. Refs still use `id`, so lookups stay by id. A fix in the
+//           vendored validator and resolver: an inline link inside a guideline
+//           item's `example` is now found, so DSDS-05, DSDS-08 and inlineLinks
+//           see it. Nothing in this server reads `example` links itself.
 //
 // What 0.23.0 asks of a consumer, and where this server answers it:
 //
@@ -44,7 +52,7 @@
 //           same-as pool (loader.js) already holds every entry loaded
 //           alongside `shared[]`. The bundled skills move to 0.21.2 with it.
 //
-export const BUNDLED_VERSION = '0.23.0';
+export const BUNDLED_VERSION = '0.23.1';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

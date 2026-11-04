@@ -145,6 +145,13 @@ are listed here too, under Changed, Added, Fixed and Removed below the 0.22.0 it
   `dsds_get_agent_context`'s default view: a namespace (`io.jev`) or one block
   in it (`com.sanity.ui.migrationGuide`). The view names what it left out, and
   `verbose: true` returns everything. Env: `DSDS_AGENT_CONTEXT_OMIT`.
+- **`dsds_check_exports` reads every member of a namespace.** A member whose
+  type contains a `}` (`Tabs.Tab`) cut the scan short, so `Tabs.Panel` was
+  reported missing while it was exported in 5.0.0-alpha.19.
+- **`dsds_check_exports` names the part for a bare part name.** `Tab`,
+  `TabList` and `TabPanel` are not root exports; the result now says they are
+  parts of `Tabs` and gives the import (`Tabs.Tab`, `Tabs.List`,
+  `Tabs.Panel`), instead of "not found".
 - **Status words are open, as the spec says.** `dsds_context_brief` lists every
   status other than stable, deprecated and experimental under its own word,
   instead of a fixed `draft` bucket that silently emptied when a corpus used

@@ -100,15 +100,40 @@ function toolchainAvailable() {
   return result.status === 0;
 }
 
-/** Runs the extractor's `npm run all` and returns its parsed output, or null on any failure. */
-function regenerate(propsExtractorDir) {
+/**
+ * Runs the extractor's `npm run all`. Returns `{ data, error }`: `data` is its
+ * parsed output, or null, and `error` is the last line the extractor printed
+ * when it failed.
+ *
+ * The extractor reads its source from SANITY_UI_ROOT and writes to
+ * SANITY_UI_PROPS_OUT. Both are set here from the config (`uiSourceRoot`, and
+ * the extractor directory's `out/`), so every process that loads the config
+ * gets the same answer. Before this, only the MCP server's inherited
+ * environment carried them: the CLI and the harness preflight did not, so the
+ * extractor fell back to a path that does not exist and every API table came
+ * out stale.
+ */
+function regenerate(propsExtractorDir, uiSourceRoot) {
+  const env = { ...process.env };
+  if (uiSourceRoot) {
+    env.SANITY_UI_ROOT = join(uiSourceRoot, 'packages/ui');
+    env.SANITY_UI_PROPS_OUT = join(propsExtractorDir, 'out');
+  }
   const result = spawnSync('npm', ['run', 'all'], {
     cwd: propsExtractorDir,
-    stdio: 'ignore',
+    env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 120_000,
   });
-  if (result.status !== 0) return null;
-  return readJsonSafe(extractorOutputPath(propsExtractorDir));
+  if (result.status !== 0) {
+    // npm echoes `> script` and wraps failures in `npm ERR!`/`npm error` lines;
+    // the extractor's own message is the last line that is neither.
+    const own = (text) => (text ?? '').split('\n').map((l) => l.trim()).filter((l) => l && !/^>/.test(l) && !/^npm/i.test(l));
+    const lines = [...own(result.stderr), ...own(result.stdout)];
+    return { data: null, error: lines[lines.length - 1] ?? `exit ${result.status}` };
+  }
+  return { data: readJsonSafe(extractorOutputPath(propsExtractorDir)), error: null };
 }
 
 function writeCacheEntry(propsExtractorDir, entryId, fingerprint, props) {
@@ -162,8 +187,10 @@ export function getApiForEntry(entity, config) {
 
   // Missing or stale — try to regenerate before giving up.
   let extractedFrom = null;
+  let regenerateError = null;
   if (toolchainAvailable()) {
-    const extracted = regenerate(propsExtractorDir);
+    const { data: extracted, error: extractError } = regenerate(propsExtractorDir, uiSourceRoot);
+    if (!extracted && extractError) regenerateError = extractError;
     const freshProps = extracted?.[entryId]?.['com.sanity.ui'];
     // The extractor ran and produced entries, just not this one. That is a
     // configuration answer, not an absence: the extractor reads whichever
@@ -187,5 +214,6 @@ export function getApiForEntry(entity, config) {
     }
   }
 
-  return cached ? { status: 'stale' } : { status: 'missing', extractedFrom };
+  if (cached) return { status: 'stale', reason: regenerateError };
+  return { status: 'missing', extractedFrom, reason: regenerateError };
 }

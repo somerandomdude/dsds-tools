@@ -71,6 +71,25 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
 
   const lines = ['## Export check', ''];
 
+  // A bare name that is a part of a root export (`Tab` → `Tabs.Tab`). It is not
+  // a root export, so the check still says "not found" — but "not found" reads
+  // as "this does not exist", and that is what agents concluded about `Tabs.Tab`
+  // from the v3 names (2026-10-29). Naming the part fixes the import.
+  const partOf = new Map();
+  const allNames = new Set();
+  for (const exports of packageExports.values()) {
+    for (const full of exports.names) {
+      allNames.add(full);
+      const dot = full.indexOf('.');
+      if (dot > 0 && !partOf.has(full.slice(dot + 1))) partOf.set(full.slice(dot + 1), full);
+    }
+  }
+  // v3's root names for parts whose v5 name is not the v3 name plus the part
+  // (TabList is not TabsList). Used only when the v5 target exists.
+  for (const [v3, v5] of Object.entries(V3_PART_NAMES)) {
+    if (allNames.has(v5) && !partOf.has(v3)) partOf.set(v3, v5);
+  }
+
   // Every icon the icon package really has. @sanity/icons keeps each name at
   // its root typed `never`, so the deprecated-to-never set is the full list.
   const iconExports = iconPackage ? packageExports.get(iconPackage) : null;
@@ -161,6 +180,8 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
             .join('; ')}?`
         : ' No close match — check the icon guidelines for the icon that fits the purpose.';
       lines.push(`✗ **${name}** — not an icon in \`${iconPackage}\`.${hint}`);
+    } else if (partOf.has(name)) {
+      lines.push(`✗ **${name}** — not a root export. It is a part of \`${partOf.get(name).split('.')[0]}\`: use \`${partOf.get(name)}\`, and import \`${partOf.get(name).split('.')[0]}\`.`);
     } else {
       lines.push(`✗ **${name}** — not found in ${notFound.map(p => `\`${p}\``).join(', ')}`);
     }
@@ -185,6 +206,9 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
  * The subpaths a package's `exports` map declares (`./Cog`, …), or null when
  * it has no map. Never throws: an unreadable package.json reads as no map.
  */
+// v3 root names that are parts of a v5 root export.
+const V3_PART_NAMES = { Tab: 'Tabs.Tab', TabList: 'Tabs.List', TabPanel: 'Tabs.Panel' };
+
 export function readSubpathExports(pkgPath) {
   try {
     const { exports } = JSON.parse(readFileSync(join(pkgPath, 'package.json'), 'utf8'));
@@ -281,13 +305,17 @@ function parseDts(content) {
   // Build a map of namespace name → capitalized member names, then for each
   // export aliasing a namespace via `typeof`, emit Foo.Bar entries.
 
+  // The body is read to its matching brace. A member's own type can contain a
+  // `}` (Tabs.Tab is `({ value, tone, ...props }: TabProps) => …`), and cutting
+  // the body at the first one dropped every member after it: Tabs.Panel was
+  // reported as missing in alpha.19 while it was exported (2026-10-29).
   const namespaceMembers = new Map();
-  for (const m of content.matchAll(/^declare namespace (\w+)\s*\{([^}]+)\}/gms)) {
+  for (const ns of namespaceBlocks(content)) {
     const members = [];
-    for (const varMatch of m[2].matchAll(/\bvar\s+(\w+)/g)) {
+    for (const varMatch of ns.body.matchAll(/\bvar\s+(\w+)/g)) {
       if (/^[A-Z]/.test(varMatch[1])) members.push(varMatch[1]);
     }
-    if (members.length > 0) namespaceMembers.set(m[1], members);
+    if (members.length > 0) namespaceMembers.set(ns.name, members);
   }
 
   for (const m of content.matchAll(/^export declare const (\w+):\s*typeof\s+(\w+)/gm)) {
@@ -299,13 +327,34 @@ function parseDts(content) {
 
   // Also handle directly-exported namespaces:
   //   export declare namespace Foo { var Bar: ... }
-  for (const m of content.matchAll(/^export declare namespace (\w+)\s*\{([^}]+)\}/gms)) {
-    for (const varMatch of m[2].matchAll(/\bvar\s+(\w+)/g)) {
-      if (/^[A-Z]/.test(varMatch[1])) names.add(`${m[1]}.${varMatch[1]}`);
+  for (const ns of namespaceBlocks(content, { exported: true })) {
+    for (const varMatch of ns.body.matchAll(/\bvar\s+(\w+)/g)) {
+      if (/^[A-Z]/.test(varMatch[1])) names.add(`${ns.name}.${varMatch[1]}`);
     }
   }
 
   return names;
+}
+
+/**
+ * Each `declare namespace Name { … }` in a .d.ts, with its body read to the
+ * matching closing brace. `exported` keeps only `export declare namespace`.
+ */
+function namespaceBlocks(content, { exported = false } = {}) {
+  const blocks = [];
+  const head = exported
+    ? /^export declare namespace (\w+)\s*\{/gm
+    : /^declare namespace (\w+)\s*\{/gm;
+  for (const m of content.matchAll(head)) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    for (; i < content.length && depth > 0; i++) {
+      if (content[i] === '{') depth++;
+      else if (content[i] === '}') depth--;
+    }
+    blocks.push({ name: m[1], body: content.slice(m.index + m[0].length, i - 1) });
+  }
+  return blocks;
 }
 
 /**

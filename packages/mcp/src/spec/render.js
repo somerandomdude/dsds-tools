@@ -1032,8 +1032,8 @@ export function renderApi20(entity, lines, propsConfig, { sharedPropGroups = nul
       lines.push(
         '## API',
         '',
-        '> **Stale prop cache** — the source has changed since the last extraction and the ' +
-          'extractor toolchain (Node ≥22.6) is unavailable to regenerate it. Omitting the table ' +
+        '> **Stale prop cache** — the source has changed since the last extraction, and the extractor ' +
+          `could not regenerate it${result.reason ? ` (${result.reason})` : ''}. Omitting the table ` +
           'rather than risk showing an outdated one.',
         ''
       );

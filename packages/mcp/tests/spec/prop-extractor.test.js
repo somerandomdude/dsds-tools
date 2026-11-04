@@ -254,3 +254,38 @@ describe('renderApi20 — values and shared groups', () => {
   });
 
 });
+
+// Regeneration takes its source root from the config, not from the environment
+// of whichever process asks (2026-10-19: the harness preflight had no
+// SANITY_UI_ROOT, so every table came out stale).
+describe('regeneration', () => {
+  const stubExtractor = (dir, expectedRoot) => {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { all: 'node stub.mjs' } }));
+    writeFileSync(join(dir, 'stub.mjs'), `
+import fs from 'node:fs';
+if (process.env.SANITY_UI_ROOT !== ${JSON.stringify(expectedRoot)}) {
+  console.error('Sanity UI source not found at ' + process.env.SANITY_UI_ROOT);
+  process.exit(1);
+}
+const out = process.env.SANITY_UI_PROPS_OUT;
+fs.mkdirSync(out, { recursive: true });
+fs.writeFileSync(out + '/dsds-extensions.json', JSON.stringify({
+  box: { 'com.sanity.ui': { props: [{ name: 'as', kind: 'string', type: 'T', description: 'Element' }] } },
+}));
+`);
+  };
+
+  it('passes the config source root and output directory to the extractor', () => {
+    stubExtractor(extractorDir, join(uiSourceRoot, 'packages/ui'));
+    const result = getApiForEntry(boxEntity, { propsExtractorDir: extractorDir, uiSourceRoot });
+    expect(result.status).toBe('fresh');
+    expect(result.props.props[0].name).toBe('as');
+  });
+
+  it('says why regeneration failed, from the extractor\'s own message', () => {
+    stubExtractor(extractorDir, '/somewhere/else');
+    const result = getApiForEntry(boxEntity, { propsExtractorDir: extractorDir, uiSourceRoot });
+    expect(result.status).toBe('missing');
+    expect(result.reason).toMatch(/Sanity UI source not found/);
+  });
+});
