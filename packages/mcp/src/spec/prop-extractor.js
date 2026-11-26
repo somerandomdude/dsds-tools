@@ -92,7 +92,7 @@ export function fingerprintFor(entity, { uiSourceRoot, propsExtractorDir } = {})
 }
 
 /** True if the extractor's Node toolchain (>=22.6, --experimental-strip-types) is usable. */
-function toolchainAvailable() {
+export function toolchainAvailable() {
   const result = spawnSync('node', ['--experimental-strip-types', '--eval', 'process.exit(0)'], {
     stdio: 'ignore',
     timeout: 5000,
