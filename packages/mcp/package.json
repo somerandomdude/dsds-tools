@@ -60,7 +60,7 @@
     "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.6"
   },
   "optionalDependencies": {
     "mdast-util-from-markdown": "^2.1.0"

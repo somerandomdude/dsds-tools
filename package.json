@@ -28,7 +28,7 @@
     "url": "git+https://github.com/somerandomdude/dsds-tools.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.6"
   },
   "devDependencies": {
     "acorn": "^8.18.0",

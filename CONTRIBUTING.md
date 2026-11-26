@@ -11,7 +11,7 @@ cd dsds-mcp
 npm install
 ```
 
-Requires Node.js >= 18.
+Requires Node.js >= 22.6.
 
 ### Linking a local lint plugin (e.g. `eslint-plugin-sanity-ui`)
 
