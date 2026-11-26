@@ -1,20 +1,114 @@
 // The icon set, read from the docs themselves.
 //
-// A design system can document its icon set as a `dsds.asset` entry with
-// `assetType: icon` (an incubating DSDS 0.22.0 kind): one definitions item per
-// icon, with its name, purpose, alternative names and usage notes. When one is
-// loaded, the icon tools read it. Before this they read a separate TSV
-// (`ICON_GUIDELINES_PATH`), so the same icon data lived in two places and the
-// docs entry agents could open was never the one the tools used. The TSV is
-// still read when no asset entry exists.
-import { loadIconGuidelines } from './icon-suggest.js';
+// A design system can document its icon set as an icon asset entry: a
+// `kind: entry` whose `$extensions` declare `assetType: icon`, plus a
+// `rel: source` ref to the npm package that ships the icons. Each icon is its
+// own `kind: component` entry, marked with `iconOf` (the set's id) in its
+// `$extensions`. Its name is the icon name, its `metadata.aliases` are the
+// alternative names, and its when-to-use guidance is in its sections. When the icons are loaded, the icon tools read them.
+// Before this they read a separate TSV (`ICON_GUIDELINES_PATH`), so the same
+// icon data lived in two places. The TSV is still read when no asset entry
+// exists.
+//
+// The older form, with the icons as a definitions list on the set entry, is
+// still read so a corpus can move over without a flag day.
+import { loadIconGuidelines, iconSubpath } from './icon-suggest.js';
 
-/** Every loaded `dsds.asset` entry documenting icons. */
-export function iconAssetEntries(systems) {
-  return (systems ?? []).flatMap((s) => s.entities ?? []).filter((e) => e?.kind === 'dsds.asset' && e.assetType === 'icon');
+/**
+ * The asset type an entry declares, or null. Read from `$extensions` (any
+ * namespace, so the entry names its own), or from the top-level field of the
+ * legacy `dsds.asset` form.
+ */
+export function assetTypeOf(entity) {
+  if (!entity || typeof entity !== 'object') return null;
+  if (entity.kind === 'dsds.asset' && entity.assetType) return entity.assetType;
+  for (const ext of Object.values(entity.$extensions ?? {})) {
+    if (ext && typeof ext === 'object' && typeof ext.assetType === 'string') return ext.assetType;
+  }
+  return null;
 }
 
-/** `@sanity/icons` from an npm package URL in an asset's `source`, else null. */
+/** The npm source of an entity: its `source` field (legacy) or its `rel: source` ref. */
+export function sourceOf(entity) {
+  if (entity?.source) return entity.source;
+  return (entity?.refs ?? []).find((r) => r?.rel === 'source' && typeof r.href === 'string') ?? null;
+}
+
+/** The namespace object of an icon component's $extensions, or null. */
+function iconExt(entity) {
+  if (!entity || typeof entity !== 'object') return null;
+  for (const ext of Object.values(entity.$extensions ?? {})) {
+    if (ext && typeof ext === 'object' && typeof ext.iconOf === 'string') return ext;
+  }
+  return null;
+}
+
+/** The statements of a when-to-use section at one level, joined into a sentence. */
+function guidanceText(entity, level) {
+  const out = [];
+  for (const section of entity?.sections ?? []) {
+    if (section.kind !== 'guidelines' || section.framing !== 'when-to-use') continue;
+    for (const item of section.items ?? []) {
+      if (item?.level === level && item.statement) out.push(String(item.statement).trim());
+    }
+  }
+  return out.join(' ');
+}
+
+/**
+ * One icon as a member: { term, id, aliases, purpose, whenToUse, whenNotToUse,
+ * described }. Reads an icon component entry (`$extensions.iconOf`), or a
+ * legacy definitions item (`term`, `definition`, `usage`).
+ */
+export function normalizeMember(entity) {
+  const ext = iconExt(entity);
+  if (ext) {
+    return {
+      term: entity.name,
+      id: String(entity.id ?? ''),
+      aliases: (entity.metadata?.aliases ?? []).map(String),
+      purpose: ext.described === false ? '' : String(entity.description ?? '').trim(),
+      whenToUse: guidanceText(entity, 'should'),
+      whenNotToUse: guidanceText(entity, 'should-not'),
+      described: ext.described !== false,
+      owner: ext.iconOf,
+    };
+  }
+  const own = String(entity.id ?? '').toLowerCase();
+  const usage = splitUsage(entity.usage);
+  return {
+    term: entity.term,
+    id: String(entity.id ?? ''),
+    aliases: (entity.aliases ?? []).map((a) => String(a).trim().toLowerCase()).filter((a) => a && a !== own),
+    purpose: isPlaceholder(entity.definition) ? '' : String(entity.definition).trim(),
+    whenToUse: usage.whenToUse,
+    whenNotToUse: usage.whenNotToUse,
+    described: !isPlaceholder(entity.definition),
+    owner: entity.id,
+  };
+}
+
+/**
+ * The icon components that belong to an icon set, normalized. Given no set id,
+ * every icon component in the loaded docs.
+ */
+export function iconMembers(systems, setId = null) {
+  const out = [];
+  for (const s of systems ?? []) {
+    for (const e of s.entities ?? []) {
+      const ext = iconExt(e);
+      if (ext && (setId == null || ext.iconOf === setId)) out.push(normalizeMember(e));
+    }
+  }
+  return out;
+}
+
+/** Every loaded entry that declares an icon asset type. */
+export function iconAssetEntries(systems) {
+  return (systems ?? []).flatMap((s) => s.entities ?? []).filter((e) => assetTypeOf(e) === 'icon');
+}
+
+/** `@sanity/icons` from an npm package URL in an asset's source, else null. */
 export function packageFromSource(source) {
   const href = typeof source === 'string' ? source : source?.href;
   const m = typeof href === 'string' && href.match(/npmjs\.com\/package\/((?:@[^/]+\/)?[^/?#]+)/);
@@ -44,16 +138,14 @@ function splitUsage(usage) {
  */
 export function iconCatalog(systems) {
   const out = new Map();
+  const add = (m) => {
+    if (!m.term) return;
+    out.set(m.term, { aliases: m.aliases, purpose: m.purpose, whenToUse: m.whenToUse, whenNotToUse: m.whenNotToUse });
+  };
+  for (const m of iconMembers(systems)) add(m);
+  // The older form: members listed on the set entry itself.
   for (const entry of iconAssetEntries(systems)) {
-    for (const item of assetMembers(entry)) {
-      if (!item?.term) continue;
-      const own = String(item.id ?? '').toLowerCase();
-      out.set(item.term, {
-        aliases: (item.aliases ?? []).map((a) => String(a).trim().toLowerCase()).filter((a) => a && a !== own),
-        purpose: isPlaceholder(item.definition) ? '' : String(item.definition).trim(),
-        ...splitUsage(item.usage),
-      });
-    }
+    for (const item of assetMembers(entry)) add(normalizeMember(item));
   }
   return out;
 }
@@ -69,7 +161,7 @@ export function resolveIconGuidance({ systems = [], guidelinesPath = null, iconP
   return {
     guidelines: catalog.size ? catalog : loadIconGuidelines(guidelinesPath),
     source: catalog.size ? 'asset' : (guidelinesPath ? 'tsv' : null),
-    iconPackage: iconPackage ?? packageFromSource(asset?.source) ?? null,
+    iconPackage: iconPackage ?? packageFromSource(sourceOf(asset)) ?? null,
     assetId: asset?.identifier ?? null,
   };
 }
@@ -84,30 +176,31 @@ export function resolveIconGuidance({ systems = [], guidelinesPath = null, iconP
  * Rendered generically, the 236-icon entry was a 19k-character list of
  * "name: definition" lines with no import path and the placeholders showing.
  */
-export function renderAssetMembers(entity, lines, { verbose = false } = {}) {
-  const members = assetMembers(entity);
+export function renderAssetMembers(entity, lines, { verbose = false, members: given = null } = {}) {
+  // `given` is already normalized (icon components). Without it, the set's own definitions list.
+  const members = given?.length ? given : assetMembers(entity).map(normalizeMember);
+  const listed = members.filter((m) => m.term);
+  if (!listed.length) return;
+  members.splice(0, members.length, ...listed);
   if (!members.length) return;
-  const pkg = packageFromSource(entity.source);
+  const pkg = packageFromSource(sourceOf(entity));
   lines.push('## Members', '');
-  if (entity.assetType === 'icon' && pkg) {
-    const sample = members.find((m) => m.term)?.term ?? 'AddIcon';
+  if (assetTypeOf(entity) === 'icon' && pkg) {
+    const sample = members[0].term;
     lines.push(
-      `${members.length} icons. Import each from its own subpath: \`import { ${sample} } from '${pkg}/${sample.replace(/Icon$/, '')}'\`. ` +
+      `${members.length} icons. Import each from its own subpath: \`import { ${sample} } from '${iconSubpath(pkg, sample)}'\`. ` +
         'Search them by purpose with `dsds_find_icon` when it is available.',
       '',
     );
   }
   const undescribed = [];
   for (const m of members) {
-    if (!m?.term) continue;
-    if (isPlaceholder(m.definition)) { undescribed.push(m.term); continue; }
-    const own = String(m.id ?? '').toLowerCase();
-    const aliases = (m.aliases ?? []).map(String).filter((a) => a.toLowerCase() !== own);
-    lines.push(`- **${m.term}** — ${String(m.definition).trim()}${aliases.length ? ` *Also:* ${aliases.join(', ')}` : ''}`);
-    if (verbose && m.usage) {
-      const { whenToUse, whenNotToUse } = splitUsage(m.usage);
-      if (whenToUse) lines.push(`  - Use when: ${whenToUse}`);
-      if (whenNotToUse) lines.push(`  - Not for: ${whenNotToUse}`);
+    if (!m.described) { undescribed.push(m.term); continue; }
+    const aliases = m.aliases.map(String);
+    lines.push(`- **${m.term}** — ${m.purpose}${aliases.length ? ` *Also:* ${aliases.join(', ')}` : ''}`);
+    if (verbose) {
+      if (m.whenToUse) lines.push(`  - Use when: ${m.whenToUse}`);
+      if (m.whenNotToUse) lines.push(`  - Not for: ${m.whenNotToUse}`);
     }
   }
   if (undescribed.length) lines.push('', `Also in the set, not yet described: ${undescribed.join(', ')}.`);

@@ -1,10 +1,17 @@
-// dsds-0.23.1/ is vendored verbatim from the 0.23.1 release of
+// dsds-0.23.2/ is vendored verbatim from the 0.23.2 release of
 // somerandomdude/design-system-documentation-schema: its schema/ directory,
 // and the reference validator and resolver from its scripts/. Exactly one
 // version is vendored at a time; schema-order.js derives its path from the
 // constant below and throws at load if the directory is missing.
 //
-// What 0.23.1 asks of a consumer, and where this server answers it:
+// What 0.23.2 asks of a consumer, and where this server answers it:
+//
+//   0.23.2  additive. `refines` is no longer limited to `for: agent` rules: a
+//           rule for any audience can refine a broader one, and a consumer applies
+//           both (the refinement doesn't replace the rule it refines). Nothing
+//           that validated under 0.23.1 changes status. Also a site, docs and check
+//           release with no effect on a document. See render.js (refines) and
+//           briefs.js for where this server reads refinements.
 //
 //   0.23.1  additive. An entry may declare an optional `uuid`, a stable external
 //           identifier. Refs still use `id`, so lookups stay by id. A fix in the
@@ -52,7 +59,7 @@
 //           same-as pool (loader.js) already holds every entry loaded
 //           alongside `shared[]`. The bundled skills move to 0.21.2 with it.
 //
-export const BUNDLED_VERSION = '0.23.1';
+export const BUNDLED_VERSION = '0.23.2';
 export const SPEC_URL = 'https://designsystemdocspec.org';
 
 const GITHUB_TAGS_URL =

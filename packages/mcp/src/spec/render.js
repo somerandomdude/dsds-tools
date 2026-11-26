@@ -356,7 +356,7 @@ export function ruleLead(statement, ref) {
 export function resolveSharedItem20(item, sharedEntries, contentFields) {
   const hasOwnContent = contentFields.some((f) => item?.[f] != null);
   const target = findSameAsTarget(item, sharedEntries);
-  // `refines` is a field of its own since 0.22.0, on the agent rule, with no
+  // `refines` is a field of its own since 0.22.0, on the narrower rule, with no
   // `rel`; before, it was a `refs` entry with `rel: refines`. Both are read.
   const pointers = [
     ...(item?.refs ?? []).filter((r) => SAME_AS_RELS.has(r.rel) || r.rel === 'refines'),

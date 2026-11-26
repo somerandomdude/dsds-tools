@@ -6,7 +6,35 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.6.0] - Unreleased
+## [0.8.0] - 2026-11-25
+
+### Changed
+- **Bundled DSDS 0.23.2.** `src/spec/dsds-0.23.2/` replaces `dsds-0.23.1/`, vendored with `npm run update-schema` from the 0.23.2 tag. The conformance suite moves to 0.23.2 (40 fixtures). The bundled skills are the 0.23.2 ones.
+- **`refines` reads for any audience.** A rule for people can be refined by a rule for agents, and a component rule can refine a shared one. The code already read `refines` whatever the audience; the prose in `dsds_get_agent_context` guidance, `dsds_validate` migration notes and the render comments said "agent rule", and now they don't.
+- **Icon tools read no Sanity icon names.** The fallback table of guesses (`gear`, `kebab`, `exclamation`) that named `@sanity/icons` icons is gone. Icon suggestions come from the docs' icon entry or the guidelines TSV only. The `Icon`-suffix subpath rule is one pair of helpers (`iconBaseName`, `iconSubpath`), not four copies.
+- **`refines` prose is audience-neutral.** `dsds_validate` migration text and the build brief say "the narrower rule", not "the agent rule".
+
+### Fixed
+- **Bundled skills ship in the package.** `dsds_list_skills` and `dsds_get_skill` read `skills/` at the package root, but `files` in `package.json` left it out, so the published tarball had none. `skills` is now listed.
+
+## [0.7.0] - 2026-11-04
+
+Supports DSDS 0.23.1, an additive release: every document that validated under
+0.23.0 still does.
+
+### Changed
+- **Bundled DSDS 0.23.1.** `src/spec/dsds-0.23.1/` replaces `dsds-0.23.0/`, and the conformance suite moves to 0.23.1. An entry may declare an optional `uuid`; refs still use `id`, so lookups stay by id. A fix in the vendored validator and resolver: an inline link inside a guideline item's `example` is now found by DSDS-05, DSDS-08 and the resolver.
+
+### Fixed
+- **`dsds_check_exports` reads every member of a namespace.** A member whose
+  type contains a `}` (`Tabs.Tab`) cut the scan short, so `Tabs.Panel` was
+  reported missing while it was exported in 5.0.0-alpha.19.
+- **`dsds_check_exports` names the part for a bare part name.** `Tab`,
+  `TabList` and `TabPanel` are not root exports; the result now says they are
+  parts of `Tabs` and gives the import (`Tabs.Tab`, `Tabs.List`,
+  `Tabs.Panel`), instead of "not found".
+
+## [0.6.0] - 2026-10-15
 
 Supports DSDS 0.23.0, an additive release: every document that validated under
 0.22.0 still does.
@@ -145,13 +173,6 @@ are listed here too, under Changed, Added, Fixed and Removed below the 0.22.0 it
   `dsds_get_agent_context`'s default view: a namespace (`io.jev`) or one block
   in it (`com.sanity.ui.migrationGuide`). The view names what it left out, and
   `verbose: true` returns everything. Env: `DSDS_AGENT_CONTEXT_OMIT`.
-- **`dsds_check_exports` reads every member of a namespace.** A member whose
-  type contains a `}` (`Tabs.Tab`) cut the scan short, so `Tabs.Panel` was
-  reported missing while it was exported in 5.0.0-alpha.19.
-- **`dsds_check_exports` names the part for a bare part name.** `Tab`,
-  `TabList` and `TabPanel` are not root exports; the result now says they are
-  parts of `Tabs` and gives the import (`Tabs.Tab`, `Tabs.List`,
-  `Tabs.Panel`), instead of "not found".
 - **Status words are open, as the spec says.** `dsds_context_brief` lists every
   status other than stable, deprecated and experimental under its own word,
   instead of a fixed `draft` bucket that silently emptied when a corpus used

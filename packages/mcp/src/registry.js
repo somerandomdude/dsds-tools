@@ -152,7 +152,7 @@ export function createToolRuntime({
   const toolMap = new Map(toolDefs.map(t => [t.name, t]));
 
   // Icon config plus the loaded docs, so the icon tools can read an icon asset
-  // entry (`kind: dsds.asset`) instead of a separate TSV. See icon-catalog.js.
+  // entry (`assetType: icon` in its `$extensions`) instead of a separate TSV. See icon-catalog.js.
   const iconConfig = () => ({ ...((getIconConfig ?? (() => ({})))() ?? {}), systems: getSystems() });
 
   // Resolve and run a tool call, returning its result (never throws).

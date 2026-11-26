@@ -7,7 +7,7 @@ import { findSharedPropGroups, findSharedRules, renderApi20, renderSharedPropGro
 import { notFoundError } from '../errors.js';
 import { renderTable } from '../render/table.js';
 import { accessRecord } from '../logger.js';
-import { renderAssetMembers } from '../icon-catalog.js';
+import { assetTypeOf, iconMembers, renderAssetMembers } from '../icon-catalog.js';
 
 /** Entry kind for telemetry — 0.20+ entries carry `kind`, older ones do not. */
 const entityKindOf = e => e.kind ?? e.entityKind ?? undefined;
@@ -52,7 +52,7 @@ const asText = v => formatInlineLinks(typeof v === 'string' ? v : (v?.value ?? '
 // Compact (default) renders `for: agent`/`for: all` sections only — a
 // `for: human` section is prose for people, not something an agent needs
 // to spend context on before writing code. Verbose renders everything.
-function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = true, sharedPropGroups = null, sharedRules = null } = {}) {
+function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = true, sharedPropGroups = null, sharedRules = null, iconSet = [] } = {}) {
   const lines = [`# ${found.name ?? found.identifier} — Agent Context`, ''];
   if (found.description) lines.push(asText(found.description), '');
 
@@ -90,8 +90,9 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
   let sections = found.sections ?? [];
   // An asset entry (an icon set, a logo set) lists its members in its first
   // definitions section. Render them compactly; the rest renders as usual.
-  if (found.kind === 'dsds.asset') {
-    renderAssetMembers(found, lines, { verbose });
+  const isAsset = assetTypeOf(found) !== null;
+  if (isAsset) {
+    renderAssetMembers(found, lines, { verbose, members: iconSet });
     const members = sections.find((s) => s.kind === 'definitions');
     sections = sections.filter((s) => s !== members);
   }
@@ -105,7 +106,7 @@ function renderAgentContext20(found, verbose, getGraph, propsConfig, { notice = 
   const served = verbose ? sections : sections.filter((s) => s.for === 'agent' || s.for === 'all');
   let omitted = 0;
   if (sections.length === 0) {
-    if (found.kind !== 'dsds.asset') lines.push('*No sections defined for this entry.*');
+    if (!isAsset) lines.push('*No sections defined for this entry.*');
   } else if (verbose) {
     renderSections20(sections, lines, sectionCtx);
   } else {
@@ -199,7 +200,7 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
         listHint: '`dsds_list_entities`',
       });
     }
-    return renderAgentContext20(found, verbose, getGraph, propsConfig);
+    return renderAgentContext20(found, verbose, getGraph, propsConfig, { iconSet: iconMembers(systems, found.identifier) });
   }
 
   // A batch never fails as a whole: a typo in one id must not cost the agent
@@ -223,7 +224,7 @@ export async function getAgentContextHandler({ identifier, verbose = false }, ge
   // (see findSharedRules in spec/render.js).
   const sharedRules = findSharedRules(entities.map((e) => e.found), { audience: verbose ? null : 'agent' });
   for (const { id, found } of entities) {
-    rendered.push({ id, ...renderAgentContext20(found, verbose, getGraph, propsConfig, { notice: false, sharedPropGroups, sharedRules }) });
+    rendered.push({ id, ...renderAgentContext20(found, verbose, getGraph, propsConfig, { notice: false, sharedPropGroups, sharedRules, iconSet: iconMembers(systems, found.identifier) }) });
   }
 
   const out = [];

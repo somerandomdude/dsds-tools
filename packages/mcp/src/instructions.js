@@ -47,8 +47,7 @@ rely on general training knowledge for this design system's API surface.
 SETUP FIRST — this design system needs one-time project setup before ANY component renders
 correctly: a stylesheet import, a theme provider, a polyfill, a build plugin. It is in no
 component's documentation, and missing it fails silently — the page renders, nothing throws,
-and you ship an unstyled app that passes every check. Read this system's getting-started or
-installation entry before your first component. Recognising the library is not a substitute:
+and you ship an unstyled app that passes every check. Recognising the library is not a substitute:
 setup differs between major versions of the same one.
 
 WORK WITHIN THE SYSTEM'S OPINIONS — build inside the constraints, not around them. Use the prop

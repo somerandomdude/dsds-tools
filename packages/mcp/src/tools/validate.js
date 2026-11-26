@@ -52,7 +52,7 @@ function migrationHint(doc, errors, warnings) {
     '',
     `### Migrating to ${BUNDLED_VERSION}`,
     '',
-    'This document uses fields or `rel` values that 0.22.0 removed: `purpose` and `metadata.context` folded into `description`, `related` became `alternatives` (or `refines` on an agent rule), and pointers moved into fields named for their kind (`uses`, `extends`, `evidence`, `checks`, `replacedBy`).',
+    'This document uses fields or `rel` values that 0.22.0 removed: `purpose` and `metadata.context` folded into `description`, `related` became `alternatives` (or `refines` on the narrower rule), and pointers moved into fields named for their kind (`uses`, `extends`, `evidence`, `checks`, `replacedBy`).',
     'The spec repo ships `scripts/tools/migrate-to-0.22.js`, which makes these changes in place, keeps comments, and reports anything it can\'t decide. Pass every file of a project in one run.',
   ];
 }

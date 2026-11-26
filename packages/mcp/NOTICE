@@ -2,7 +2,7 @@ dsds-mcp
 Copyright [2026] [PJ Onori]
 
 This product includes the Design System Documentation Spec (DSDS) schema,
-bundled at src/spec/dsds.bundled.schema.json.
+bundled at src/spec/dsds-0.23.2/schema/dsds.bundled.schema.json (DSDS 0.23.2).
 
   Design System Documentation Spec (DSDS)
   https://github.com/somerandomdude/design-system-documentation-schema
