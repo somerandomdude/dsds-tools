@@ -9,6 +9,16 @@
 // spelling are used as well, for guesses the guidelines don't cover.
 import { readFileSync, statSync } from 'node:fs';
 
+/** The icon name without its `Icon` suffix: `CogIcon` → `Cog`. This is the subpath name @sanity/icons uses. */
+export function iconBaseName(name) {
+  return String(name).replace(/Icon$/, '');
+}
+
+/** The subpath import for an icon in its package: `iconSubpath('@sanity/icons', 'CogIcon')` → `@sanity/icons/Cog`. */
+export function iconSubpath(pkg, name) {
+  return `${pkg}/${iconBaseName(name)}`;
+}
+
 /** Words in a PascalCase or spaced name, lowercased: "AlertCircle" → ["alert", "circle"]. */
 export function nameWords(name) {
   return String(name)
@@ -62,15 +72,6 @@ export function loadIconGuidelines(path) {
   return rows;
 }
 
-// Common guesses the guidelines' alternative names don't cover yet. Kept
-// short on purpose: the TSV is the source, and a word belongs there first.
-const FALLBACK = {
-  gear: ['CogIcon'],
-  'more vertical': ['EllipsisVerticalIcon'],
-  kebab: ['EllipsisVerticalIcon'],
-  exclamation: ['WarningOutlineIcon', 'ErrorOutlineIcon'],
-};
-
 function distance(a, b) {
   if (Math.abs(a.length - b.length) > 3) return 99;
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...new Array(b.length).fill(0)]);
@@ -117,8 +118,6 @@ export function suggestIcons(guess, icons, guidelines, limit = 3) {
     const d = distance(typed, iconBase);
     if (d === 1 && typed.length >= 4) score = Math.max(score, 55);
     if (d === 2 && typed.length >= 7) score = Math.max(score, 45);
-    const fallback = FALLBACK[phrase] ?? FALLBACK[head];
-    if (fallback?.includes(icon)) score = Math.max(score, 75 - fallback.indexOf(icon));
     if (score >= 35) scored.push({ name: icon, score, purpose: g?.purpose || null });
   }
   return scored
@@ -159,7 +158,7 @@ export function findIconsByPurpose(query, icons, guidelines, limit = 5) {
   const out = [];
   for (const icon of icons) {
     const g = guidelines.get(icon);
-    const nameStems = stems(icon.replace(/Icon$/, ''));
+    const nameStems = stems(iconBaseName(icon));
     const aliasStems = (g?.aliases ?? []).map((a) => stems(a));
     const purposeStems = new Set(stems(g?.purpose ?? ''));
     const whenStems = new Set(stems(g?.whenToUse ?? ''));

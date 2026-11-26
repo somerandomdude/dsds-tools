@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { suggestIcons } from '../icon-suggest.js';
+import { suggestIcons, iconSubpath, iconBaseName } from '../icon-suggest.js';
 import { resolveIconGuidance } from '../icon-catalog.js';
 
 export const checkExportsDef = {
@@ -96,7 +96,6 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
   const allIcons = iconExports
     ? [...new Set([...iconExports.deprecated.keys(), ...[...iconExports.names].filter((n) => /Icon$/.test(n))])]
     : [];
-  const iconSubpath = (name) => `${iconPackage}/${name.replace(/Icon$/, '')}`;
   let iconGuidelines = null;
   const iconLines = [];
 
@@ -125,7 +124,7 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
         iconGuidelines ??= loadGuidance();
         const suggestions = suggestIcons(`${rest}Icon`, allIcons, iconGuidelines);
         const hint = suggestions.length
-          ? ` Did you mean ${suggestions.map((s) => `\`${iconSubpath(s.name)}\``).join('; ')}?`
+          ? ` Did you mean ${suggestions.map((s) => `\`${iconSubpath(iconPackage, s.name)}\``).join('; ')}?`
           : ' No close match — check the icon guidelines for the icon that fits the purpose.';
         lines.push(`✗ **${name}** — no such subpath in \`${pkgName}\`.${hint}`);
       } else {
@@ -155,13 +154,13 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
       // The subpath is derived from the name, so confirm the package really
       // ships it. A package with no exports map cannot be checked; say nothing.
       const known = subpathsOf(iconPackage);
-      const sub = `./${name.replace(/Icon$/, '')}`;
+      const sub = `./${iconBaseName(name)}`;
       if (known && !known.has(sub)) {
-        lines.push(`✗ **${name}** — listed at the \`${iconPackage}\` root, but \`${iconSubpath(name)}\` does not exist`);
+        lines.push(`✗ **${name}** — listed at the \`${iconPackage}\` root, but \`${iconSubpath(iconPackage, name)}\` does not exist`);
         continue;
       }
       iconLines.push(name);
-      lines.push(`✓ **${name}** — import from \`${iconSubpath(name)}\``);
+      lines.push(`✓ **${name}** — import from \`${iconSubpath(iconPackage, name)}\``);
       continue;
     }
 
@@ -176,7 +175,7 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
       const suggestions = suggestIcons(name, allIcons, iconGuidelines);
       const hint = suggestions.length
         ? ` Did you mean ${suggestions
-            .map((s) => `\`${s.name}\`${s.purpose ? ` (${s.purpose.replace(/\.$/, '')})` : ''} — \`${iconSubpath(s.name)}\``)
+            .map((s) => `\`${s.name}\`${s.purpose ? ` (${s.purpose.replace(/\.$/, '')})` : ''} — \`${iconSubpath(iconPackage, s.name)}\``)
             .join('; ')}?`
         : ' No close match — check the icon guidelines for the icon that fits the purpose.';
       lines.push(`✗ **${name}** — not an icon in \`${iconPackage}\`.${hint}`);
@@ -189,7 +188,7 @@ export function checkExportsHandler({ components }, getExportPaths, getIconConfi
 
   if (iconLines.length) {
     lines.splice(2, 0,
-      `> Each icon is imported from its own subpath, e.g. \`import { ${iconLines[0]} } from '${iconSubpath(iconLines[0])}'\`. ` +
+      `> Each icon is imported from its own subpath, e.g. \`import { ${iconLines[0]} } from '${iconSubpath(iconPackage, iconLines[0])}'\`. ` +
       `The \`${iconPackage}\` root still lists every icon name, typed \`never\`, so a root import does not compile.`,
       '');
   }

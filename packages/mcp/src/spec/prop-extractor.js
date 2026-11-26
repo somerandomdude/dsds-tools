@@ -92,7 +92,7 @@ export function fingerprintFor(entity, { uiSourceRoot, propsExtractorDir } = {})
 }
 
 /** True if the extractor's Node toolchain (>=22.6, --experimental-strip-types) is usable. */
-function toolchainAvailable() {
+export function toolchainAvailable() {
   const result = spawnSync('node', ['--experimental-strip-types', '--eval', 'process.exit(0)'], {
     stdio: 'ignore',
     timeout: 5000,
@@ -114,7 +114,10 @@ function toolchainAvailable() {
  * out stale.
  */
 function regenerate(propsExtractorDir, uiSourceRoot) {
-  const env = { ...process.env };
+  // The extractor is its own project, so it must not inherit this process's npm
+  // config. Under `npm test --workspaces`, npm sets npm_config_workspaces=true, and the
+  // child `npm run all` then fails outside a workspace.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("npm_config_")));
   if (uiSourceRoot) {
     env.SANITY_UI_ROOT = join(uiSourceRoot, 'packages/ui');
     env.SANITY_UI_PROPS_OUT = join(propsExtractorDir, 'out');

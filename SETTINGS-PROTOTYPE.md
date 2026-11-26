@@ -12,7 +12,7 @@ and config. The default manifest is
 `evaluations/manifests/settings-page.json`, which targets the consumer's
 `dsds.v020.config.mjs`. Install `dsds-tools` dependencies with `npm ci` once
 before offline use. This is a development workflow requiring the two sibling
-checkouts and Node 20+, not a published `dsds` command.
+checkouts and Node 22.6+, not a published `dsds` command.
 
 The runner prints a unique directory under `dsds-tools/evaluations/results/`.
 It automatically collects six v0.20 entries and the account-settings

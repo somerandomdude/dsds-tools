@@ -3,7 +3,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { getApiForEntry, fingerprintFor } from '../../src/spec/prop-extractor.js';
+import { getApiForEntry, fingerprintFor, toolchainAvailable } from '../../src/spec/prop-extractor.js';
+
+// Regeneration runs the extractor, which needs Node 22.6+ (--experimental-strip-types).
+// Without it the server never regenerates, so those tests only run where it can.
+const canRegenerate = toolchainAvailable();
 import { findSharedPropGroups, formatPropValues, renderApi20, renderSharedPropGroups } from '../../src/spec/render.js';
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
@@ -258,7 +262,7 @@ describe('renderApi20 — values and shared groups', () => {
 // Regeneration takes its source root from the config, not from the environment
 // of whichever process asks (2026-10-19: the harness preflight had no
 // SANITY_UI_ROOT, so every table came out stale).
-describe('regeneration', () => {
+describe.skipIf(!canRegenerate)('regeneration', () => {
   const stubExtractor = (dir, expectedRoot) => {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { all: 'node stub.mjs' } }));
     writeFileSync(join(dir, 'stub.mjs'), `
@@ -288,4 +292,12 @@ fs.writeFileSync(out + '/dsds-extensions.json', JSON.stringify({
     expect(result.status).toBe('missing');
     expect(result.reason).toMatch(/Sanity UI source not found/);
   });
+});
+
+describe.skipIf(canRegenerate)('without the extractor toolchain', () => {
+  it('does not try to regenerate, so the status is missing with no reason', () => {
+    const result = getApiForEntry(boxEntity, { propsExtractorDir: extractorDir, uiSourceRoot });
+    expect(result.status).toBe('missing');
+    expect(result.reason).toBeNull();
+  }, 15000);
 });

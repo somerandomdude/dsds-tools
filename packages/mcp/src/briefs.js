@@ -63,11 +63,8 @@ stylesheet import, a theme provider, a polyfill, a build plugin. It is in no
 component's documentation, and missing it fails silently — the page renders, nothing
 throws, and the result is an unstyled app that looks like a success.
 
-1. Search for this system's guide category with \`dsds_search_entities\` (a legacy system
-   names the kind plain "guide"; a 0.20.x system typically namespaces it, e.g.
-   "sanity.guide").
-2. Read its getting-started, installation or quick-start entry with \`dsds_get_agent_context\`.
-3. Do every step it lists, in your entry file, before the first component.
+1. Follow the installation guide already in your instructions. Do every step it lists, in
+   your entry file, before the first component.
 
 Do not skip this because you recognise the library. Setup differs between major versions
 of the same design system.
@@ -76,8 +73,9 @@ of the same design system.
 
 ### 2 — Find what already exists
 
-Call \`dsds_list_entities\` once to see everything documented, grouped by kind, then
-\`dsds_search_entities\` to narrow to your task. Four rules follow from what you find:
+If the component reference is in your instructions, use it to see what exists, and do not call
+\`dsds_list_entities\`. Otherwise call \`dsds_list_entities\` once to see everything documented, grouped
+by kind. Then use \`dsds_search_entities\` to narrow to your task. Four rules follow from what you find:
 
 - **A deprecated entity must not be used.** Read its Relationships in \`dsds_get_entity\` for the
   replacement. Treat experimental or draft as usable with caution.
@@ -233,8 +231,8 @@ once, referenced everywhere else:
 
 An item that is nothing but a \`same-as\` pointer needs no \`level\` or
 \`statement\` of its own — it *is* the shared rule, and tools render it inline.
-A \`for: agent\` rule that sharpens a human one states its own \`level\` and
-\`statement\` and points back with its \`refines\` field.
+A rule that narrows or adjusts a broader one (for people, or for agents) states its own
+\`level\` and \`statement\` and points back with its \`refines\` field. Both apply.
 
 Most kinds of pointer have a field of their own, and a pointer there has no
 \`rel\`: \`uses\` (what this is built from or needs), \`alternatives\`,

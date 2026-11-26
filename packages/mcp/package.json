@@ -1,6 +1,6 @@
 {
   "name": "dsds-mcp",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "MCP server for the Design System Documentation Spec (DSDS)",
   "type": "module",
   "bin": {
@@ -8,6 +8,7 @@
   },
   "files": [
     "src",
+    "skills",
     "README.md",
     "NOTICE"
   ],
@@ -59,7 +60,7 @@
     "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.6"
   },
   "optionalDependencies": {
     "mdast-util-from-markdown": "^2.1.0"
