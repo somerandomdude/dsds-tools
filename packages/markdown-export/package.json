@@ -27,7 +27,7 @@
     "directory": "packages/markdown-export"
   },
   "dependencies": {
-    "dsds-mcp": "^0.6.0"
+    "dsds-mcp": "^0.8.0"
   },
   "devDependencies": {
     "vitest": "^2.0.0"
